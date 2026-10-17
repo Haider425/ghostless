@@ -1,0 +1,23 @@
+name: Broken source
+description: A company in companies.yaml reports FAIL or WARN
+labels: ["broken source"]
+body:
+  - type: input
+    id: company
+    attributes:
+      label: Company
+      placeholder: e.g. Apple
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output of `jobtracker verify --only <company>`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: If it is a WARN, rerun with `--dump` and attach the saved file from `.debug/`.

@@ -1,0 +1,17 @@
+name: Add a company
+description: Suggest an employer to track
+labels: ["new company"]
+body:
+  - type: input
+    id: company
+    attributes:
+      label: Company
+    validations:
+      required: true
+  - type: input
+    id: job_url
+    attributes:
+      label: Link to any one of their job postings
+      description: The URL tells us which platform they use.
+    validations:
+      required: true
