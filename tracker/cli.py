@@ -78,6 +78,9 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     commands.add_parser("migrate", help="create or upgrade the database tables")
+    commands.add_parser(
+        "dedupe", help="merge postings and boards that were stored twice (also part of ingest)"
+    )
     admin = commands.add_parser("admin", help="manage admin accounts")
     admin.add_argument("action", choices=["add", "remove", "list"])
     admin.add_argument("email", nargs="?", help="the account's email (for add and remove)")
@@ -122,6 +125,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "migrate":
         _migrate()
+        return
+    if args.command == "dedupe":
+        _dedupe()
         return
     if args.command == "admin":
         _admin(args)
@@ -191,6 +197,21 @@ def _migrate() -> None:
     with db.connect(database_url()) as conn:
         db.apply_schema(conn)
     print("Database is up to date.")
+
+
+def _dedupe() -> None:
+    from tracker import db
+    from tracker.config import database_url
+    from tracker.discovery.dedupe import merge_duplicates
+
+    with db.connect(database_url()) as conn:
+        db.apply_schema(conn)
+        result = merge_duplicates(conn)
+        db.refresh_signals(conn)
+    print(
+        f"Removed {result['boards']} duplicate boards, {result['companies']} duplicate companies "
+        f"and {result['jobs']} duplicate postings."
+    )
 
 
 def _admin(args: argparse.Namespace) -> None:

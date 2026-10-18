@@ -83,7 +83,19 @@ def run(
 
     if crawl:
         crawl_boards(dsn, run_started, stats)
-    save_list_jobs(dsn, items, configured_names, run_started, stats, close=all_lists_read)
+    save_list_jobs(
+        dsn,
+        items,
+        configured_names,
+        run_started,
+        stats,
+        close=all_lists_read,
+        configured_boards=configured_boards,
+    )
+    from tracker.discovery.dedupe import merge_duplicates
+
+    with db.connect(dsn) as conn:
+        merge_duplicates(conn)
 
 
 # ---------- 2. registering boards ----------
@@ -92,23 +104,33 @@ def run(
 def register_boards(
     dsn: str, items: list[ListedJob], configured_boards: set[tuple[str, str]], configured_names: set[str]
 ) -> int:
-    found: dict[tuple[str, str], tuple[str, str]] = {}
+    found: dict[tuple[str, str], tuple[str, str, str]] = {}
     for item in items:
         board = board_from_url(item.url)
         if board is None or company_key(item.company) in configured_names:
             continue
-        if (board[0], board[1].lower()) in configured_boards:
+        key = (board[0], board[1].lower())  # "External" and "external" are one Workday board
+        if key in configured_boards:
             continue
-        found.setdefault(board, (item.company, item.list_name))
+        found.setdefault(key, (board[1], item.company, item.list_name))
     if not found:
         return 0
     with db.connect(dsn) as conn:
+        known = {
+            (platform, slug.lower())
+            for platform, slug in conn.execute(
+                "SELECT platform, board_slug FROM discovered_boards"
+            ).fetchall()
+        }
+        rows = [
+            (p, slug, name, where) for (p, _), (slug, name, where) in found.items() if (p, _) not in known
+        ]
         before = conn.execute("SELECT count(*) FROM discovered_boards").fetchone()[0]
         with conn.cursor() as cur:
             cur.executemany(
                 """INSERT INTO discovered_boards (platform, board_slug, company_name, found_in)
                    VALUES (%s, %s, %s, %s) ON CONFLICT (platform, board_slug) DO NOTHING""",
-                [(p, slug, name, where) for (p, slug), (name, where) in found.items()],
+                rows,
             )
         after = conn.execute("SELECT count(*) FROM discovered_boards").fetchone()[0]
     return after - before
@@ -305,14 +327,15 @@ def save_list_jobs(
     run_started: datetime,
     stats: dict,
     close: bool = True,
+    configured_boards: set[tuple[str, str]] = frozenset(),
 ) -> None:
     with db.connect(dsn) as conn:
-        covered = configured_names | {
-            company_key(name)
-            for (name,) in conn.execute(
-                "SELECT company_name FROM discovered_boards WHERE last_ok IS NOT NULL"
-            ).fetchall()
-        }
+        read_boards = conn.execute(
+            "SELECT platform, board_slug, company_name FROM discovered_boards WHERE last_ok IS NOT NULL"
+        ).fetchall()
+        covered = configured_names | {company_key(name) for _, _, name in read_boards}
+        # a link to a board the tracker reads is covered whatever the list calls the company
+        tracked = set(configured_boards) | {(p, slug.lower()) for p, slug, _ in read_boards}
         groups: dict[str, list[ListedJob]] = defaultdict(list)
         names: dict[str, str] = {}
         seen_urls: set[str] = set()
@@ -322,7 +345,8 @@ def save_list_jobs(
                 continue  # the same posting in another list (lists are read in order, so the first one keeps it)
             seen_urls.add(link)
             key = company_key(item.company)
-            if key in covered:
+            board = board_from_url(item.url)
+            if key in covered or (board and (board[0], board[1].lower()) in tracked):
                 continue  # the company's own board is tracked: no duplicates from the list
             groups[key].append(item)
             names.setdefault(key, item.company)

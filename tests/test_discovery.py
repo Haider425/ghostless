@@ -265,3 +265,71 @@ def test_boards_are_revisited_by_how_often_they_change():
         next_visit_days(False, 20, student_roles=3, failures=0) == 2
     )  # open student roles: two days at most
     assert [next_visit_days(False, 0, 0, f) for f in (1, 2, 3, 6, 10)] == [1, 2, 4, 30, 30]
+
+
+@needs_db
+def test_postings_stored_twice_are_merged_and_nothing_a_person_saved_is_lost(conn):
+    from tracker.discovery.boards import board_from_url
+    from tracker.discovery.dedupe import merge_duplicates
+
+    # links as the lists write them
+    assert board_from_url("https://leidos.wd5.myworkdayjobs.com/en-us/External/job/x_R1") == (
+        "workday",
+        "leidos.wd5.myworkdayjobs.com/External",
+    )
+    run = datetime(2026, 10, 18, tzinfo=timezone.utc)
+    url = "https://leidos.wd5.myworkdayjobs.com/External/job/Tucson-AZ/Jr-Software-Engineer-Intern_R-1"
+    ids = {}
+    for slug in ("External", "external", "en-us"):  # one board registered three ways
+        conn.execute(
+            "INSERT INTO discovered_boards (platform, board_slug, company_name, last_ok) VALUES ('workday', %s, 'Leidos', now())",
+            (f"leidos.wd5.myworkdayjobs.com/{slug}",),
+        )
+        cid = db.upsert_company(
+            conn, Company("Leidos", "workday", f"leidos.wd5.myworkdayjobs.com/{slug}", origin="discovered")
+        )
+        db.save_company_jobs(
+            conn, cid, [Job(external_id="R-1", title="Jr Software Engineer Intern", url=url)], run
+        )
+        ids[slug] = conn.execute("SELECT id FROM jobs WHERE company_id = %s", (cid,)).fetchone()[0]
+    listed_id = db.upsert_company(conn, Company("Leidos Inc", "list", "list:leidos", origin="list"))
+    db.save_company_jobs(
+        conn,
+        listed_id,
+        [
+            Job(external_id="l1", title="Jr Software Engineer Intern", url=url + "?utm_source=Simplify"),
+            Job(external_id="l2", title="Only in the list", url="https://leidos.example/careers/2"),
+        ],
+        run,
+        guard=False,
+    )
+    user = conn.execute(
+        "INSERT INTO users (email, name) VALUES ('a@example.com', 'A') RETURNING id"
+    ).fetchone()[0]
+    conn.execute(
+        "INSERT INTO saved_jobs (user_id, job_id, status, notes) VALUES (%s, %s, 'applied', 'phone screen')",
+        (user, ids["external"]),  # saved the copy that's about to be removed
+    )
+    conn.commit()
+
+    result = merge_duplicates(conn)
+    conn.commit()
+    assert result["boards"] == 2 and result["companies"] == 2
+    boards = conn.execute("SELECT board_slug FROM discovered_boards").fetchall()
+    assert boards == [("leidos.wd5.myworkdayjobs.com/External",)]
+    urls = sorted(r[0] for r in conn.execute("SELECT url FROM jobs").fetchall())
+    assert urls == ["https://leidos.example/careers/2", url]  # one copy each
+    saved = conn.execute("SELECT job_id, status, notes FROM saved_jobs").fetchall()
+    assert saved == [(ids["External"], "applied", "phone screen")]
+    assert merge_duplicates(conn) == {"boards": 0, "companies": 0, "jobs": 0}  # safe to run again
+
+
+@needs_db
+def test_one_workday_board_is_registered_once_however_lists_spell_it(conn):
+    items = [
+        listed("1", "Leidos", "Intern A", "https://leidos.wd5.myworkdayjobs.com/External/job/a_R1"),
+        listed("2", "Leidos", "Intern B", "https://leidos.wd5.myworkdayjobs.com/external/job/b_R2"),
+        listed("3", "Leidos", "Intern C", "https://leidos.wd5.myworkdayjobs.com/en-us/EXTERNAL/job/c_R3"),
+    ]
+    assert discovery.register_boards(DSN, items, set(), set()) == 1
+    assert discovery.register_boards(DSN, items[1:], set(), set()) == 0  # and not again on the next run

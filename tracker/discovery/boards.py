@@ -18,7 +18,7 @@ _GREENHOUSE_HOSTS = {
 }
 _SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$")
 _WORKDAY_HOST = re.compile(r"^([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com$", re.I)
-_LOCALE = re.compile(r"^[a-z]{2}-[A-Z]{2}$")
+_LOCALE = re.compile(r"^[a-z]{2}-[a-z]{2}$", re.I)  # en-US, and en-us as some lists write it
 
 
 def board_from_url(url: str) -> tuple[str, str] | None:
