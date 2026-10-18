@@ -13,6 +13,7 @@ from tracker import db
 from tracker.accounts.store import purge_expired
 from tracker.classify import enrich
 from tracker.config import database_url, load_companies, load_lists, select
+from tracker.parallel import run_by_site, site_of, workers
 from tracker.skills import extract_skills
 from tracker.sources import INCREMENTAL_DETAILS, FetchError, fetch_jobs
 
@@ -82,31 +83,39 @@ def run(only: str | None = None) -> dict:
         db.apply_schema(conn)
         run_id = db.start_run(conn, run_started)
 
-    for company in companies:
+    def collect(company) -> tuple[int, int, int] | None:
+        """Fetch and save one company: (jobs, new, closed), or None if fetching failed."""
         stored = _stored_details(dsn, company)
         try:
             jobs = fetch_jobs(company, known=frozenset(stored))
         except FetchError as exc:
-            stats["companies_failed"] += 1
             log.error("%s: fetch failed, skipping (no jobs closed): %s", company.name, exc)
-            continue
+            return None
         reuse_details(jobs, stored)
-
         for job in jobs:
             enrich(job, extract_skills(f"{job.title} {job.description}"))
+        new, closed = _save(dsn, company, jobs, run_started)
+        log.info("%s: %d jobs (%d new, %d closed)", company.name, len(jobs), new, closed)
+        return len(jobs), new, closed
 
-        try:
-            new, closed = _save(dsn, company, jobs, run_started)
-        except Exception:
+    log.info("collecting %d companies, %d sites at a time", len(companies), workers())
+    for company, result in run_by_site(companies, site_of, collect):
+        if isinstance(result, BaseException):
             stats["companies_failed"] += 1
-            log.exception("%s: database write failed, nothing saved for this company", company.name)
+            log.error(
+                "%s: database write failed, nothing saved for this company",
+                company.name,
+                exc_info=(type(result), result, result.__traceback__),
+            )
             continue
-
+        if result is None:
+            stats["companies_failed"] += 1
+            continue
+        seen, new, closed = result
         stats["companies_ok"] += 1
-        stats["jobs_seen"] += len(jobs)
+        stats["jobs_seen"] += seen
         stats["jobs_new"] += new
         stats["jobs_closed"] += closed
-        log.info("%s: %d jobs (%d new, %d closed)", company.name, len(jobs), new, closed)
 
     if not only:
         # beyond companies.yaml: public job lists and the boards they lead to

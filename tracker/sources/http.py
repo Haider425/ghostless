@@ -3,7 +3,8 @@
 Every request goes through `_send`, so every adapter automatically gets:
 
   * a robots.txt check: requests a site disallows are never sent
-  * per-host throttling: a minimum gap between requests to the same host
+  * per-host throttling: a minimum gap between requests to the same host,
+    and one request at a time per host even when companies run in parallel
   * rate-limit handling: on HTTP 429 the host's gap doubles, and the
     server's Retry-After header is honoured when present
   * retries with exponential backoff and jitter on network errors and 5xx
@@ -18,6 +19,7 @@ import logging
 import os
 import random
 import re
+import threading
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -92,6 +94,13 @@ class Throttle:
         self.sleep = sleep
         self._last: dict[str, float] = {}
         self._successes: dict[str, int] = {}
+        self._locks: dict[str, threading.Lock] = {}
+        self._guard = threading.Lock()
+
+    def lock(self, host: str) -> threading.Lock:
+        """Held for a whole request to `host`, so a host never gets two at once."""
+        with self._guard:
+            return self._locks.setdefault(host, threading.Lock())
 
     def interval(self, host: str) -> float:
         return self.intervals.get(host, self.default)
@@ -178,9 +187,14 @@ def _dump(url: str, resp: requests.Response) -> None:
 
 
 def _send(method: str, url: str, payload: dict | None, accept: str) -> requests.Response:
+    host = urlsplit(url).netloc
+    with throttle.lock(host):  # one request at a time per host, across threads
+        return _send_locked(method, url, payload, accept, host)
+
+
+def _send_locked(method: str, url: str, payload: dict | None, accept: str, host: str) -> requests.Response:
     if not robots.allowed(url):
         raise FetchError(f"blocked by robots.txt: {url}")
-    host = urlsplit(url).netloc
     headers = {"User-Agent": USER_AGENT, "Accept": accept}
 
     for attempt in range(1, MAX_ATTEMPTS + 1):

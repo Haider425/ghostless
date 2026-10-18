@@ -8,7 +8,7 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 180  # a full run with polite pacing can take over an hour
+    timeout-minutes: 180  # sites are collected 8 at a time; a first run is the longest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

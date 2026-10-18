@@ -28,6 +28,7 @@ from tracker.classify import enrich
 from tracker.discovery.boards import board_from_url, company_key
 from tracker.discovery.lists import JobList, ListedJob, clean_url, fetch_list
 from tracker.models import Company, Job
+from tracker.parallel import run_by_site, site_of
 from tracker.skills import extract_skills
 from tracker.sources import FetchError
 from tracker.sources.boards import fetch_board
@@ -114,54 +115,69 @@ def _due_boards(conn: psycopg.Connection, limit: int) -> list[tuple[str, str, st
 def crawl_boards(dsn: str, run_started: datetime, stats: dict, limit: int | None = None) -> None:
     with db.connect(dsn) as conn:
         due = _due_boards(conn, BOARDS_PER_RUN if limit is None else limit)
-    for platform, slug, name in due:
-        company = Company(name=name, platform=platform, board_slug=slug, origin="discovered")
-        try:
-            if platform == "workday":
-                with db.connect(dsn) as conn:
-                    known = frozenset(db.stored_details(conn, company))
-                jobs = fetch_workday(
-                    company,
-                    known=known,
-                    queries=WORKDAY_QUERIES,
-                    per_query=WORKDAY_PER_QUERY,
-                    max_details=WORKDAY_DETAILS,
-                )
-            else:
-                jobs = fetch_board(company)
-        except FetchError as exc:
-            _mark(dsn, platform, slug, ok=False)
-            log.warning("discovered %s (%s %s): fetch failed: %s", name, platform, slug, exc)
+    companies = [
+        Company(name=name, platform=platform, board_slug=slug, origin="discovered")
+        for platform, slug, name in due
+    ]
+    for company, result in run_by_site(companies, site_of, lambda c: _crawl_one(dsn, c, run_started)):
+        if isinstance(result, BaseException):
+            log.error("discovered %s: %s", company.name, result)
             continue
-        if platform == "workday":
-            # reuse descriptions already stored, as for configured companies
-            from tracker.ingest import reuse_details
-
-            with db.connect(dsn) as conn:
-                reuse_details(jobs, db.stored_details(conn, company))
-        for job in jobs:
-            enrich(job, extract_skills(f"{job.title} {job.description}"))
-        try:
-            with db.connect(dsn) as conn:
-                company_id = db.upsert_company(conn, company)
-                new, closed = db.save_company_jobs(
-                    conn,
-                    company_id,
-                    jobs,
-                    run_started,
-                    close_missing=getattr(jobs, "complete", True),
-                    # a search for student roles is complete for those levels only
-                    close_levels=STUDENT_LEVELS if platform == "workday" else None,
-                )
-        except psycopg.Error:
-            log.exception("discovered %s: database write failed", name)
+        if result is None:
             continue
-        _mark(dsn, platform, slug, ok=True, jobs=len(jobs))
+        seen, new, closed = result
         stats["discovered_ok"] = stats.get("discovered_ok", 0) + 1
-        stats["jobs_seen"] += len(jobs)
+        stats["jobs_seen"] += seen
         stats["jobs_new"] += new
         stats["jobs_closed"] += closed
-        log.info("discovered %s: %d jobs (%d new, %d closed)", name, len(jobs), new, closed)
+
+
+def _crawl_one(dsn: str, company: Company, run_started: datetime) -> tuple[int, int, int] | None:
+    """Fetch and save one discovered board: (jobs, new, closed), or None if it couldn't be read."""
+    platform, slug, name = company.platform, company.board_slug, company.name
+    try:
+        if platform == "workday":
+            with db.connect(dsn) as conn:
+                known = frozenset(db.stored_details(conn, company))
+            jobs = fetch_workday(
+                company,
+                known=known,
+                queries=WORKDAY_QUERIES,
+                per_query=WORKDAY_PER_QUERY,
+                max_details=WORKDAY_DETAILS,
+            )
+        else:
+            jobs = fetch_board(company)
+    except FetchError as exc:
+        _mark(dsn, platform, slug, ok=False)
+        log.warning("discovered %s (%s %s): fetch failed: %s", name, platform, slug, exc)
+        return None
+    if platform == "workday":
+        # reuse descriptions already stored, as for configured companies
+        from tracker.ingest import reuse_details
+
+        with db.connect(dsn) as conn:
+            reuse_details(jobs, db.stored_details(conn, company))
+    for job in jobs:
+        enrich(job, extract_skills(f"{job.title} {job.description}"))
+    try:
+        with db.connect(dsn) as conn:
+            company_id = db.upsert_company(conn, company)
+            new, closed = db.save_company_jobs(
+                conn,
+                company_id,
+                jobs,
+                run_started,
+                close_missing=getattr(jobs, "complete", True),
+                # a search for student roles is complete for those levels only
+                close_levels=STUDENT_LEVELS if platform == "workday" else None,
+            )
+    except psycopg.Error:
+        log.exception("discovered %s: database write failed", name)
+        return None
+    _mark(dsn, platform, slug, ok=True, jobs=len(jobs))
+    log.info("discovered %s: %d jobs (%d new, %d closed)", name, len(jobs), new, closed)
+    return len(jobs), new, closed
 
 
 def _mark(dsn: str, platform: str, slug: str, ok: bool, jobs: int | None = None) -> None:

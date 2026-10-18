@@ -91,6 +91,7 @@ An AI review is available as an extra for one job at a time: it rewrites suggest
 | `GHOSTLESS_COMPANIES` | `.env` | Optional path to a different companies file |
 | `GHOSTLESS_CORS_ORIGINS` | API host | Comma-separated origins allowed to call the API (default `*`) |
 | `GHOSTLESS_API_POOL_SIZE` | API host | Maximum database connections the API opens (default 4) |
+| `GHOSTLESS_WORKERS` | `.env` or workflow | Sites collected at the same time (default 8). Each site still gets one request at a time, with the same pacing. |
 | `GHOSTLESS_DISCOVERED_PER_RUN` | `.env` or workflow | Discovered boards crawled per run (default 120) |
 | `companies.yaml` | repo root | Which employers to track, and which public job lists to read (`lists:`; `lists: []` turns discovery off) |
 
