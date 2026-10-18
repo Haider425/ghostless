@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from tests.conftest import reset_database
 from tracker import db
 from tracker.models import Company, Job
 
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.skipif(not DSN, reason="TEST_DATABASE_URL not set")
 @pytest.fixture
 def conn():
     with db.connect(DSN) as c:
-        c.execute("DROP TABLE IF EXISTS job_skills, skills, jobs, companies, ingest_runs CASCADE")
+        reset_database(c)
         db.apply_schema(c)
         yield c
 

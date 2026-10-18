@@ -179,6 +179,12 @@ def _link_reposts(conn: psycopg.Connection, company_id: int, run_started: dateti
     )
 
 
+def refresh_signals(conn: psycopg.Connection) -> None:
+    """Recompute the cached ghost signals the API reads."""
+    conn.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY job_signals_mv")
+    conn.commit()
+
+
 def start_run(conn: psycopg.Connection, started_at: datetime) -> int:
     row = conn.execute(
         "INSERT INTO ingest_runs (started_at) VALUES (%s) RETURNING id", (started_at,)

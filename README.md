@@ -29,13 +29,16 @@ docker compose up -d db       # local PostgreSQL
 ghostless verify             # check that every source works
 ghostless ingest             # collect postings into the database
 ghostless gap --have "Python, SQL, React"   # see which in-demand skills you're missing
+
+pip install -e ".[api]"       # then run the web API
+ghostless serve               # http://127.0.0.1:8000/docs
 ```
 
 No Python? Run it all in Docker:
 
 ```bash
-docker compose --profile app run --rm ghostless verify
-docker compose --profile app run --rm ghostless ingest
+docker compose --profile app run --rm tracker verify
+docker compose --profile app run --rm tracker ingest
 ```
 
 ## Commands
@@ -45,6 +48,7 @@ docker compose --profile app run --rm ghostless ingest
 | `ghostless verify` | Checks every source and prints OK (with a job count), WARN (0 jobs), or FAIL (with the reason). Fast: skips per-job detail requests. |
 | `ghostless ingest` | Runs the full pipeline into PostgreSQL. |
 | `ghostless gap --have "..."` | Ranks the skills that active postings ask for and marks which ones you have. Defaults to intern and new grad software roles in Canada or remote; change with `--role`, `--level` (both repeatable) and `--anywhere`. |
+| `ghostless serve` | Runs the web API (needs `pip install -e ".[api]"`). `--host 0.0.0.0` when deploying, `--port`, `--reload` for development. |
 | `--only <company>` | Runs for one company, by name or slug, e.g. `--only "Capital One"`. |
 | `--dump [DIR]` | Saves every raw response to `DIR` (default `.debug/`) so you can see exactly what a site returned. |
 | `-v` | Detailed logs. |
@@ -56,6 +60,8 @@ docker compose --profile app run --rm ghostless ingest
 | `DATABASE_URL` | `.env` | PostgreSQL connection string |
 | `GHOSTLESS_CONTACT` | `.env` | Your URL or email, sent in the User-Agent so site owners can reach you |
 | `GHOSTLESS_COMPANIES` | `.env` | Optional path to a different companies file |
+| `GHOSTLESS_CORS_ORIGINS` | API host | Comma-separated origins allowed to call the API (default `*`) |
+| `GHOSTLESS_API_POOL_SIZE` | API host | Maximum database connections the API opens (default 4) |
 | `companies.yaml` | repo root | Which employers to track |
 
 To track a new employer, add it to `companies.yaml`; [CONTRIBUTING.md](CONTRIBUTING.md) shows how to find its platform and slug in under a minute.
@@ -78,6 +84,55 @@ To track a new employer, add it to `companies.yaml`; [CONTRIBUTING.md](CONTRIBUT
 "Relevant roles" means descriptions are fetched only for tech roles in Canada, remote, or with an unknown location, which keeps request volume low on employers with thousands of postings.
 
 **Not included: Meta.** metacareers.com's robots.txt prohibits automated collection without written permission.
+
+## Web API
+
+`ghostless serve` starts a read-only REST API with interactive docs at `/docs`.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /jobs` | Paginated postings with filters: `q`, `level`, `role`, `company`, `skill`, `risk`, `location` (`canada`, `remote`, `canada_or_remote`), `status`, `new_within_days`, `has_salary`, `sort` (`newest`, `oldest`, `salary`, `company`). List filters repeat: `?level=intern&level=new_grad` |
+| `GET /jobs/{id}` | One posting with its description and every earlier posting of the same role |
+| `GET /companies` | Each employer with active, high-risk and new-this-week counts |
+| `GET /stats` | Totals and the latest ingest run |
+| `GET /skills/top` | Most requested skills for a role and level |
+| `GET /skills/gap?have=Python,SQL` | Your skills against current demand |
+| `GET /calendar` | When each employer opened intern and new grad roles |
+| `GET /health` | Liveness check that does not touch the database |
+
+Every job carries its ghost `signals` (risk, flags, days open, and whether that age is exact), its true `first_seen` date, any disclosed `salary`, and the Ontario `vacancy` and `ai_screening` disclosures.
+
+Example: fresh, low-risk intern and new grad software roles in Canada or remote:
+
+```
+GET /jobs?level=intern&level=new_grad&role=sde&location=canada_or_remote&risk=low&new_within_days=14
+```
+
+Design notes:
+
+- **Signals are precomputed.** Ghost signals need a pass over every posting, so they live in a materialized view refreshed at the end of each ingest run (`REFRESH ... CONCURRENTLY`, so the API keeps reading during the refresh). With 34,000 postings the refresh takes about 5 seconds and every endpoint answers in under 100 ms.
+- **Friendly to serverless databases.** The connection pool keeps no idle connections (`min_size=0`) and health-checks each connection before use, so Neon can sleep between requests and the first request after a nap still works.
+- **Read-only and cache-friendly.** Only GET is allowed, responses carry `Cache-Control: public, max-age=300`, and CORS origins are set with `GHOSTLESS_CORS_ORIGINS`.
+- **Validated input.** Every parameter is typed and bounded (for example `limit` is 1 to 100), and search text is always a bound parameter, never part of the SQL.
+
+### Deploying the API
+
+On Render, Railway or Fly.io:
+
+- Build command: `pip install ".[api]"`
+- Start command: `ghostless serve --host 0.0.0.0` (the port comes from `$PORT`)
+- Environment: `DATABASE_URL`, plus `GHOSTLESS_CORS_ORIGINS` set to your frontend's URL
+- Health check path: `/health`
+
+For a public deployment, give the API its own database role with read-only access instead of the owner credentials the pipeline uses:
+
+```sql
+-- run as the owner role the pipeline uses
+CREATE ROLE ghostless_api LOGIN PASSWORD '...';
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO ghostless_api;
+-- views recreated by later ingest runs get the same access automatically
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO ghostless_api;
+```
 
 ## How the signals work
 
@@ -138,7 +193,8 @@ companies.yaml
 | `skills`, `job_skills` | Skills extracted from each posting |
 | `ingest_runs` | Per-run stats: companies ok / failed, jobs seen / new / closed, duration |
 | `job_signals` (view) | Ghost risk, flags, days open, repost history for every posting |
-| `hiring_calendar` (view) | When each employer opened intern and new grad roles, by year |
+| `hiring_calendar` (view) | When each employer opened intern and new grad roles, by year (Toronto time) |
+| `job_signals_mv` | Cached copy of `job_signals`, refreshed after every run, read by the API |
 
 ## Design decisions
 
@@ -212,7 +268,8 @@ A full run takes several minutes, because large employers have thousands of post
 
 - [x] Ingestion for 10 platforms, robots.txt compliance, adaptive rate limiting, classification, skills, CLI, CI, scheduled runs
 - [x] Ghost job signals, repost detection, Ontario disclosures, salary ranges, hiring calendar, skills gap
-- [ ] REST API and a web frontend
+- [x] Read-only REST API with filters, job detail, skills, calendar and stats
+- [ ] Web frontend
 - [ ] Alerts when a tracked employer opens new intern or new grad roles
 - [ ] Skill and salary trends over time
 

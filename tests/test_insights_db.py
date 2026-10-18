@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from tests.conftest import reset_database
 from tracker import db, insights
 from tracker.classify import enrich
 from tracker.models import Company, Job
@@ -20,8 +21,7 @@ DAY0 = datetime(2026, 9, 1, 10, tzinfo=timezone.utc)
 @pytest.fixture
 def conn():
     with db.connect(DSN) as c:
-        c.execute("DROP VIEW IF EXISTS job_signals, hiring_calendar")
-        c.execute("DROP TABLE IF EXISTS job_skills, skills, jobs, companies, ingest_runs CASCADE")
+        reset_database(c)
         db.apply_schema(c)
         yield c
 

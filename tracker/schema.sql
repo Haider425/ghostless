@@ -51,6 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_active_filters
     ON jobs (is_active, level, role_type) WHERE is_active;
 CREATE INDEX IF NOT EXISTS idx_jobs_first_seen ON jobs (first_seen DESC);
 CREATE INDEX IF NOT EXISTS idx_jobs_fingerprint ON jobs (company_id, fingerprint);
+CREATE INDEX IF NOT EXISTS idx_jobs_company_first_seen ON jobs (company_id, first_seen);
 
 CREATE TABLE IF NOT EXISTS skills (
     id    SERIAL PRIMARY KEY,
@@ -92,6 +93,7 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 --                        open_unusually_long
 --   ghost_risk           high (employer says no vacancy, or 2+ flags),
 --                        medium (1 flag), low (no flags)
+DROP MATERIALIZED VIEW IF EXISTS job_signals_mv;
 DROP VIEW IF EXISTS job_signals;
 CREATE VIEW job_signals AS
 WITH tracking AS (
@@ -145,26 +147,40 @@ SELECT id AS job_id, company_id, age_known, days_open, typical_days_open,
        END AS ghost_risk
 FROM flagged;
 
+-- Cached copy of job_signals for the API. Computing signals means scanning
+-- every job, so it is done once per ingest run (REFRESH at the end of each
+-- run) instead of on every request. The unique index allows REFRESH
+-- CONCURRENTLY, which keeps the cache readable while it updates.
+CREATE MATERIALIZED VIEW job_signals_mv AS
+SELECT *, now() AS computed_at FROM job_signals;
+CREATE UNIQUE INDEX job_signals_mv_job_id ON job_signals_mv (job_id);
+CREATE INDEX job_signals_mv_risk ON job_signals_mv (ghost_risk);
+
 -- Hiring calendar: when each employer opened intern and new grad roles, by
 -- year. Only postings first seen after tracking began count, because older
 -- ones have no reliable open date. Next year's opening is usually close to
--- this year's first_opened.
+-- this year's first_opened. Dates are in Toronto time, independent of the
+-- database's session timezone.
 DROP VIEW IF EXISTS hiring_calendar;
 CREATE VIEW hiring_calendar AS
 WITH tracking AS (
     SELECT company_id, min(first_seen) AS tracking_start
     FROM jobs GROUP BY company_id
+),
+local AS (
+    SELECT j.*, (j.first_seen AT TIME ZONE 'America/Toronto') AS seen_local
+    FROM jobs j
+    JOIN tracking t ON t.company_id = j.company_id
+    WHERE j.first_seen > t.tracking_start
+      AND j.level IN ('intern', 'new_grad')
 )
 SELECT c.name AS company,
-       j.level,
-       j.role_type,
-       extract(year FROM j.first_seen)::int AS year,
-       min(j.first_seen)::date AS first_opened,
-       max(j.first_seen)::date AS last_opened,
+       l.level,
+       l.role_type,
+       extract(year FROM l.seen_local)::int AS year,
+       min(l.seen_local)::date AS first_opened,
+       max(l.seen_local)::date AS last_opened,
        count(*)::int AS postings
-FROM jobs j
-JOIN companies c ON c.id = j.company_id
-JOIN tracking t ON t.company_id = j.company_id
-WHERE j.first_seen > t.tracking_start
-  AND j.level IN ('intern', 'new_grad')
-GROUP BY c.name, j.level, j.role_type, extract(year FROM j.first_seen);
+FROM local l
+JOIN companies c ON c.id = l.company_id
+GROUP BY c.name, l.level, l.role_type, extract(year FROM l.seen_local);

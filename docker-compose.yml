@@ -15,10 +15,10 @@ services:
       timeout: 5s
       retries: 10
 
-  # Run Ghostless without installing Python:
-  #   docker compose run --rm ghostless verify
-  #   docker compose run --rm ghostless ingest
-  ghostless:
+  # Run the tracker without installing Python:
+  #   docker compose run --rm tracker verify
+  #   docker compose run --rm tracker ingest
+  tracker:
     build: .
     profiles: ["app"]
     depends_on:
@@ -29,6 +29,19 @@ services:
       GHOSTLESS_CONTACT: ${GHOSTLESS_CONTACT:-}
     volumes:
       - ./companies.yaml:/app/companies.yaml:ro
+
+  # The web API:  docker compose --profile app up api   then open http://localhost:8000/docs
+  api:
+    build: .
+    profiles: ["app"]
+    command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tracker:tracker@db:5432/tracker
+    ports:
+      - "8000:8000"
 
 volumes:
   pgdata:

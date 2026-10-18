@@ -5,6 +5,7 @@ import os
 import psycopg
 import pytest
 
+from tests.conftest import reset_database
 from tracker import db, ingest
 from tracker.models import Company, Job, JobList
 
@@ -30,8 +31,7 @@ def test_server_killing_connections_mid_run_is_survived(pipeline, monkeypatch):
     fetched is terminated by the server, as a real idle timeout would."""
     monkeypatch.setenv("DATABASE_URL", DSN)
     with db.connect(DSN) as c:
-        c.execute("DROP VIEW IF EXISTS job_signals, hiring_calendar")
-        c.execute("DROP TABLE IF EXISTS job_skills, skills, jobs, companies, ingest_runs CASCADE")
+        reset_database(c)
 
     def fetch_and_kill_connections(company, details=True):
         if company.name == "Beta":
@@ -65,6 +65,9 @@ class FakeConn:
     def execute(self, *a, **k):
         return self
 
+    def commit(self):
+        pass
+
 
 def test_write_retries_once_then_counts_company_as_failed(pipeline, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://fake")
@@ -74,6 +77,7 @@ def test_write_retries_once_then_counts_company_as_failed(pipeline, monkeypatch)
     monkeypatch.setattr(ingest.db, "apply_schema", lambda conn: None)
     monkeypatch.setattr(ingest.db, "start_run", lambda conn, started: 1)
     monkeypatch.setattr(ingest.db, "finish_run", lambda conn, run_id, stats: None)
+    monkeypatch.setattr(ingest.db, "refresh_signals", lambda conn: None)
     monkeypatch.setattr(ingest.db, "upsert_company", lambda conn, company: company.name)
 
     def save(conn, company_name, jobs, run_started, close_missing=True):

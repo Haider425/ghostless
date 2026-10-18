@@ -80,6 +80,7 @@ def run(only: str | None = None) -> dict:
     stats["duration_seconds"] = round(time.perf_counter() - clock, 2)
     with db.connect(dsn) as conn:
         db.finish_run(conn, run_id, stats)
+        db.refresh_signals(conn)
 
     log.info(
         "run complete: %d companies ok, %d failed, %d jobs seen, %d new, %d closed in %.0fs",

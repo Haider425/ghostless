@@ -5,6 +5,7 @@
     ghostless verify --dump          also save raw responses to .debug/
     ghostless ingest                 run the pipeline into the database
     ghostless gap --have "Python, SQL"   compare your skills with what postings ask for
+    ghostless serve                   run the web API on http://127.0.0.1:8000
 
 `python -m tracker ...` works too.
 """
@@ -35,7 +36,7 @@ def load_dotenv(path: Path = Path(".env")) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="ghostless", description="Track tech job postings across company career sites."
+        prog="ghostless", description="Ghostless: tech job postings that are actually hiring."
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -53,6 +54,11 @@ def _parser() -> argparse.ArgumentParser:
 
     commands.add_parser("verify", parents=[common], help="check that every source works")
     commands.add_parser("ingest", parents=[common], help="fetch postings into the database")
+
+    serve = commands.add_parser("serve", help="run the web API (needs the api extra)")
+    serve.add_argument("--host", default="127.0.0.1", help="use 0.0.0.0 when deploying")
+    serve.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
+    serve.add_argument("--reload", action="store_true", help="restart on code changes (development)")
 
     gap = commands.add_parser("gap", help="compare your skills with what postings ask for")
     gap.add_argument("--have", required=True, help='your skills, comma separated: "Python, SQL, React"')
@@ -73,6 +79,9 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "gap":
         _gap(args)
+        return
+    if args.command == "serve":
+        _serve(args)
         return
 
     level = logging.DEBUG if args.verbose else logging.INFO if args.command == "ingest" else logging.WARNING
@@ -99,6 +108,25 @@ def main(argv: list[str] | None = None) -> None:
         stats = ingest.run(args.only)
         if stats["companies_ok"] == 0:
             raise SystemExit(1)
+
+
+def _serve(args: argparse.Namespace) -> None:
+    try:
+        import uvicorn
+    except ImportError:
+        raise SystemExit('The API needs extra packages: pip install -e ".[api]"') from None
+    from tracker.config import database_url
+
+    database_url()  # fail fast with a clear message if it is missing
+    print(f"Ghostless API on http://{args.host}:{args.port}  (docs at /docs)", flush=True)
+    uvicorn.run(
+        "tracker.api:create_app",
+        factory=True,
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+        proxy_headers=True,
+    )
 
 
 def _gap(args: argparse.Namespace) -> None:
