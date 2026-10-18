@@ -107,5 +107,5 @@ def test_dump_saves_responses(clock, monkeypatch, tmp_path):
 
 
 def test_user_agent_identifies_project():
-    assert http.USER_AGENT.startswith("job-market-tracker/")
+    assert http.USER_AGENT.startswith("ghostless/")
     assert "+http" in http.USER_AGENT

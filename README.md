@@ -1,6 +1,6 @@
-# Job Market Tracker
+# Ghostless
 
-[![CI](https://github.com/Haider425/job-market-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/Haider425/job-market-tracker/actions/workflows/ci.yml)
+[![CI](https://github.com/Haider425/ghostless/actions/workflows/ci.yml/badge.svg)](https://github.com/Haider425/ghostless/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -20,31 +20,31 @@ A daily pipeline that collects tech job postings from **54 employers across 10 c
 You need Python 3.10+ and Docker (for PostgreSQL).
 
 ```bash
-git clone https://github.com/Haider425/job-market-tracker.git
-cd job-market-tracker
+git clone https://github.com/Haider425/ghostless.git
+cd ghostless
 pip install -e .
-cp .env.example .env          # then set JOB_TRACKER_CONTACT to your own URL or email
+cp .env.example .env          # then set GHOSTLESS_CONTACT to your own URL or email
 docker compose up -d db       # local PostgreSQL
 
-jobtracker verify             # check that every source works
-jobtracker ingest             # collect postings into the database
-jobtracker gap --have "Python, SQL, React"   # see which in-demand skills you're missing
+ghostless verify             # check that every source works
+ghostless ingest             # collect postings into the database
+ghostless gap --have "Python, SQL, React"   # see which in-demand skills you're missing
 ```
 
 No Python? Run it all in Docker:
 
 ```bash
-docker compose --profile app run --rm tracker verify
-docker compose --profile app run --rm tracker ingest
+docker compose --profile app run --rm ghostless verify
+docker compose --profile app run --rm ghostless ingest
 ```
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `jobtracker verify` | Checks every source and prints OK (with a job count), WARN (0 jobs), or FAIL (with the reason). Fast: skips per-job detail requests. |
-| `jobtracker ingest` | Runs the full pipeline into PostgreSQL. |
-| `jobtracker gap --have "..."` | Ranks the skills that active postings ask for and marks which ones you have. Defaults to intern and new grad software roles in Canada or remote; change with `--role`, `--level` (both repeatable) and `--anywhere`. |
+| `ghostless verify` | Checks every source and prints OK (with a job count), WARN (0 jobs), or FAIL (with the reason). Fast: skips per-job detail requests. |
+| `ghostless ingest` | Runs the full pipeline into PostgreSQL. |
+| `ghostless gap --have "..."` | Ranks the skills that active postings ask for and marks which ones you have. Defaults to intern and new grad software roles in Canada or remote; change with `--role`, `--level` (both repeatable) and `--anywhere`. |
 | `--only <company>` | Runs for one company, by name or slug, e.g. `--only "Capital One"`. |
 | `--dump [DIR]` | Saves every raw response to `DIR` (default `.debug/`) so you can see exactly what a site returned. |
 | `-v` | Detailed logs. |
@@ -54,8 +54,8 @@ docker compose --profile app run --rm tracker ingest
 | Setting | Where | Purpose |
 |---|---|---|
 | `DATABASE_URL` | `.env` | PostgreSQL connection string |
-| `JOB_TRACKER_CONTACT` | `.env` | Your URL or email, sent in the User-Agent so site owners can reach you |
-| `JOB_TRACKER_COMPANIES` | `.env` | Optional path to a different companies file |
+| `GHOSTLESS_CONTACT` | `.env` | Your URL or email, sent in the User-Agent so site owners can reach you |
+| `GHOSTLESS_COMPANIES` | `.env` | Optional path to a different companies file |
 | `companies.yaml` | repo root | Which employers to track |
 
 To track a new employer, add it to `companies.yaml`; [CONTRIBUTING.md](CONTRIBUTING.md) shows how to find its platform and slug in under a minute.

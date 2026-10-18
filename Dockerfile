@@ -9,8 +9,8 @@ RUN pip install --no-cache-dir .
 
 COPY companies.yaml ./
 
-RUN useradd --create-home tracker
-USER tracker
+RUN useradd --create-home ghostless
+USER ghostless
 
-ENTRYPOINT ["jobtracker"]
+ENTRYPOINT ["ghostless"]
 CMD ["verify"]

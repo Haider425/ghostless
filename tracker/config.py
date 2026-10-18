@@ -13,9 +13,9 @@ PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 
 
 def companies_path() -> Path:
-    """companies.yaml location: $JOB_TRACKER_COMPANIES, then the current
+    """companies.yaml location: $GHOSTLESS_COMPANIES, then the current
     directory, then the repository root."""
-    override = os.environ.get("JOB_TRACKER_COMPANIES")
+    override = os.environ.get("GHOSTLESS_COMPANIES")
     if override:
         return Path(override)
     local = Path.cwd() / "companies.yaml"

@@ -1,3 +1,3 @@
-"""Job Market Tracker: a daily pipeline for tech job postings."""
+"""Ghostless: a daily pipeline for tech job postings."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"

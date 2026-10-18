@@ -233,26 +233,43 @@ def _hydration_page(payload: dict) -> str:
     return f"<html><script>window.__staticRouterHydrationData = JSON.parse({literal});</script></html>"
 
 
+# Shape copied from jobs.apple.com's embedded search data (trimmed).
 APPLE_DATA = {
     "loaderData": {
         "search": {
-            "totalRecords": 2,
+            "totalRecords": 3,
             "searchResults": [
                 {
-                    "positionId": "200688653-2494",
-                    "postingTitle": "Bring Up Engineer, Core OS",
-                    "transformedPostingTitle": "bring-up-engineer-core-os",
-                    "jobSummary": "Work with <b>C++</b> and Python on silicon bring up.",
-                    "locations": [{"name": "Ottawa", "countryName": "Canada"}],
+                    "id": "200679759-3350",
+                    "positionId": "200679759",
+                    "reqId": "200679759-3350",
+                    "postingTitle": "Machine Learning Engineer, Software QA",
+                    "transformedPostingTitle": "machine-learning-engineer-software-qa",
+                    "postDateInGMT": "2026-10-16T22:54:37.862Z",
+                    "jobSummary": "Work with <b>Python</b> and PyTorch on model quality.",
+                    "locations": [{"name": "Vancouver", "countryName": "Canada", "level": 5}],
                     "team": {"teamName": "Software and Services", "teamCode": "SFTWR"},
                     "homeOffice": False,
+                    "managedPipelineRole": False,
                 },
                 {
+                    # same positionId as the next row: one role, two store locations
+                    "id": "200607536-3250",
                     "positionId": "200607536",
                     "postingTitle": "CA-Manager",
                     "transformedPostingTitle": "ca-manager",
-                    "locations": [],
+                    "locations": [{"name": "Coquitlam Centre", "countryName": "Canada", "level": 6}],
                     "team": {"teamName": "Apple Retail", "teamCode": "APPST"},
+                },
+                {
+                    "id": "PIPE-114438004",
+                    "positionId": "114438004",
+                    "postingTitle": "CA - Specialist: Seasonal, Part-time",
+                    "transformedPostingTitle": "ca-specialist-seasonal-part-time",
+                    "postDateInGMT": "2026-10-17T23:23:04.639Z",
+                    "locations": [{"name": "Canada", "countryName": "Canada", "level": 1}],
+                    "team": {"teamName": "Apple Retail", "teamCode": "APPST"},
+                    "managedPipelineRole": True,
                 },
             ],
         }
@@ -262,17 +279,47 @@ APPLE_DATA = {
 
 def test_parse_apple_embedded_json():
     jobs, total = parse_apple_page(_hydration_page(APPLE_DATA), "en-ca")
-    assert total == 2
-    first, second = jobs
-    assert first.external_id == "200688653-2494"
-    assert (
-        first.url
-        == "https://jobs.apple.com/en-ca/details/200688653-2494/bring-up-engineer-core-os?team=SFTWR"
+    assert total == 3
+    ml, manager, pipeline = jobs
+    assert ml.external_id == "200679759-3350"
+    assert ml.url == (
+        "https://jobs.apple.com/en-ca/details/200679759-3350/machine-learning-engineer-software-qa?team=SFTWR"
     )
-    assert first.location == "Ottawa"
-    assert first.department == "Software and Services"
-    assert first.description == "Work with C++ and Python on silicon bring up."
-    assert second.location == ""
+    assert ml.location == "Vancouver, Canada"
+    assert ml.department == "Software and Services"
+    assert ml.description == "Work with Python and PyTorch on model quality."
+    assert ml.posted_at.isoformat().startswith("2026-10-16T22:54:37")
+    assert ml.vacancy is None
+    assert manager.location == "Coquitlam Centre, Canada"  # store name plus country
+    assert pipeline.location == "Canada"
+    assert pipeline.url.startswith("https://jobs.apple.com/en-ca/details/114438004/")  # PIPE- prefix dropped
+    assert pipeline.vacancy == "not_existing"
+
+
+def test_apple_same_role_at_two_stores_stays_two_postings():
+    second_store = {
+        **APPLE_DATA["loaderData"]["search"]["searchResults"][1],
+        "id": "200607536-3055",
+        "locations": [{"name": "Place Ste-Foy", "countryName": "Canada"}],
+    }
+    data = {
+        "loaderData": {
+            "search": {
+                "searchResults": [APPLE_DATA["loaderData"]["search"]["searchResults"][1], second_store]
+            }
+        }
+    }
+    jobs, _ = parse_apple_page(_hydration_page(data), "en-ca")
+    assert [j.external_id for j in jobs] == ["200607536-3250", "200607536-3055"]
+
+
+def test_apple_pipeline_flag_survives_enrich():
+    from tracker.classify import enrich
+
+    jobs, _ = parse_apple_page(_hydration_page(APPLE_DATA), "en-ca")
+    pipeline = enrich(jobs[2], [])
+    assert pipeline.vacancy == "not_existing"
+    assert pipeline.is_canada
 
 
 def test_parse_apple_escaped_links_fallback():

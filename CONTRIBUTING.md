@@ -5,8 +5,8 @@ Thanks for helping. The most useful contributions are new companies, fixes for b
 ## Setup
 
 ```bash
-git clone https://github.com/Haider425/job-market-tracker.git
-cd job-market-tracker
+git clone https://github.com/Haider425/ghostless.git
+cd ghostless
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
@@ -36,14 +36,14 @@ CI runs the same checks on Python 3.10 and 3.13.
    If the job stays on the company's own domain, check where the Apply button goes.
 
 2. Add an entry to `companies.yaml` in the right section.
-3. Run `jobtracker verify --only "<name>"` and include the output in your pull request.
+3. Run `ghostless verify --only "<name>"` and include the output in your pull request.
 
 ## Fixing a broken source
 
-`jobtracker verify` prints one of:
+`ghostless verify` prints one of:
 
 - **FAIL** with a reason: usually a moved board (fix the slug), a rate limit, or a robots.txt block.
-- **WARN, 0 jobs**: the request worked but the parser found nothing, which usually means the site changed its markup or API. Run `jobtracker verify --only "<name>" --dump`, look at the saved response in `.debug/`, update the parser, and add the new shape as a test fixture.
+- **WARN, 0 jobs**: the request worked but the parser found nothing, which usually means the site changed its markup or API. Run `ghostless verify --only "<name>" --dump`, look at the saved response in `.debug/`, update the parser, and add the new shape as a test fixture.
 
 ## Adding a platform adapter
 

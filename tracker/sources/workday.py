@@ -14,7 +14,7 @@ import logging
 import re
 from datetime import datetime, timedelta, timezone
 
-from tracker.models import Company, Job
+from tracker.models import Company, Job, JobList
 from tracker.sources import http
 from tracker.sources.common import wants_detail
 from tracker.sources.http import FetchError
@@ -69,13 +69,16 @@ def parse_workday_job(item: dict, detail: dict | None, base: str, site: str) -> 
     )
 
 
-def fetch_workday(company: Company, details: bool = True) -> list[Job]:
+def fetch_workday(company: Company, details: bool = True) -> JobList:
     base, tenant, site = parse_workday_slug(company.board_slug)
     api = f"{base}/wday/cxs/{tenant}/{site}"
 
-    # 1. Page through every listing. Workday quirk: only the first page reports
-    #    `total`; later pages may say 0, so remember the first value.
-    listings: list[dict] = []
+    # 1. Page through every listing. Workday quirks:
+    #    * only the first page reports `total`; later pages may say 0
+    #    * the API stops returning results past an offset limit (2,000 on
+    #      the tenants seen so far), so very large employers come back
+    #      truncated. That is detected below and the listing marked partial.
+    listings: dict[str, dict] = {}
     total = None
     offset = 0
     while True:
@@ -85,18 +88,29 @@ def fetch_workday(company: Company, details: bool = True) -> list[Job]:
             {"appliedFacets": {}, "limit": PAGE_SIZE, "offset": offset, "searchText": ""},
         )
         if total is None:
-            total = page.get("total", 0)
+            total = int(page.get("total") or 0)
         postings = page.get("jobPostings") or []
-        listings.extend(p for p in postings if p.get("externalPath"))
+        for posting in postings:
+            if posting.get("externalPath"):
+                listings.setdefault(posting["externalPath"], posting)  # pages can shift mid-crawl
         offset += PAGE_SIZE
         if not postings or offset >= total:
             break
 
+    complete = len(listings) >= total
+    if not complete:
+        log.warning(
+            "%s: Workday returned %d of %d postings; treating the listing as partial",
+            company.name,
+            len(listings),
+            total,
+        )
+
     # 2. Details for relevant roles only. A failed detail call keeps the job
     #    (without a description) instead of failing the whole company, so
     #    closure tracking stays correct.
-    jobs = []
-    for item in listings:
+    jobs = JobList(complete=complete, total=total)
+    for item in listings.values():
         detail = None
         if details and wants_detail(item.get("title", ""), item.get("locationsText", "")):
             try:

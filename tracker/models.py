@@ -12,6 +12,17 @@ class Company:
     region: str | None = None  # location used when a source publishes none
 
 
+class JobList(list):
+    """The jobs from one fetch, plus whether they are the source's complete
+    listing. Closure tracking only runs on complete listings, because a job
+    missing from a truncated listing has not necessarily closed."""
+
+    def __init__(self, jobs=(), complete: bool = True, total: int | None = None):
+        super().__init__(jobs)
+        self.complete = complete
+        self.total = total  # how many the source says exist, when it says
+
+
 @dataclass
 class Job:
     """A posting normalized from any source platform."""

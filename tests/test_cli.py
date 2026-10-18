@@ -33,4 +33,4 @@ def test_cli_version(capsys):
     with pytest.raises(SystemExit) as exit_info:
         cli.main(["--version"])
     assert exit_info.value.code == 0
-    assert "jobtracker" in capsys.readouterr().out
+    assert "ghostless" in capsys.readouterr().out

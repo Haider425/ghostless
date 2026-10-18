@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install .
-      - run: jobtracker ingest
+      - run: ghostless ingest
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}  # your Neon / Supabase URL, as a repo secret
-          JOB_TRACKER_CONTACT: https://github.com/${{ github.repository }}
+          GHOSTLESS_CONTACT: https://github.com/${{ github.repository }}

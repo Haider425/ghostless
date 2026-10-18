@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from tracker.models import Company, Job
+from tracker.models import Company, Job, JobList
 from tracker.sources.amazon import fetch_amazon, parse_amazon
 from tracker.sources.apple import fetch_apple, parse_apple_page
 from tracker.sources.boards import fetch_board, parse_ashby, parse_greenhouse, parse_lever
@@ -60,17 +60,24 @@ def listing_is_complete(company: Company) -> bool:
     return company.platform not in PARTIAL_LISTINGS
 
 
-def fetch_jobs(company: Company, details: bool = True) -> list[Job]:
+def fetch_jobs(company: Company, details: bool = True) -> JobList:
     """Fetch current postings for a company.
 
-    `details=False` skips slow per-job requests on platforms that need them
-    (used by verify). Jobs with no location get the company's configured
-    `region`, for sources that do not publish locations.
+    Returns a JobList whose `complete` flag is False when the platform only
+    ever returns part of the postings (Google) or when this particular fetch
+    came back truncated (very large Workday employers). `details=False` skips
+    slow per-job requests on platforms that need them (used by verify). Jobs
+    with no location get the company's configured `region`.
     """
     fetcher = FETCHERS.get(company.platform)
     if fetcher is None:
         raise FetchError(f"unknown platform: {company.platform}")
-    jobs = fetcher(company, details=details)
+    result = fetcher(company, details=details)
+    jobs = JobList(
+        result,
+        complete=listing_is_complete(company) and getattr(result, "complete", True),
+        total=getattr(result, "total", None),
+    )
     if company.region:
         for job in jobs:
             if not job.location:

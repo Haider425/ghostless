@@ -89,7 +89,11 @@ def enrich(job: Job, skills: list[str]) -> Job:
         job.salary_min, job.salary_max, job.salary_period = salary.minimum, salary.maximum, salary.period
         # An unlabelled "$" in a Canada-only posting is Canadian dollars.
         job.salary_currency = salary.currency or ("CAD" if job.is_canada and not job.is_remote else None)
-    job.vacancy = parse_vacancy(job.description)
-    job.ai_screening = parse_ai_screening(job.description)
+    # Text disclosures win, but keep a status the source itself reported
+    # (e.g. Apple's pipeline flag) when the description says nothing.
+    job.vacancy = parse_vacancy(job.description) or job.vacancy
+    ai_screening = parse_ai_screening(job.description)
+    if ai_screening is not None:
+        job.ai_screening = ai_screening
     job.fingerprint = fingerprint(job.title, job.location, job.description)
     return job

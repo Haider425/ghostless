@@ -1,4 +1,4 @@
-# Companies to track. Run `jobtracker verify` after editing.
+# Companies to track. Run `ghostless verify` after editing.
 #
 # Every source below was checked on 2026-10-17. Boards move, so rerun
 # verify now and then; CONTRIBUTING.md explains how to fix FAIL and WARN.

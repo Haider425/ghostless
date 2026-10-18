@@ -98,7 +98,7 @@ def skills_gap(
 
 def format_gap(report: GapReport, description: str) -> str:
     if report.total_postings == 0:
-        return f"No active {description} postings with extracted skills yet. Run `jobtracker ingest` first."
+        return f"No active {description} postings with extracted skills yet. Run `ghostless ingest` first."
     lines = [
         f"Top skills in {report.total_postings} active {description} postings",
         "",

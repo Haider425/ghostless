@@ -5,6 +5,7 @@ import pytest
 from tracker.models import Company
 from tracker.sources import (
     FetchError,
+    fetch_jobs,
     fetch_workday,
     http,
     parse_workday_age,
@@ -118,3 +119,51 @@ def test_fetch_workday_paginates_and_only_details_relevant_roles(monkeypatch):
     detail_calls.clear()
     fetch_workday(company, details=False)
     assert detail_calls == []
+
+
+def test_truncated_workday_listing_is_marked_partial(monkeypatch):
+    """Workday stops paging at an offset limit: 2,000 jobs back when 2,500 exist."""
+    monkeypatch.setattr(workday, "PAGE_SIZE", 2)
+
+    def fake_request(method, url, payload=None):
+        offset = payload["offset"]
+        if offset >= 4:  # the API's offset limit in this fake
+            return {"total": 0, "jobPostings": []}
+        return {
+            "total": 10 if offset == 0 else 0,
+            "jobPostings": [
+                {"title": "Teller", "externalPath": f"/job/{offset + i}", "locationsText": "Ottawa"}
+                for i in range(2)
+            ],
+        }
+
+    monkeypatch.setattr(http, "request_json", fake_request)
+    jobs = fetch_jobs(Company("Acme", "workday", "acme.wd3.myworkdayjobs.com/External"))
+    assert len(jobs) == 4
+    assert jobs.complete is False
+    assert jobs.total == 10
+
+
+def test_complete_workday_listing_and_duplicate_pages(monkeypatch):
+    monkeypatch.setattr(workday, "PAGE_SIZE", 2)
+    pages = {
+        0: {
+            "total": 3,
+            "jobPostings": [
+                {"title": "T", "externalPath": "/job/1"},
+                {"title": "T", "externalPath": "/job/2"},
+            ],
+        },
+        # a posting shifted between pages and shows up twice
+        2: {
+            "total": 0,
+            "jobPostings": [
+                {"title": "T", "externalPath": "/job/2"},
+                {"title": "T", "externalPath": "/job/3"},
+            ],
+        },
+    }
+    monkeypatch.setattr(http, "request_json", lambda method, url, payload=None: pages[payload["offset"]])
+    jobs = fetch_jobs(Company("Acme", "workday", "acme.wd3.myworkdayjobs.com/External"))
+    assert [j.external_id for j in jobs] == ["/job/1", "/job/2", "/job/3"]
+    assert jobs.complete is True

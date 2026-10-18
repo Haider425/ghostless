@@ -1,4 +1,4 @@
--- Job Market Tracker schema (PostgreSQL)
+-- Ghostless schema (PostgreSQL)
 
 CREATE TABLE IF NOT EXISTS companies (
     id          SERIAL PRIMARY KEY,

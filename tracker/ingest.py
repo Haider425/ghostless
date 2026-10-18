@@ -1,4 +1,4 @@
-"""The ingestion pipeline: fetch, classify, store. Run it with `jobtracker ingest`."""
+"""The ingestion pipeline: fetch, classify, store. Run it with `ghostless ingest`."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from tracker import db
 from tracker.classify import enrich
 from tracker.config import database_url, load_companies, select
 from tracker.skills import extract_skills
-from tracker.sources import FetchError, fetch_jobs, listing_is_complete
+from tracker.sources import FetchError, fetch_jobs
 
 log = logging.getLogger("tracker.ingest")
 
@@ -40,7 +40,7 @@ def run(only: str | None = None) -> dict:
             try:
                 company_id = db.upsert_company(conn, company)
                 new, closed = db.save_company_jobs(
-                    conn, company_id, jobs, run_started, close_missing=listing_is_complete(company)
+                    conn, company_id, jobs, run_started, close_missing=jobs.complete
                 )
                 conn.commit()  # one transaction per company
             except Exception:

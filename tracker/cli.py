@@ -1,10 +1,10 @@
 """Command line interface.
 
-    jobtracker verify                 check every source
-    jobtracker verify --only apple    check one company (by name or slug)
-    jobtracker verify --dump          also save raw responses to .debug/
-    jobtracker ingest                 run the pipeline into the database
-    jobtracker gap --have "Python, SQL"   compare your skills with what postings ask for
+    ghostless verify                 check every source
+    ghostless verify --only apple    check one company (by name or slug)
+    ghostless verify --dump          also save raw responses to .debug/
+    ghostless ingest                 run the pipeline into the database
+    ghostless gap --have "Python, SQL"   compare your skills with what postings ask for
 
 `python -m tracker ...` works too.
 """
@@ -35,7 +35,7 @@ def load_dotenv(path: Path = Path(".env")) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="jobtracker", description="Track tech job postings across company career sites."
+        prog="ghostless", description="Track tech job postings across company career sites."
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -69,7 +69,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     args = _parser().parse_args(argv)
-    load_dotenv()  # before importing sources, so JOB_TRACKER_CONTACT is picked up
+    load_dotenv()  # before importing sources, so GHOSTLESS_CONTACT is picked up
 
     if args.command == "gap":
         _gap(args)

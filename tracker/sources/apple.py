@@ -28,7 +28,7 @@ from typing import Any
 
 from tracker.models import Company, Job
 from tracker.sources import http
-from tracker.sources.common import slug_to_title
+from tracker.sources.common import parse_iso, slug_to_title
 from tracker.text import html_to_text
 
 BASE = "https://jobs.apple.com"
@@ -94,11 +94,23 @@ def _total_from(data: Any) -> int | None:
     return None
 
 
+def _location_name(loc: dict) -> str:
+    """'Place Ste-Foy, Canada' rather than a bare store name, so country
+    detection works; country-level entries are just 'Canada'."""
+    name = _first(loc, "name", "city") or ""
+    country = loc.get("countryName") or ""
+    if name and country and country.lower() not in name.lower():
+        return f"{name}, {country}"
+    return str(name or country)
+
+
 def jobs_from_embedded(data: Any, locale: str) -> list[Job]:
     jobs: dict[str, Job] = {}
     for obj in _walk(data):
         title = _first(obj, "postingTitle", "jobTitle")
-        job_id = _first(obj, "positionId", "reqId", "jobId")
+        # `id` is unique per posting location ("200607536-3250"); `positionId` is
+        # shared by the same role at several stores, so it would merge postings.
+        job_id = _first(obj, "id", "reqId", "positionId", "jobId")
         if not (isinstance(title, str) and job_id):
             continue
         job_id = str(job_id)
@@ -108,22 +120,24 @@ def jobs_from_embedded(data: Any, locale: str) -> list[Job]:
         team = obj.get("team") if isinstance(obj.get("team"), dict) else {}
         team_code = _first(team, "teamCode", "code")
         locations = obj.get("locations") if isinstance(obj.get("locations"), list) else []
-        location_names = [
-            str(_first(loc, "name", "city", "countryName"))
-            for loc in locations
-            if isinstance(loc, dict) and _first(loc, "name", "city", "countryName")
-        ]
-        url = f"{BASE}/{locale}/details/{job_id}/{slug}" + (f"?team={team_code}" if team_code else "")
+        location_names = [_location_name(loc) for loc in locations if isinstance(loc, dict)]
+        url_id = re.sub(r"^PIPE-", "", job_id)
+        url = f"{BASE}/{locale}/details/{url_id}/{slug}" + (f"?team={team_code}" if team_code else "")
         jobs.setdefault(
             job_id,
             Job(
                 external_id=job_id,
                 title=title.strip(),
                 url=url,
-                location=" | ".join(location_names),
+                location=" | ".join(n for n in location_names if n),
                 department=_first(team, "teamName", "name") or team_code,
                 description=html_to_text(_first(obj, "jobSummary", "summary") or ""),
+                posted_at=parse_iso(obj.get("postDateInGMT")),
                 source_remote=bool(obj.get("homeOffice")),
+                # Apple's own flag for evergreen pipeline postings, which are
+                # not a specific open position. Their posting date is
+                # refreshed constantly, so first-seen dates matter here.
+                vacancy="not_existing" if obj.get("managedPipelineRole") is True else None,
             ),
         )
     return list(jobs.values())

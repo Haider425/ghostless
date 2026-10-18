@@ -1,4 +1,4 @@
-"""Health check for every source. Run it with `jobtracker verify`.
+"""Health check for every source. Run it with `ghostless verify`.
 
 Reports OK with a job count, WARN when a source returns 0 jobs (for HTML
 sources this usually means the site's markup changed), or FAIL with the
@@ -19,10 +19,14 @@ def run(only: str | None = None) -> int:
     for company in select(load_companies(), only):
         started = time.perf_counter()
         try:
-            count = len(fetch_jobs(company, details=False))
+            jobs = fetch_jobs(company, details=False)
+            count = len(jobs)
             elapsed = time.perf_counter() - started
             status = "OK  " if count else "WARN"
             detail = f"{count:>5} jobs  ({elapsed:.1f}s)"
+            total = getattr(jobs, "total", None)
+            if count and total and total > count:
+                detail += f"  partial: {count:,} of {total:,} returned, closures skipped"
             if not count:
                 problems += 1
                 detail += "  rerun with --dump to save the raw response"

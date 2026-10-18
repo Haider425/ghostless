@@ -7,7 +7,7 @@ Every request goes through `_send`, so every adapter automatically gets:
   * rate-limit handling: on HTTP 429 the host's gap doubles, and the
     server's Retry-After header is honoured when present
   * retries with exponential backoff and jitter on network errors and 5xx
-  * an identifying User-Agent with a contact URL (set JOB_TRACKER_CONTACT)
+  * an identifying User-Agent with a contact URL (set GHOSTLESS_CONTACT)
   * optional dumping of raw responses for debugging parsers (`--dump`)
 """
 
@@ -45,7 +45,7 @@ HOST_INTERVALS = {  # slower hosts, set from observed rate limits
     "www.google.com": 1.0,
 }
 
-DEFAULT_CONTACT = "https://github.com/Haider425/job-market-tracker"
+DEFAULT_CONTACT = "https://github.com/Haider425/ghostless"
 
 
 class FetchError(Exception):
@@ -53,8 +53,8 @@ class FetchError(Exception):
 
 
 def _build_user_agent() -> str:
-    contact = os.environ.get("JOB_TRACKER_CONTACT", "").strip() or DEFAULT_CONTACT
-    return f"job-market-tracker/{__version__} (+{contact})"
+    contact = os.environ.get("GHOSTLESS_CONTACT", "").strip() or DEFAULT_CONTACT
+    return f"ghostless/{__version__} (+{contact})"
 
 
 USER_AGENT = _build_user_agent()

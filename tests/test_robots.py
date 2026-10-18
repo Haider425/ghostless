@@ -4,7 +4,7 @@ from tracker.sources import http
 from tracker.sources.http import FetchError
 from tracker.sources.robots import RobotsCache, parse
 
-AGENT = "job-market-tracker/0.2"
+AGENT = "ghostless/0.2"
 
 GOOGLE_LIKE = """
 User-agent: *
@@ -37,7 +37,7 @@ def test_wildcard_and_longest_match_rules(path, allowed):
 
 
 def test_specific_agent_group_overrides_star():
-    text = "User-agent: *\nDisallow: /\n\nUser-agent: job-market-tracker\nDisallow: /private\n"
+    text = "User-agent: *\nDisallow: /\n\nUser-agent: ghostless\nDisallow: /private\n"
     rules = parse(text, AGENT)
     assert rules.allowed("/jobs")
     assert not rules.allowed("/private/x")
