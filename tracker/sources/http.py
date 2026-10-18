@@ -53,15 +53,30 @@ class FetchError(Exception):
 
 
 def _build_user_agent() -> str:
-    contact = os.environ.get("GHOSTLESS_CONTACT", "").strip() or DEFAULT_CONTACT
+    # JOB_TRACKER_CONTACT is the pre-rename name, still honoured.
+    contact = (
+        os.environ.get("GHOSTLESS_CONTACT", "").strip()
+        or os.environ.get("JOB_TRACKER_CONTACT", "").strip()
+        or DEFAULT_CONTACT
+    )
     return f"ghostless/{__version__} (+{contact})"
 
 
 USER_AGENT = _build_user_agent()
 
 
+RECOVER_AFTER_SUCCESSES = 10
+
+
 class Throttle:
-    """Keeps a minimum interval between requests to the same host."""
+    """Keeps a minimum interval between requests to the same host.
+
+    Rate limits push a host's interval up fast (doubling on each 429) and
+    successes bring it back down slowly (halving after every 10 successful
+    requests in a row, never below the host's configured base). This is the
+    usual "back off fast, recover slowly" pattern, so one burst of 429s does
+    not slow a host down for the rest of the run.
+    """
 
     def __init__(
         self,
@@ -71,10 +86,12 @@ class Throttle:
         sleep: Callable[[float], None] = time.sleep,
     ):
         self.default = default
+        self.base = dict(overrides)
         self.intervals = dict(overrides)
         self.clock = clock
         self.sleep = sleep
         self._last: dict[str, float] = {}
+        self._successes: dict[str, int] = {}
 
     def interval(self, host: str) -> float:
         return self.intervals.get(host, self.default)
@@ -91,7 +108,19 @@ class Throttle:
         """Double the host's interval after a rate limit, and return it."""
         new = min(max(self.interval(host) * 2, 1.0), MAX_INTERVAL_SECONDS)
         self.intervals[host] = new
+        self._successes[host] = 0
         return new
+
+    def recover(self, host: str) -> None:
+        """Record a successful request; ease off a raised interval over time."""
+        base = self.base.get(host, self.default)
+        current = self.interval(host)
+        if current <= base:
+            return
+        self._successes[host] = self._successes.get(host, 0) + 1
+        if self._successes[host] >= RECOVER_AFTER_SUCCESSES:
+            self.intervals[host] = max(base, current / 2)
+            self._successes[host] = 0
 
 
 throttle = Throttle(DEFAULT_INTERVAL_SECONDS, HOST_INTERVALS)
@@ -163,6 +192,7 @@ def _send(method: str, url: str, payload: dict | None, accept: str) -> requests.
         else:
             status = resp.status_code
             if 200 <= status < 300:
+                throttle.recover(host)
                 _dump(url, resp)
                 return resp
             if status == 404:

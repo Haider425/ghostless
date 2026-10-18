@@ -109,3 +109,29 @@ def test_dump_saves_responses(clock, monkeypatch, tmp_path):
 def test_user_agent_identifies_project():
     assert http.USER_AGENT.startswith("ghostless/")
     assert "+http" in http.USER_AGENT
+
+
+def test_throttle_recovers_slowly_after_rate_limit():
+    t = Throttle(0.5, {"ms.example.com": 2.0}, clock=lambda: 0, sleep=lambda s: None)
+    for _ in range(4):
+        t.slow_down("ms.example.com")
+    assert t.interval("ms.example.com") == 30.0  # capped
+    for _ in range(9):
+        t.recover("ms.example.com")
+    assert t.interval("ms.example.com") == 30.0  # not yet: needs 10 in a row
+    t.recover("ms.example.com")
+    assert t.interval("ms.example.com") == 15.0
+    for _ in range(100):
+        t.recover("ms.example.com")
+    assert t.interval("ms.example.com") == 2.0  # never below the host's base
+
+
+def test_rate_limit_resets_recovery_progress():
+    t = Throttle(1.0, {}, clock=lambda: 0, sleep=lambda s: None)
+    t.slow_down("a")
+    t.slow_down("a")  # 4s
+    for _ in range(9):
+        t.recover("a")
+    t.slow_down("a")  # 8s, and the 9 successes no longer count
+    t.recover("a")
+    assert t.interval("a") == 8.0

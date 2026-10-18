@@ -1,3 +1,3 @@
-"""Ghostless: a daily pipeline for tech job postings."""
+"""Ghostless: honest job data for Canadian tech students."""
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"

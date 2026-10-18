@@ -13,7 +13,8 @@ SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 
 def connect(dsn: str) -> psycopg.Connection:
-    return psycopg.connect(dsn)
+    # The timeout covers a serverless database waking from sleep.
+    return psycopg.connect(dsn, connect_timeout=30)
 
 
 def apply_schema(conn: psycopg.Connection) -> None:
