@@ -25,14 +25,32 @@ def apply_schema(conn: psycopg.Connection) -> None:
 def upsert_company(conn: psycopg.Connection, company: Company) -> int:
     row = conn.execute(
         """
-        INSERT INTO companies (name, platform, board_slug)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (platform, board_slug) DO UPDATE SET name = EXCLUDED.name
+        INSERT INTO companies (name, platform, board_slug, domain, origin)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (platform, board_slug) DO UPDATE SET
+            name = EXCLUDED.name,
+            domain = coalesce(EXCLUDED.domain, companies.domain),
+            origin = EXCLUDED.origin
         RETURNING id
         """,
-        (company.name, company.platform, company.board_slug),
+        (company.name, company.platform, company.board_slug, company.domain, company.origin),
     ).fetchone()
     return row[0]
+
+
+def stored_details(conn: psycopg.Connection, company: Company) -> dict[str, tuple[str, str]]:
+    """{external_id: (description, location)} for this company's postings that
+    already have a description, so sources that need a request per posting
+    don't fetch them again."""
+    rows = conn.execute(
+        """
+        SELECT j.external_id, j.description, coalesce(j.location, '')
+        FROM jobs j JOIN companies c ON c.id = j.company_id
+        WHERE c.platform = %s AND c.board_slug = %s AND coalesce(j.description, '') <> ''
+        """,
+        (company.platform, company.board_slug),
+    ).fetchall()
+    return {external_id: (description, location) for external_id, description, location in rows}
 
 
 def _skill_ids(conn: psycopg.Connection, names: set[str]) -> dict[str, int]:
@@ -52,6 +70,7 @@ def save_company_jobs(
     jobs: list[Job],
     run_started: datetime,
     close_missing: bool = True,
+    close_levels: tuple[str, ...] | None = None,
 ) -> tuple[int, int]:
     """Upsert one company's postings and close the ones that disappeared.
 
@@ -59,6 +78,8 @@ def save_company_jobs(
     run the closure step, or every job at that company would be wrongly closed.
     Pass close_missing=False for sources that only return part of the
     listings (e.g. Google), where a missing job is not necessarily closed.
+    close_levels limits closing to jobs at those levels, for fetches that are
+    complete for a scope only (a search for internships and new grad roles).
 
     Returns (new_jobs, closed_jobs).
     """
@@ -71,12 +92,12 @@ def save_company_jobs(
             INSERT INTO jobs (company_id, external_id, title, location, department, url,
                               description, level, role_type, is_canada, is_remote, posted_at,
                               salary_min, salary_max, salary_period, salary_currency,
-                              vacancy, ai_screening, fingerprint, first_seen, last_seen)
+                              vacancy, ai_screening, fingerprint, terms, listed_in, first_seen, last_seen)
             VALUES (%(company_id)s, %(external_id)s, %(title)s, %(location)s, %(department)s,
                     %(url)s, %(description)s, %(level)s, %(role_type)s, %(is_canada)s,
                     %(is_remote)s, %(posted_at)s, %(salary_min)s, %(salary_max)s,
                     %(salary_period)s, %(salary_currency)s, %(vacancy)s, %(ai_screening)s,
-                    %(fingerprint)s, %(run)s, %(run)s)
+                    %(fingerprint)s, %(terms)s, %(listed_in)s, %(run)s, %(run)s)
             ON CONFLICT (company_id, external_id) DO UPDATE SET
                 title = EXCLUDED.title,
                 location = EXCLUDED.location,
@@ -94,6 +115,8 @@ def save_company_jobs(
                 vacancy = EXCLUDED.vacancy,
                 ai_screening = EXCLUDED.ai_screening,
                 fingerprint = EXCLUDED.fingerprint,
+                terms = EXCLUDED.terms,
+                listed_in = EXCLUDED.listed_in,
                 last_seen = EXCLUDED.last_seen,
                 is_active = true,
                 closed_at = NULL
@@ -119,6 +142,8 @@ def save_company_jobs(
                 "vacancy": job.vacancy,
                 "ai_screening": job.ai_screening,
                 "fingerprint": job.fingerprint,
+                "terms": job.terms,
+                "listed_in": job.listed_in,
                 "run": run_started,
             },
         ).fetchone()
@@ -140,8 +165,15 @@ def save_company_jobs(
             """
             UPDATE jobs SET is_active = false, closed_at = %s
             WHERE company_id = %s AND is_active AND last_seen < %s
+              AND (%s::text[] IS NULL OR level = ANY(%s::text[]))
             """,
-            (run_started, company_id, run_started),
+            (
+                run_started,
+                company_id,
+                run_started,
+                list(close_levels) if close_levels else None,
+                list(close_levels) if close_levels else None,
+            ),
         ).rowcount
 
     _link_reposts(conn, company_id, run_started)

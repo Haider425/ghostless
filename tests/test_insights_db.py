@@ -146,3 +146,40 @@ def test_skills_gap(conn):
     assert report.unrecognized == ["underwater basket weaving"]
     text = insights.format_gap(report, "intern/new grad sde")
     assert "Biggest gaps: AWS" in text
+
+
+def test_duplicates_need_matching_descriptions_and_locations(conn):
+    cid = db.upsert_company(conn, Company("Bank", "workday", "bank"))
+    text = "Build banking software."
+    db.save_company_jobs(
+        conn,
+        cid,
+        [
+            # same title and city but no description: can't tell the roles apart
+            job("x1", description=""),
+            job("x2", description=""),
+            # same title and description in different cities: separate roles
+            job("y1", title="Data Engineer", description=text, location="Toronto, ON | Montreal, QC"),
+            job("y2", title="Data Engineer", description=text, location="Toronto, ON | Vancouver, BC"),
+        ],
+        day(0),
+    )
+    for ext_id in ("x1", "x2", "y1", "y2"):
+        assert "duplicate_posting" not in signals(conn, ext_id)[1]
+
+
+def test_reprocess_clears_an_old_false_flag(conn):
+    from tracker import reprocess
+
+    cid = db.upsert_company(conn, Company("Stripe", "greenhouse", "stripe"))
+    duties = "Build candidate pipelines for current and future hiring needs. Pay $100,000 to $120,000 a year."
+    db.save_company_jobs(conn, cid, [job("r", title="Recruiter", description=duties)], day(0))
+    conn.execute(
+        "UPDATE jobs SET vacancy = 'not_existing', salary_min = NULL, salary_max = NULL"
+    )  # as an older version stored it
+    conn.commit()
+
+    result = reprocess.run(DSN)
+    assert result["postings"] == 1
+    vacancy, salary_min = conn.execute("SELECT vacancy, salary_min FROM jobs").fetchone()
+    assert vacancy is None and float(salary_min) == 100000

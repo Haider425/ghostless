@@ -5,6 +5,7 @@ import pytest
 from tracker.models import Company
 from tracker.sources import (
     FetchError,
+    common,
     fetch_jobs,
     fetch_workday,
     http,
@@ -72,7 +73,7 @@ def test_parse_workday_job_without_detail():
     assert job.description == ""
 
 
-def test_fetch_workday_paginates_and_only_details_relevant_roles(monkeypatch):
+def test_fetch_workday_paginates_and_fetches_each_description_once(monkeypatch):
     monkeypatch.setattr(workday, "PAGE_SIZE", 2)
     pages = {
         # Workday quirk: total only on the first page
@@ -112,9 +113,22 @@ def test_fetch_workday_paginates_and_only_details_relevant_roles(monkeypatch):
     jobs = fetch_workday(company)
 
     assert [j.external_id for j in jobs] == ["/job/a", "/job/b", "/job/c", "/job/d", "/job/e"]
-    # teller (not tech) and Austin (not Canada/remote) skipped; failed detail keeps the job
-    assert detail_calls == ["a", "c", "e"]
+    # every posting gets its description; a failed detail call keeps the job
+    assert detail_calls == ["a", "b", "c", "d", "e"]
     assert jobs[0].description == "Python"
+    assert jobs[2].description == ""
+
+    # postings already stored with a description are not fetched again
+    detail_calls.clear()
+    fetch_workday(company, known=frozenset({"/job/a", "/job/b"}))
+    assert detail_calls == ["c", "d", "e"]
+
+    # past the per-run cap, the most relevant go first: tech roles in Canada,
+    # remote or several cities, then other tech roles, then the rest
+    detail_calls.clear()
+    monkeypatch.setattr(common, "MAX_DETAILS_PER_RUN", 3)
+    fetch_workday(company)
+    assert detail_calls == ["a", "c", "e"]
 
     detail_calls.clear()
     fetch_workday(company, details=False)
@@ -138,7 +152,7 @@ def test_truncated_workday_listing_is_marked_partial(monkeypatch):
         }
 
     monkeypatch.setattr(http, "request_json", fake_request)
-    jobs = fetch_jobs(Company("Acme", "workday", "acme.wd3.myworkdayjobs.com/External"))
+    jobs = fetch_jobs(Company("Acme", "workday", "acme.wd3.myworkdayjobs.com/External"), details=False)
     assert len(jobs) == 4
     assert jobs.complete is False
     assert jobs.total == 10
@@ -164,6 +178,72 @@ def test_complete_workday_listing_and_duplicate_pages(monkeypatch):
         },
     }
     monkeypatch.setattr(http, "request_json", lambda method, url, payload=None: pages[payload["offset"]])
-    jobs = fetch_jobs(Company("Acme", "workday", "acme.wd3.myworkdayjobs.com/External"))
+    jobs = fetch_jobs(Company("Acme", "workday", "acme.wd3.myworkdayjobs.com/External"), details=False)
     assert [j.external_id for j in jobs] == ["/job/1", "/job/2", "/job/3"]
     assert jobs.complete is True
+
+
+FACETS = [
+    {
+        "facetParameter": "jobFamilyGroup",
+        "values": [
+            {"descriptor": "Engineering", "id": "eng", "count": 5},
+            {"descriptor": "Sales", "id": "sales", "count": 3},
+        ],
+    },
+    {  # nested group: locations inside a main group
+        "facetParameter": "locationMainGroup",
+        "values": [
+            {
+                "facetParameter": "locationCountry",
+                "values": [
+                    {"descriptor": "Canada", "id": "ca", "count": 2},
+                    {"descriptor": "US", "id": "us", "count": 4},
+                ],
+            }
+        ],
+    },
+    {"facetParameter": "timeType", "values": [{"descriptor": "Full time", "id": "ft", "count": 8}]},
+]
+
+
+def test_flatten_facets_handles_nesting():
+    flat = workday.flatten_facets(FACETS)
+    assert flat["jobFamilyGroup"] == [("eng", 5), ("sales", 3)]
+    assert flat["locationCountry"] == [("ca", 2), ("us", 4)]
+    assert flat["timeType"] == [("ft", 8)]
+
+
+def test_choose_split_covers_everything_with_the_smallest_parts():
+    flat = workday.flatten_facets(FACETS)
+    # countries cover only 6 of 8 postings, so they'd lose some; one time type can't split
+    assert workday.choose_split(flat, 8, {}) == ("jobFamilyGroup", ["eng", "sales"])
+    assert workday.choose_split(flat, 8, {"jobFamilyGroup": ["eng"]}) is None
+
+
+def test_big_listings_are_split_by_facet_past_the_offset_limit(monkeypatch):
+    """8 postings, but the API stops after 6: split by job family to get them all."""
+    monkeypatch.setattr(workday, "PAGE_SIZE", 2)
+    monkeypatch.setattr(workday, "OFFSET_LIMIT", 6)
+    families = {"eng": [f"/job/e{i}" for i in range(5)], "sales": [f"/job/s{i}" for i in range(3)]}
+    searches = []
+
+    def fake_request(method, url, payload=None):
+        applied = payload["appliedFacets"]
+        searches.append(applied)
+        paths = families.get(applied.get("jobFamilyGroup", [None])[0]) or [
+            p for ps in families.values() for p in ps
+        ]
+        offset = payload["offset"]
+        page = [{"title": "Engineer", "externalPath": p} for p in paths[offset : offset + 2]]
+        return (
+            {"total": len(paths), "facets": FACETS, "jobPostings": page}
+            if offset == 0
+            else {"total": 0, "jobPostings": page}
+        )
+
+    monkeypatch.setattr(http, "request_json", fake_request)
+    jobs = fetch_jobs(Company("Nvidia", "workday", "acme.wd3.myworkdayjobs.com/External"), details=False)
+    assert len(jobs) == 8
+    assert jobs.complete is True
+    assert {"jobFamilyGroup": ["eng"]} in searches and {"jobFamilyGroup": ["sales"]} in searches

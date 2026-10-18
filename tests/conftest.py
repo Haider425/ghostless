@@ -20,5 +20,8 @@ def reset_database(conn) -> None:
     """Drop every Ghostless object (views first, they depend on the tables)."""
     conn.execute("DROP MATERIALIZED VIEW IF EXISTS job_signals_mv")
     conn.execute("DROP VIEW IF EXISTS job_signals, hiring_calendar")
-    conn.execute("DROP TABLE IF EXISTS job_skills, skills, jobs, companies, ingest_runs CASCADE")
+    conn.execute(
+        "DROP TABLE IF EXISTS events, reports, resumes, saved_jobs, email_tokens, oauth_accounts, sessions, users, discovered_boards, "
+        "job_skills, skills, jobs, companies, ingest_runs CASCADE"
+    )
     conn.commit()

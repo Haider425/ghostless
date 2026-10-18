@@ -129,13 +129,18 @@ def test_fetch_eightfold_paginates_by_count(monkeypatch):
         return {"data": {"jobDescription": "Python"}}
 
     monkeypatch.setattr(http, "get_json", fake)
-    jobs = fetch_jobs(
-        Company("Microsoft", "eightfold", "apply.careers.microsoft.com/microsoft.com?location=Canada")
-    )
+    microsoft = Company("Microsoft", "eightfold", "apply.careers.microsoft.com/microsoft.com?location=Canada")
+    jobs = fetch_jobs(microsoft)
     assert len(jobs) == 15
     assert sum("/search" in c for c in calls) == 2
-    assert sum("position_details" in c for c in calls) == 1  # only the engineering role
+    assert sum("position_details" in c for c in calls) == 15
     assert "location=Canada" in calls[0]
+
+    # descriptions already stored are not fetched again
+    calls.clear()
+    fetch_jobs(microsoft, known=frozenset(str(i) for i in range(1, 15)))
+    assert [c for c in calls if "position_details" in c] == [calls[-1]]
+    assert "position_id=0" in calls[-1]
 
 
 # ---------- Google ----------

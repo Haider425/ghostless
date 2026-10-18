@@ -7,9 +7,11 @@ from dataclasses import dataclass
 
 import psycopg
 
+from tracker.classify import ROLE_TYPES
 from tracker.skills import extract_skills
 
-ROLE_TYPES = ("sde", "data_eng", "data", "other")
+__all__ = ["ROLE_TYPES", "LEVELS"]
+
 LEVELS = ("intern", "new_grad", "mid", "senior")
 
 

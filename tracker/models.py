@@ -10,6 +10,8 @@ class Company:
     platform: str  # see tracker.sources for the full list
     board_slug: str
     region: str | None = None  # location used when a source publishes none
+    domain: str | None = None  # company website, for its logo
+    origin: str = "configured"  # configured | discovered | list (see schema.sql)
 
 
 class JobList(list):
@@ -35,6 +37,8 @@ class Job:
     description: str = ""
     posted_at: datetime | None = None
     source_remote: bool = False  # remote flag reported by the platform itself
+    terms: list[str] = field(default_factory=list)  # seasons, e.g. ["Summer 2027"]
+    listed_in: str | None = None  # the public job list it came from, if any
 
     # Filled in by enrich()
     level: str = "mid"

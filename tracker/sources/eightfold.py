@@ -15,7 +15,7 @@ from urllib.parse import quote
 
 from tracker.models import Company, Job
 from tracker.sources import http
-from tracker.sources.common import wants_detail
+from tracker.sources.common import plan_details
 from tracker.sources.http import FetchError
 from tracker.text import html_to_text
 
@@ -49,7 +49,7 @@ def parse_eightfold_position(position: dict, detail: dict | None, host: str) -> 
     )
 
 
-def fetch_eightfold(company: Company, details: bool = True) -> list[Job]:
+def fetch_eightfold(company: Company, details: bool = True, known: frozenset[str] = frozenset()) -> list[Job]:
     host, domain, query = parse_eightfold_slug(company.board_slug)
     base = f"https://{host}/api/pcsx"
     extra = f"&{query}" if query else ""
@@ -66,14 +66,26 @@ def fetch_eightfold(company: Company, details: bool = True) -> list[Job]:
         if not page or start >= int(data.get("count") or 0):
             break
 
-    jobs, seen = [], set()
+    unique: dict[str, dict] = {}
     for position in positions:
-        if position.get("id") is None or position["id"] in seen:
-            continue
-        seen.add(position["id"])
+        if position.get("id") is not None:
+            unique.setdefault(str(position["id"]), position)
+    wanted = (
+        plan_details(
+            [
+                (key, p.get("name", ""), " ".join(p.get("standardizedLocations") or []))
+                for key, p in unique.items()
+            ],
+            known,
+        )
+        if details
+        else set()
+    )
+
+    jobs = []
+    for key, position in unique.items():
         detail = None
-        location = " ".join(position.get("standardizedLocations") or [])
-        if details and wants_detail(position.get("name", ""), location):
+        if key in wanted:
             try:
                 detail = (
                     http.get_json(

@@ -4,9 +4,11 @@ from tracker.classify import enrich
 from tracker.disclosures import (
     Salary,
     fingerprint,
+    has_description_hash,
     parse_ai_screening,
     parse_salary,
     parse_vacancy,
+    vacancy_evidence,
 )
 from tracker.models import Job
 
@@ -56,12 +58,36 @@ def test_parse_salary_skips_false_match_and_finds_real_one():
         ("This is not an existing vacancy; we are building a talent pool.", "not_existing"),
         ("We are collecting applications for future opportunities.", "not_existing"),
         ("Existing vacancy: No", "not_existing"),
+        ("This job posting is intended to build a talent pool for future openings.", "not_existing"),
+        ("This posting is for an anticipated vacancy.", "not_existing"),
+        ("This is an evergreen requisition.", "not_existing"),
         ("Join our team of engineers.", None),
+        # job duties and boilerplate that mention the future are not disclosures
+        (
+            "Develop and execute sourcing strategies that build broad, qualified candidate "
+            "pipelines for current and future hiring needs.",
+            None,
+        ),
+        ("We may keep your information to consider you for future opportunities.", None),
+        ("Join our talent community to hear about new roles.", None),
+        ("Own a data pipeline role in our analytics platform.", None),
+        ("Advise hiring teams on talent-market conditions.", None),
         ("", None),
     ],
 )
 def test_parse_vacancy(text, expected):
     assert parse_vacancy(text) == expected
+
+
+def test_vacancy_evidence_quotes_the_sentence():
+    text = "Great team.\nThis posting is not for an existing vacancy. Apply today."
+    assert vacancy_evidence(text) == ("not_existing", "This posting is not for an existing vacancy.")
+
+
+def test_salary_keeps_its_sentence():
+    salary = parse_salary("Benefits are great. The base range is $90,000 to $110,000 per year. Apply now.")
+    assert salary is not None
+    assert salary.text == "The base range is $90,000 to $110,000 per year."
 
 
 @pytest.mark.parametrize(
@@ -81,8 +107,8 @@ def test_parse_ai_screening(text, expected):
 
 def test_fingerprint_ignores_ids_and_punctuation():
     a = fingerprint("Software Engineer, Payments (R12345)", "Toronto, ON | Remote")
-    b = fingerprint("Software Engineer - Payments", "Toronto ON")
-    assert a == b == "software engineer payments|toronto on"
+    b = fingerprint("Software Engineer - Payments", "Remote | Toronto ON")
+    assert a == b == "software engineer payments|remote,toronto on"
 
 
 def test_fingerprint_keeps_seasons_distinct():
@@ -124,3 +150,15 @@ def test_enrich_fills_disclosures_and_infers_cad():
     assert job.vacancy == "existing"
     assert job.ai_screening is False
     assert job.fingerprint.startswith("data engineer|toronto on|")
+
+
+def test_fingerprint_separates_the_same_role_in_other_cities():
+    text = "Build banking software for our customers."
+    toronto = fingerprint("Software Engineer II", "Toronto, ON | Montreal, QC", text)
+    vancouver = fingerprint("Software Engineer II", "Toronto, ON | Vancouver, BC", text)
+    assert toronto != vancouver
+
+
+def test_only_description_fingerprints_can_be_duplicates():
+    assert has_description_hash(fingerprint("Analyst", "Toronto", "Some description"))
+    assert not has_description_hash(fingerprint("Analyst", "Toronto"))

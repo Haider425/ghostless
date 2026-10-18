@@ -23,7 +23,7 @@ from urllib.parse import quote
 
 from tracker.models import Company, Job
 from tracker.sources import http
-from tracker.sources.common import slug_to_title, split_queries, wants_detail
+from tracker.sources.common import detail_priority, slug_to_title, split_queries
 from tracker.sources.http import FetchError
 from tracker.text import html_to_text
 
@@ -76,7 +76,7 @@ def fetch_google(company: Company, details: bool = True) -> list[Job]:
                 title=slug_to_title(slug),
                 url=f"{BASE}{job_id}-{slug}",
             )
-            if details and wants_detail(job.title):
+            if details and detail_priority(job.title) < 2:  # tech roles; first page only, so small
                 try:
                     title, description = parse_google_detail(http.get_text(job.url))
                     job.title = title or job.title

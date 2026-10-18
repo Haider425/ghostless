@@ -12,7 +12,7 @@ from tracker.models import Company, Job, JobList
 COMPANIES = [Company("Alpha", "greenhouse", "alpha"), Company("Beta", "greenhouse", "beta")]
 
 
-def jobs_for(company, details=True):
+def jobs_for(company, details=True, known=frozenset()):
     return JobList([Job(external_id=f"{company.board_slug}-1", title="Software Engineer", url="u")])
 
 
@@ -33,7 +33,7 @@ def test_server_killing_connections_mid_run_is_survived(pipeline, monkeypatch):
     with db.connect(DSN) as c:
         reset_database(c)
 
-    def fetch_and_kill_connections(company, details=True):
+    def fetch_and_kill_connections(company, details=True, known=frozenset()):
         if company.name == "Beta":
             with psycopg.connect(DSN, autocommit=True) as admin:
                 admin.execute(
@@ -92,3 +92,17 @@ def test_write_retries_once_then_counts_company_as_failed(pipeline, monkeypatch)
     stats = ingest.run()
     assert attempts == {"Alpha": 2, "Beta": 2}
     assert stats["companies_ok"] == 1 and stats["companies_failed"] == 1
+
+
+def test_stored_descriptions_are_reused():
+    jobs = JobList(
+        [
+            Job(external_id="a", title="Engineer", url="u", location="2 Locations"),
+            Job(external_id="b", title="Engineer", url="u", location="Toronto", description="fresh"),
+            Job(external_id="c", title="Engineer", url="u", location="Ottawa"),
+        ]
+    )
+    ingest.reuse_details(jobs, {"a": ("stored", "Toronto | Montreal"), "b": ("old", "Toronto")})
+    assert (jobs[0].description, jobs[0].location) == ("stored", "Toronto | Montreal")
+    assert jobs[1].description == "fresh"  # fetched this run: the new text wins
+    assert jobs[2].description == ""

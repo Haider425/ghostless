@@ -1,0 +1,251 @@
+@import "tailwindcss";
+
+/*
+  Ghostless design tokens.
+
+  Neutral surfaces with one cobalt accent for actions and links. Colour is
+  saved for meaning: the risk scale ("no flags" neutral, medium ochre, high
+  brick) and charts. Risk always has a shape and a text label too.
+
+  Display settings come from the visitor's Settings page and are applied as
+  attributes on <html> by the server, so pages render right the first time:
+    data-theme     light | dark | (absent: follow the system)
+    data-text      sm | md | lg | xl
+    data-density   compact | (absent: comfortable)
+    data-motion    reduce | (absent: follow the system)
+    data-underline (present: underline every link)
+*/
+
+:root {
+  --paper: #f5f6f8;
+  --surface: #ffffff;
+  --sunken: #eef0f3;
+  --ink: #15181d;
+  --ink-soft: #484f5a;
+  --ink-faint: #69717d;
+  --line: #e1e4e9;
+  --line-strong: #c6ccd5;
+  --accent: #2451c7;
+  --accent-hover: #1c41a3;
+  --accent-tint: #e9effc;
+  --on-accent: #ffffff;
+  --ochre: #8a5300;
+  --ochre-tint: #f8ecd6;
+  --brick: #a3301d;
+  --brick-tint: #f9e3de;
+  --good: #1f7a4d;
+  --good-tint: #e3f3ea;
+  --neutral-tint: #eceef2;
+  --focus: #2b7fd6;
+  --shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 10px 28px -10px rgb(16 24 40 / 0.22);
+  /* chart marks: validated pair (lightness band, chroma, colour-blind separation, 3:1 contrast) */
+  --bar-new: #2a78d6;
+  --bar-closed: #23855f;
+  --bar-have: #2a78d6;
+  --bar-missing: #7b8390;
+  --tile-0: #e3ebfa; --tile-0-fg: #24438f;
+  --tile-1: #e5efe9; --tile-1-fg: #24563d;
+  --tile-2: #f5e8d6; --tile-2-fg: #7a4810;
+  --tile-3: #ece3f3; --tile-3-fg: #5a3876;
+  --tile-4: #dcedf0; --tile-4-fg: #1c5964;
+  --tile-5: #f4e1e0; --tile-5-fg: #7b2f2b;
+  color-scheme: light;
+}
+
+/* Dark tokens: declared twice, for the system setting and for an explicit choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0d0f13; --surface: #15181e; --sunken: #1c2027;
+    --ink: #e8eaee; --ink-soft: #aab1bc; --ink-faint: #878f9b;
+    --line: #262b33; --line-strong: #383e48;
+    --accent: #85a6ff; --accent-hover: #a5beff; --accent-tint: #1b2440; --on-accent: #0b1020;
+    --ochre: #e6ab52; --ochre-tint: #33260f; --brick: #f28d79; --brick-tint: #381c16;
+    --good: #5fcf98; --good-tint: #132b20; --neutral-tint: #20242b; --focus: #7ab8f5;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 14px 32px -12px rgb(0 0 0 / 0.75);
+    --bar-new: #3987e5; --bar-closed: #199e70; --bar-have: #3987e5; --bar-missing: #7d8794;
+    --tile-0: #1d2a45; --tile-0-fg: #b3c6f3;
+    --tile-1: #18302a; --tile-1-fg: #a5d8c1;
+    --tile-2: #3a2c17; --tile-2-fg: #ecc58f;
+    --tile-3: #2d2238; --tile-3-fg: #d2b5e8;
+    --tile-4: #163338; --tile-4-fg: #9dd5de;
+    --tile-5: #3a1f1d; --tile-5-fg: #efb0aa;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0d0f13; --surface: #15181e; --sunken: #1c2027;
+  --ink: #e8eaee; --ink-soft: #aab1bc; --ink-faint: #878f9b;
+  --line: #262b33; --line-strong: #383e48;
+  --accent: #85a6ff; --accent-hover: #a5beff; --accent-tint: #1b2440; --on-accent: #0b1020;
+  --ochre: #e6ab52; --ochre-tint: #33260f; --brick: #f28d79; --brick-tint: #381c16;
+  --good: #5fcf98; --good-tint: #132b20; --neutral-tint: #20242b; --focus: #7ab8f5;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 14px 32px -12px rgb(0 0 0 / 0.75);
+  --bar-new: #3987e5; --bar-closed: #199e70; --bar-have: #3987e5; --bar-missing: #7d8794;
+  --tile-0: #1d2a45; --tile-0-fg: #b3c6f3;
+  --tile-1: #18302a; --tile-1-fg: #a5d8c1;
+  --tile-2: #3a2c17; --tile-2-fg: #ecc58f;
+  --tile-3: #2d2238; --tile-3-fg: #d2b5e8;
+  --tile-4: #163338; --tile-4-fg: #9dd5de;
+  --tile-5: #3a1f1d; --tile-5-fg: #efb0aa;
+  color-scheme: dark;
+}
+
+/* Text size: everything is sized in rem, so the root size scales the whole site. */
+:root[data-text="sm"] { font-size: 93.75%; }
+:root[data-text="lg"] { font-size: 112.5%; }
+:root[data-text="xl"] { font-size: 125%; }
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-tint: var(--accent-tint);
+  --color-on-accent: var(--on-accent);
+  --color-ochre: var(--ochre);
+  --color-ochre-tint: var(--ochre-tint);
+  --color-brick: var(--brick);
+  --color-brick-tint: var(--brick-tint);
+  --color-good: var(--good);
+  --color-good-tint: var(--good-tint);
+  --color-neutral-tint: var(--neutral-tint);
+  --color-bar-have: var(--bar-have);
+  --color-bar-missing: var(--bar-missing);
+  --color-bar-new: var(--bar-new);
+  --color-bar-closed: var(--bar-closed);
+  --shadow-pop: var(--shadow);
+
+  --font-sans: "Public Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Familjen Grotesk Variable", "Public Sans Variable", ui-sans-serif, sans-serif;
+
+  /* Classical scale: 12 14 16 18 21 24 30 36 48 60 */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.35rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.6rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.7rem;
+  --text-xl: 1.3125rem;
+  --text-xl--line-height: 1.85rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.3rem;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 2.6rem;
+  --text-5xl: 3rem;
+  --text-5xl--line-height: 3.2rem;
+  --text-6xl: 3.75rem;
+  --text-6xl--line-height: 3.9rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "tnum" 1;
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::selection {
+    background: var(--accent-tint);
+  }
+  input, select, button, textarea {
+    font: inherit;
+  }
+  /* 16px inputs stop iOS from zooming on focus */
+  input, select, textarea {
+    font-size: max(1rem, 16px);
+  }
+  summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  dialog::backdrop {
+    background: rgb(10 12 16 / 0.45);
+  }
+  :root[data-underline] main a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* While a new job loads into the preview pane, the old one fades back. */
+  html[data-pending] [data-preview] {
+    opacity: 0.55;
+    transition: opacity 120ms ease 80ms;
+  }
+  .scroll-quiet {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  /* Compact density: tighter job cards, no age sentence. */
+  :root[data-density="compact"] .job-card {
+    padding: 0.75rem;
+  }
+  :root[data-density="compact"] .job-card .age-note {
+    display: none;
+  }
+  /* Lettered logo tiles: six muted hues, picked by company name. */
+  .logo-tile[data-hue="0"] { background: var(--tile-0); color: var(--tile-0-fg); }
+  .logo-tile[data-hue="1"] { background: var(--tile-1); color: var(--tile-1-fg); }
+  .logo-tile[data-hue="2"] { background: var(--tile-2); color: var(--tile-2-fg); }
+  .logo-tile[data-hue="3"] { background: var(--tile-3); color: var(--tile-3-fg); }
+  .logo-tile[data-hue="4"] { background: var(--tile-4); color: var(--tile-4-fg); }
+  .logo-tile[data-hue="5"] { background: var(--tile-5); color: var(--tile-5-fg); }
+}
+
+/* Reduced motion: the system setting, or the visitor's choice in Settings. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Printing: on the resume builder, only the resume prints. */
+.print-portal { display: none; }
+@media print {
+  @page { size: letter; margin: 0; }
+  body:has(.print-portal) > *:not(.print-portal) { display: none !important; }
+  body:has(.print-portal) .print-portal { display: block; }
+  body { background: #fff !important; }
+}

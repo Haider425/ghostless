@@ -7,6 +7,7 @@ this file; user input is always passed as a bound parameter.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -14,6 +15,14 @@ import psycopg
 from psycopg.rows import dict_row
 
 from tracker import insights
+from tracker.disclosures import ai_screening_evidence, parse_salary, vacancy_evidence
+
+TECH_ROLES = ["sde", "data_eng", "data", "ml", "hardware", "security"]
+
+
+def slugify(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
 
 LOCATIONS = {
     "any": None,
@@ -36,12 +45,13 @@ TRACKING_START = """
 """
 
 JOB_COLUMNS = """
-    j.id, c.name AS company, j.title, j.location, j.url, j.level, j.role_type,
+    j.id, c.name AS company, c.domain AS company_domain, j.title, j.location, j.url, j.level, j.role_type,
     j.is_canada, j.is_remote, j.first_seen, j.closed_at, j.is_active,
     j.salary_min, j.salary_max, j.salary_period, j.salary_currency,
     j.vacancy, j.ai_screening,
     floor(extract(epoch FROM coalesce(j.closed_at, now()) - j.first_seen) / 86400)::int AS days_open,
-    s.ghost_risk, s.flags, s.age_known, s.typical_days_open, s.times_posted_before
+    s.ghost_risk, s.flags, s.age_known, s.typical_days_open, s.times_posted_before,
+    j.terms, j.listed_in
 """
 
 JOB_FROM = """
@@ -63,6 +73,7 @@ class JobFilters:
     status: str = "active"
     new_within_days: int | None = None
     has_salary: bool = False
+    terms: list[str] = field(default_factory=list)
 
     def where(self) -> tuple[str, dict[str, Any]]:
         clauses: list[str] = []
@@ -100,6 +111,9 @@ class JobFilters:
             params["new_days"] = self.new_within_days
         if self.has_salary:
             clauses.append("j.salary_min IS NOT NULL")
+        if self.terms:
+            clauses.append("j.terms && %(terms)s::text[]")
+            params["terms"] = self.terms
         return ("WHERE " + " AND ".join(clauses)) if clauses else "", params
 
 
@@ -119,6 +133,8 @@ def _shape_job(row: dict, skills: list[str]) -> dict:
     return {
         "id": row["id"],
         "company": row["company"],
+        "company_slug": slugify(row["company"]),
+        "company_domain": row["company_domain"],
         "title": row["title"],
         "location": row["location"],
         "url": row["url"],
@@ -133,6 +149,8 @@ def _shape_job(row: dict, skills: list[str]) -> dict:
         "vacancy": row["vacancy"],
         "ai_screening": row["ai_screening"],
         "skills": skills,
+        "terms": row.get("terms") or [],
+        "listed_in": row.get("listed_in"),
         "signals": {
             "risk": row["ghost_risk"],
             "flags": row["flags"] or [],
@@ -174,6 +192,50 @@ def list_jobs(conn: psycopg.Connection, filters: JobFilters, sort: str, limit: i
     }
 
 
+def jobs_by_ids(conn: psycopg.Connection, job_ids: list[int]) -> list[dict]:
+    """Job summaries in the order given (for saved jobs and recommendations)."""
+    if not job_ids:
+        return []
+    with _cursor(conn) as cur:
+        rows = cur.execute(f"SELECT {JOB_COLUMNS} {JOB_FROM} WHERE j.id = ANY(%s)", (job_ids,)).fetchall()
+    skills = _skills_for(conn, [r["id"] for r in rows])
+    by_id = {r["id"]: _shape_job(r, skills.get(r["id"], [])) for r in rows}
+    return [by_id[i] for i in job_ids if i in by_id]
+
+
+def descriptions(conn: psycopg.Connection, job_ids: list[int]) -> dict[int, str]:
+    """Posting descriptions by job id, for scoring a resume against them in full."""
+    if not job_ids:
+        return {}
+    rows = conn.execute(
+        "SELECT id, description FROM jobs WHERE id = ANY(%s) AND description IS NOT NULL", (list(job_ids),)
+    ).fetchall()
+    return {i: d for i, d in rows}
+
+
+def matching_pool(
+    conn: psycopg.Connection, location: str = "any", include_high_risk: bool = False
+) -> list[dict]:
+    """Every open tech posting, shaped like a job summary, for resume matching."""
+    clauses = ["j.is_active", "j.role_type = ANY(%(roles)s)"]
+    if LOCATIONS[location]:
+        clauses.append(LOCATIONS[location])
+    if not include_high_risk:
+        clauses.append("coalesce(s.ghost_risk, 'low') <> 'high'")
+    with _cursor(conn) as cur:
+        rows = cur.execute(
+            f"SELECT {JOB_COLUMNS} {JOB_FROM} WHERE {' AND '.join(clauses)}", {"roles": TECH_ROLES}
+        ).fetchall()
+    skills = dict(
+        conn.execute(
+            """SELECT js.job_id, array_agg(sk.name ORDER BY sk.name)
+               FROM job_skills js JOIN skills sk ON sk.id = js.skill_id
+               JOIN jobs j ON j.id = js.job_id WHERE j.is_active GROUP BY js.job_id"""
+        ).fetchall()
+    )
+    return [_shape_job(r, skills.get(r["id"], [])) for r in rows]
+
+
 def get_job(conn: psycopg.Connection, job_id: int) -> dict | None:
     with _cursor(conn) as cur:
         row = cur.execute(
@@ -191,7 +253,14 @@ def get_job(conn: psycopg.Connection, job_id: int) -> dict | None:
             (row["company_id"], row["fingerprint"], job_id),
         ).fetchall()
     job = _shape_job(row, _skills_for(conn, [job_id]).get(job_id, []))
+    text = row["description"] or ""
+    salary = parse_salary(text)
     job.update(
+        evidence={
+            "vacancy": vacancy_evidence(text)[1] if row["vacancy"] else None,
+            "salary": salary.text if salary and row["salary_min"] is not None else None,
+            "ai_screening": ai_screening_evidence(text)[1] if row["ai_screening"] is not None else None,
+        },
         department=row["department"],
         description=row["description"],
         source_posted_at=row["posted_at"],
@@ -201,22 +270,117 @@ def get_job(conn: psycopg.Connection, job_id: int) -> dict | None:
     return job
 
 
+COMPANY_SUMMARY = """
+    WITH tracking AS (SELECT company_id, min(first_seen) AS started FROM jobs GROUP BY company_id),
+    typical AS (
+        SELECT j.company_id,
+               round(percentile_cont(0.5) WITHIN GROUP (
+                   ORDER BY extract(epoch FROM j.closed_at - j.first_seen) / 86400))::int AS days
+        FROM jobs j JOIN tracking t ON t.company_id = j.company_id
+        WHERE j.closed_at IS NOT NULL AND j.first_seen > t.started
+        GROUP BY j.company_id HAVING count(*) >= 5
+    )
+    SELECT c.id, c.name, c.domain, c.platform, c.origin, t.started AS tracking_since,
+           count(*) FILTER (WHERE j.is_active)::int AS active_jobs,
+           count(*) FILTER (WHERE j.is_active AND j.role_type <> 'other')::int AS tech_active_jobs,
+           count(*) FILTER (WHERE j.is_active AND s.ghost_risk = 'high')::int AS high_risk_jobs,
+           count(*) FILTER (WHERE j.first_seen > t.started
+                              AND j.first_seen >= now() - interval '7 days')::int AS new_last_7_days,
+           count(*) FILTER (WHERE j.closed_at >= now() - interval '30 days')::int AS closed_last_30_days,
+           count(*) FILTER (WHERE j.is_active AND j.salary_min IS NOT NULL)::int AS with_salary_active_jobs,
+           ty.days AS typical_days_open
+    FROM companies c
+    JOIN jobs j ON j.company_id = c.id
+    JOIN tracking t ON t.company_id = c.id
+    LEFT JOIN typical ty ON ty.company_id = c.id
+    LEFT JOIN job_signals_mv s ON s.job_id = j.id
+"""
+
+
+def _company_row(row: dict) -> dict:
+    return {**row, "slug": slugify(row["name"])}
+
+
 def list_companies(conn: psycopg.Connection) -> list[dict]:
     with _cursor(conn) as cur:
-        return cur.execute(
-            f"""{TRACKING_START}
-            SELECT c.name, c.platform,
-                   count(*) FILTER (WHERE j.is_active)::int AS active_jobs,
-                   count(*) FILTER (WHERE j.is_active AND s.ghost_risk = 'high')::int AS high_risk_jobs,
-                   count(*) FILTER (WHERE j.first_seen > t.started
-                                      AND j.first_seen >= now() - interval '7 days')::int AS new_last_7_days
-            FROM companies c
-            JOIN jobs j ON j.company_id = c.id
-            JOIN tracking t ON t.company_id = c.id
-            LEFT JOIN job_signals_mv s ON s.job_id = j.id
-            GROUP BY c.name, c.platform
+        rows = cur.execute(
+            f"""{COMPANY_SUMMARY}
+            GROUP BY c.id, c.name, c.domain, c.platform, c.origin, t.started, ty.days
             ORDER BY active_jobs DESC, c.name"""
         ).fetchall()
+    return [_company_row(r) for r in rows]
+
+
+WEEKLY = """
+    WITH tracking AS (SELECT company_id, min(first_seen) AS started FROM jobs GROUP BY company_id),
+    weeks AS (
+        SELECT generate_series(
+            date_trunc('week', (now() AT TIME ZONE 'America/Toronto')) - make_interval(weeks => %(weeks)s - 1),
+            date_trunc('week', (now() AT TIME ZONE 'America/Toronto')),
+            interval '1 week'
+        )::date AS week_start
+    ),
+    scoped AS (
+        SELECT j.*, t.started FROM jobs j JOIN tracking t ON t.company_id = j.company_id
+        WHERE j.role_type = ANY(%(roles)s) {company_clause}
+    )
+    SELECT w.week_start,
+           (SELECT count(*) FROM scoped j
+             WHERE j.first_seen > j.started
+               AND date_trunc('week', j.first_seen AT TIME ZONE 'America/Toronto')::date = w.week_start)::int AS new,
+           (SELECT count(*) FROM scoped j
+             WHERE j.closed_at IS NOT NULL
+               AND date_trunc('week', j.closed_at AT TIME ZONE 'America/Toronto')::date = w.week_start)::int AS closed
+    FROM weeks w ORDER BY w.week_start
+"""
+
+
+def weekly(
+    conn: psycopg.Connection, weeks: int, roles: list[str], company_id: int | None = None
+) -> list[dict]:
+    clause = "AND j.company_id = %(company)s" if company_id is not None else ""
+    with _cursor(conn) as cur:
+        return cur.execute(
+            WEEKLY.format(company_clause=clause),
+            {"weeks": weeks, "roles": roles or TECH_ROLES, "company": company_id},
+        ).fetchall()
+
+
+def get_company(conn: psycopg.Connection, slug: str) -> dict | None:
+    with _cursor(conn) as cur:
+        rows = cur.execute(
+            f"{COMPANY_SUMMARY} GROUP BY c.id, c.name, c.domain, c.platform, c.origin, t.started, ty.days"
+        ).fetchall()
+        row = next((r for r in rows if slugify(r["name"]) == slug), None)
+        if row is None:
+            return None
+        roles = cur.execute(
+            """SELECT role_type AS key, count(*)::int AS count FROM jobs
+               WHERE company_id = %s AND is_active GROUP BY role_type ORDER BY count DESC""",
+            (row["id"],),
+        ).fetchall()
+        levels = cur.execute(
+            """SELECT level AS key, count(*)::int AS count FROM jobs
+               WHERE company_id = %s AND is_active AND role_type <> 'other'
+               GROUP BY level ORDER BY count DESC""",
+            (row["id"],),
+        ).fetchall()
+        skills = cur.execute(
+            """SELECT s.name AS skill, count(*)::int AS postings,
+                      count(*)::float / nullif((SELECT count(*) FROM jobs
+                          WHERE company_id = %(c)s AND is_active AND role_type <> 'other'), 0) AS share
+               FROM jobs j JOIN job_skills js ON js.job_id = j.id JOIN skills s ON s.id = js.skill_id
+               WHERE j.company_id = %(c)s AND j.is_active AND j.role_type <> 'other'
+               GROUP BY s.name ORDER BY postings DESC, s.name LIMIT 12""",
+            {"c": row["id"]},
+        ).fetchall()
+    return {
+        **_company_row(row),
+        "roles": roles,
+        "levels": levels,
+        "weekly": weekly(conn, 12, TECH_ROLES, row["id"]),
+        "top_skills": [{**sk, "share": sk["share"] or 0} for sk in skills],
+    }
 
 
 def stats(conn: psycopg.Connection) -> dict:
@@ -224,6 +388,13 @@ def stats(conn: psycopg.Connection) -> dict:
         row = cur.execute(
             f"""{TRACKING_START}
             SELECT count(*) FILTER (WHERE j.is_active)::int AS active_jobs,
+                   count(*) FILTER (WHERE j.is_active AND j.role_type <> 'other')::int AS tech_active_jobs,
+                   count(*) FILTER (WHERE j.role_type <> 'other' AND j.first_seen > t.started
+                                      AND j.first_seen >= now() - interval '7 days')::int AS tech_new_last_7_days,
+                   count(*) FILTER (WHERE j.is_active AND j.role_type <> 'other'
+                                      AND s.ghost_risk = 'high')::int AS tech_high_risk_active_jobs,
+                   count(*) FILTER (WHERE j.is_active AND j.role_type <> 'other'
+                                      AND j.salary_min IS NOT NULL)::int AS tech_with_salary_active_jobs,
                    count(DISTINCT j.company_id)::int AS companies,
                    count(*) FILTER (WHERE j.first_seen > t.started
                                       AND j.first_seen >= now() - interval '7 days')::int AS new_last_7_days,
@@ -275,3 +446,14 @@ def hiring_calendar(
         return cur.execute(
             f"SELECT * FROM hiring_calendar {where} ORDER BY year DESC, first_opened, company", params
         ).fetchall()
+
+
+def term_counts(conn: psycopg.Connection) -> list[dict]:
+    """Seasons named by open tech postings, soonest first."""
+    rows = conn.execute(
+        """SELECT term, count(*)::int FROM jobs, unnest(terms) AS term
+           WHERE is_active AND role_type <> 'other' GROUP BY term"""
+    ).fetchall()
+    order = {"Winter": 0, "Spring": 1, "Summer": 2, "Fall": 3}
+    rows.sort(key=lambda r: (r[0][-4:], order.get(r[0].split()[0], 9)))
+    return [{"term": term, "jobs": jobs} for term, jobs in rows]

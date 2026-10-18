@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime
 
@@ -24,18 +25,38 @@ def slug_to_title(slug: str) -> str:
     return " ".join(w.upper() if w.lower() in roman else w.capitalize() for w in words)
 
 
-def wants_detail(title: str, location: str = "") -> bool:
-    """Is a posting worth an extra request for its full description?
+MAX_DETAILS_PER_RUN = int(os.environ.get("GHOSTLESS_MAX_DETAILS", "250"))
 
-    Only tech roles in Canada, remote, or with an unknown or multi-city
-    location. This keeps runs fast and keeps request volume low on sites
-    with thousands of postings.
-    """
+
+def detail_priority(title: str, location: str = "") -> int:
+    """Order for fetching full descriptions: 0 tech roles in Canada, remote or
+    an unknown or multi-city location, 1 other tech roles, 2 everything else."""
     if classify_role(title) == "other":
-        return False
-    return (
+        return 2
+    nearby = (
         not location or is_canada(location) or is_remote(location) or bool(_MULTI_LOCATION.search(location))
     )
+    return 0 if nearby else 1
+
+
+def plan_details(
+    items: list[tuple[str, str, str]], known: frozenset[str], limit: int | None = None
+) -> set[str]:
+    """Which postings get an extra request for their full description.
+
+    `items` are (id, title, location). Postings already stored with a
+    description (`known`) are skipped, since their text is reused, so each
+    posting is fetched once in its life. The rest are taken in priority order
+    up to `limit` per run; anything left over is fetched on later runs. This
+    keeps request volume polite on sites with thousands of postings.
+    """
+    limit = MAX_DETAILS_PER_RUN if limit is None else limit
+    todo = [
+        (detail_priority(title, location), i, key)
+        for i, (key, title, location) in enumerate(items)
+        if key not in known
+    ]
+    return {key for _, _, key in sorted(todo)[:limit]}
 
 
 def split_queries(slug: str) -> list[str]:

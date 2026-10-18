@@ -7,21 +7,22 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 
 import psycopg
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from psycopg_pool import ConnectionPool
 
 from tracker import __version__
-from tracker.api import queries
+from tracker.api import accounts, admin, events, queries, reports, resumes
+from tracker.api.deps import Conn
 from tracker.api.schemas import (
     CalendarEntry,
     Company,
+    CompanyDetail,
     GapReport,
     GhostRisk,
     JobDetail,
@@ -30,6 +31,8 @@ from tracker.api.schemas import (
     RoleType,
     SkillCount,
     Stats,
+    TermCount,
+    WeekCount,
 )
 
 log = logging.getLogger(__name__)
@@ -42,8 +45,10 @@ Sort = Literal["newest", "oldest", "salary", "company"]
 DESCRIPTION = """
 Honest job data for Canadian tech students: real postings, true first-seen dates,
 ghost job signals and Ontario pay and vacancy disclosures, collected daily from 54 employers.
+Also: accounts, resume analysis and job matching, problem reports and an admin dashboard.
 
-Data refreshes once a day. Every posting links to the employer's own page.
+Job data refreshes once a day. Every posting links to the employer's own page.
+Signed-in endpoints take `Authorization: Bearer <token>` from `/auth/login` or `/auth/signup`.
 """
 
 
@@ -81,13 +86,24 @@ def create_app(dsn: str | None = None) -> FastAPI:
     )
 
     origins = [o.strip() for o in os.environ.get("GHOSTLESS_CORS_ORIGINS", "*").split(",") if o.strip()]
-    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET"], allow_headers=["*"])
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
 
     @app.middleware("http")
     async def cache_headers(request: Request, call_next):
         response = await call_next(request)
-        if request.method == "GET" and response.status_code == 200 and request.url.path not in ("/health",):
+        personal = request.headers.get("authorization") or request.url.path.startswith(
+            ("/me", "/admin", "/auth")
+        )
+        if personal or request.method != "GET":
+            response.headers["Cache-Control"] = "private, no-store"
+        elif response.status_code == 200 and request.url.path not in ("/health",):
             response.headers.setdefault("Cache-Control", f"public, max-age={CACHE_SECONDS}")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
         return response
 
     @app.exception_handler(psycopg.errors.UndefinedTable)
@@ -103,15 +119,9 @@ def create_app(dsn: str | None = None) -> FastAPI:
         return JSONResponse(status_code=503, content={"detail": "Database unavailable, try again shortly."})
 
     register_routes(app)
+    for module in (accounts, resumes, reports, events, admin):
+        app.include_router(module.router)
     return app
-
-
-def get_conn(request: Request) -> Iterator[psycopg.Connection]:
-    with request.app.state.pool.connection() as conn:
-        yield conn
-
-
-Conn = Annotated[psycopg.Connection, Depends(get_conn)]
 
 
 def _split(value: str | None) -> list[str]:
@@ -144,6 +154,9 @@ def register_routes(app: FastAPI) -> None:
         status: Status = "active",
         new_within_days: Annotated[int | None, Query(ge=1, le=365)] = None,
         has_salary: bool = False,
+        term: Annotated[
+            list[str] | None, Query(max_length=20, description='season, repeatable: "Summer 2027"')
+        ] = None,
         sort: Sort = "newest",
         limit: Annotated[int, Query(ge=1, le=100)] = 25,
         offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
@@ -159,6 +172,7 @@ def register_routes(app: FastAPI) -> None:
             status=status,
             new_within_days=new_within_days,
             has_salary=has_salary,
+            terms=[t[:20] for t in term or []][:8],
         )
         return queries.list_jobs(conn, filters, sort, limit, offset)
 
@@ -172,6 +186,32 @@ def register_routes(app: FastAPI) -> None:
     @app.get("/companies", response_model=list[Company], tags=["companies"], summary="Tracked employers")
     def list_companies(conn: Conn):
         return queries.list_companies(conn)
+
+    @app.get("/terms", response_model=list[TermCount], tags=["jobs"], summary="Seasons with open postings")
+    def list_terms(conn: Conn):
+        return queries.term_counts(conn)
+
+    @app.get(
+        "/companies/{slug}", response_model=CompanyDetail, tags=["companies"], summary="One employer in depth"
+    )
+    def get_company(conn: Conn, slug: str):
+        company = queries.get_company(conn, slug.lower())
+        if company is None:
+            raise HTTPException(status_code=404, detail="company not found")
+        return company
+
+    @app.get(
+        "/trends/weekly",
+        response_model=list[WeekCount],
+        tags=["meta"],
+        summary="New and closed postings per week (tech roles unless role is given)",
+    )
+    def weekly_trend(
+        conn: Conn,
+        weeks: Annotated[int, Query(ge=2, le=52)] = 12,
+        role: Annotated[list[RoleType] | None, Query()] = None,
+    ):
+        return queries.weekly(conn, weeks, list(role or []))
 
     @app.get("/skills/top", response_model=list[SkillCount], tags=["skills"], summary="Most requested skills")
     def top_skills(

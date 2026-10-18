@@ -52,6 +52,11 @@ def test_html_to_text_handles_double_escaping():
     assert html_to_text("&lt;p&gt;A &amp;amp; B&lt;/p&gt;") == "A & B"
 
 
+def test_html_to_text_keeps_paragraphs_and_lists():
+    raw = "<p>About us</p>\n<h3>What you do</h3><ul><li>Build things</li><li>Ship <b>fast</b></li></ul><p>a<br>b</p>"
+    assert html_to_text(raw) == "About us\n\nWhat you do\n• Build things\n• Ship fast\n\na\nb"
+
+
 def test_parse_greenhouse():
     [job] = parse_greenhouse(GREENHOUSE)
     assert job.external_id == "4012345"

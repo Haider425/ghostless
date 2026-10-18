@@ -32,3 +32,23 @@ def test_empty():
 def test_go_in_lists():
     assert "Go" in extract_skills("Go and Rust")
     assert "Go" in extract_skills("Python, Go, Java")
+
+
+def test_single_letter_languages_need_context():
+    assert {"C", "R"} <= set(extract_skills("Languages: Python, C, R and SQL"))
+    assert "C" not in extract_skills("Plan C is our backup")
+    assert "R" not in extract_skills("R&D team")
+
+
+def test_ordinary_words_are_not_skills():
+    text = "You'll excel at teamwork. The rest of the team will support you."
+    assert extract_skills(text) == []
+
+
+def test_hardware_ml_and_data_tools():
+    text = (
+        "RTL design in SystemVerilog with UVM on FPGA; CUDA kernels; Power BI and Microsoft Excel dashboards"
+    )
+    assert {"SystemVerilog", "UVM", "FPGA", "RTL design", "CUDA", "Power BI", "Excel"} <= set(
+        extract_skills(text)
+    )

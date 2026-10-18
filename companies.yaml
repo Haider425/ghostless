@@ -4,7 +4,8 @@
 # verify now and then; CONTRIBUTING.md explains how to fix FAIL and WARN.
 #
 # Fields: name, platform, slug, and optional `region` (used only for sources
-# that do not publish job locations).
+# that do not publish job locations) and `domain` (the company's website,
+# used to show its logo on the site).
 #
 # Finding a new company's platform and slug: open its careers page, click into
 # any job (or its Apply button) and read the URL:
@@ -20,77 +21,93 @@
 companies:
   # ---- Big tech ----
   - name: Amazon
+    domain: amazon.com
     platform: amazon
     slug: "normalized_country_code[]=CAN"
   - name: Microsoft
+    domain: microsoft.com
     platform: eightfold  # rate limits aggressively; paced at one request per 2s
     slug: "apply.careers.microsoft.com/microsoft.com?location=Canada"
   - name: Google
+    domain: google.com
     platform: google   # first results page per search only (robots.txt)
     slug: "location=Canada&q=software|location=Canada&q=data|location=Canada&q=intern|location=Canada&q=engineer"
     region: Canada
   - name: Apple
+    domain: apple.com
     platform: apple    # short summaries only: full job pages need JavaScript
     slug: "en-ca/search?location=canada-CANC"
     region: Canada
   - name: Shopify
+    domain: shopify.com
     platform: sitemap  # sitemap lists titles and links only
     slug: "https://www.shopify.com/careers/sitemap.xml"
     region: "Remote - Americas (assumed; Shopify is remote first)"
-  - { name: Nvidia,      platform: workday, slug: nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite }
-  - { name: Salesforce,  platform: workday, slug: salesforce.wd12.myworkdayjobs.com/External_Career_Site }
-  - { name: Adobe,       platform: workday, slug: adobe.wd5.myworkdayjobs.com/external_experienced }
-  - { name: Intel,       platform: workday, slug: intel.wd1.myworkdayjobs.com/External }
-  - { name: Workday,     platform: workday, slug: workday.wd5.myworkdayjobs.com/Workday }
+  - { name: Nvidia,      platform: workday, slug: nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite, domain: nvidia.com }
+  - { name: Salesforce,  platform: workday, slug: salesforce.wd12.myworkdayjobs.com/External_Career_Site, domain: salesforce.com }
+  - { name: Adobe,       platform: workday, slug: adobe.wd5.myworkdayjobs.com/external_experienced, domain: adobe.com }
+  - { name: Intel,       platform: workday, slug: intel.wd1.myworkdayjobs.com/External, domain: intel.com }
+  - { name: Workday,     platform: workday, slug: workday.wd5.myworkdayjobs.com/Workday, domain: workday.com }
 
   # ---- Canadian banks, insurers and finance ----
-  - { name: TD,          platform: workday, slug: td.wd3.myworkdayjobs.com/TD_Bank_Careers }
-  - { name: RBC,         platform: workday, slug: rbc.wd3.myworkdayjobs.com/RBCGLOBAL1 }
-  - { name: BMO,         platform: workday, slug: bmo.wd3.myworkdayjobs.com/External }
-  - { name: CIBC,        platform: workday, slug: cibc.wd3.myworkdayjobs.com/search }
+  - { name: TD,          platform: workday, slug: td.wd3.myworkdayjobs.com/TD_Bank_Careers, domain: td.com }
+  - { name: RBC,         platform: workday, slug: rbc.wd3.myworkdayjobs.com/RBCGLOBAL1, domain: rbc.com }
+  - { name: BMO,         platform: workday, slug: bmo.wd3.myworkdayjobs.com/External, domain: bmo.com }
+  - { name: CIBC,        platform: workday, slug: cibc.wd3.myworkdayjobs.com/search, domain: cibc.com }
   - name: Scotiabank
+    domain: scotiabank.com
     platform: rss
     slug: "https://jobs.scotiabank.com/sitemap.xml"
-  - { name: Manulife,    platform: workday, slug: manulife.wd3.myworkdayjobs.com/MFCJH_Jobs }
-  - { name: Sun Life,    platform: workday, slug: sunlife.wd3.myworkdayjobs.com/Experienced-Jobs }
-  - { name: Mastercard,  platform: workday, slug: mastercard.wd1.myworkdayjobs.com/CorporateCareers }
-  - { name: Capital One, platform: workday, slug: capitalone.wd12.myworkdayjobs.com/Capital_One }
-  - { name: Wealthsimple, platform: ashby, slug: wealthsimple }
+  - { name: Manulife,    platform: workday, slug: manulife.wd3.myworkdayjobs.com/MFCJH_Jobs, domain: manulife.com }
+  - { name: Sun Life,    platform: workday, slug: sunlife.wd3.myworkdayjobs.com/Experienced-Jobs, domain: sunlife.ca }
+  - { name: Mastercard,  platform: workday, slug: mastercard.wd1.myworkdayjobs.com/CorporateCareers, domain: mastercard.com }
+  - { name: Capital One, platform: workday, slug: capitalone.wd12.myworkdayjobs.com/Capital_One, domain: capitalone.com }
+  - { name: Wealthsimple, platform: ashby, slug: wealthsimple, domain: wealthsimple.com }
 
   # ---- Tech (Greenhouse) ----
-  - { name: Stripe,      platform: greenhouse, slug: stripe }
-  - { name: Airbnb,      platform: greenhouse, slug: airbnb }
-  - { name: Databricks,  platform: greenhouse, slug: databricks }
-  - { name: Figma,       platform: greenhouse, slug: figma }
-  - { name: Cloudflare,  platform: greenhouse, slug: cloudflare }
-  - { name: Coinbase,    platform: greenhouse, slug: coinbase }
-  - { name: Dropbox,     platform: greenhouse, slug: dropbox }
-  - { name: Pinterest,   platform: greenhouse, slug: pinterest }
-  - { name: Robinhood,   platform: greenhouse, slug: robinhood }
-  - { name: Lyft,        platform: greenhouse, slug: lyft }
-  - { name: Reddit,      platform: greenhouse, slug: reddit }
-  - { name: Discord,     platform: greenhouse, slug: discord }
-  - { name: Datadog,     platform: greenhouse, slug: datadog }
-  - { name: MongoDB,     platform: greenhouse, slug: mongodb }
-  - { name: GitLab,      platform: greenhouse, slug: gitlab }
-  - { name: Asana,       platform: greenhouse, slug: asana }
-  - { name: Okta,        platform: greenhouse, slug: okta }
-  - { name: Twilio,      platform: greenhouse, slug: twilio }
-  - { name: Instacart,   platform: greenhouse, slug: instacart }
-  - { name: Affirm,      platform: greenhouse, slug: affirm }
-  - { name: Brex,        platform: greenhouse, slug: brex }
-  - { name: Gusto,       platform: greenhouse, slug: gusto }
-  - { name: Samsara,     platform: greenhouse, slug: samsara }
-  - { name: Scale AI,    platform: greenhouse, slug: scaleai }
-  - { name: Anthropic,   platform: greenhouse, slug: anthropic }
-  - { name: Vercel,      platform: greenhouse, slug: vercel }
+  - { name: Stripe,      platform: greenhouse, slug: stripe, domain: stripe.com }
+  - { name: Airbnb,      platform: greenhouse, slug: airbnb, domain: airbnb.com }
+  - { name: Databricks,  platform: greenhouse, slug: databricks, domain: databricks.com }
+  - { name: Figma,       platform: greenhouse, slug: figma, domain: figma.com }
+  - { name: Cloudflare,  platform: greenhouse, slug: cloudflare, domain: cloudflare.com }
+  - { name: Coinbase,    platform: greenhouse, slug: coinbase, domain: coinbase.com }
+  - { name: Dropbox,     platform: greenhouse, slug: dropbox, domain: dropbox.com }
+  - { name: Pinterest,   platform: greenhouse, slug: pinterest, domain: pinterest.com }
+  - { name: Robinhood,   platform: greenhouse, slug: robinhood, domain: robinhood.com }
+  - { name: Lyft,        platform: greenhouse, slug: lyft, domain: lyft.com }
+  - { name: Reddit,      platform: greenhouse, slug: reddit, domain: reddit.com }
+  - { name: Discord,     platform: greenhouse, slug: discord, domain: discord.com }
+  - { name: Datadog,     platform: greenhouse, slug: datadog, domain: datadoghq.com }
+  - { name: MongoDB,     platform: greenhouse, slug: mongodb, domain: mongodb.com }
+  - { name: GitLab,      platform: greenhouse, slug: gitlab, domain: gitlab.com }
+  - { name: Asana,       platform: greenhouse, slug: asana, domain: asana.com }
+  - { name: Okta,        platform: greenhouse, slug: okta, domain: okta.com }
+  - { name: Twilio,      platform: greenhouse, slug: twilio, domain: twilio.com }
+  - { name: Instacart,   platform: greenhouse, slug: instacart, domain: instacart.com }
+  - { name: Affirm,      platform: greenhouse, slug: affirm, domain: affirm.com }
+  - { name: Brex,        platform: greenhouse, slug: brex, domain: brex.com }
+  - { name: Gusto,       platform: greenhouse, slug: gusto, domain: gusto.com }
+  - { name: Samsara,     platform: greenhouse, slug: samsara, domain: samsara.com }
+  - { name: Scale AI,    platform: greenhouse, slug: scaleai, domain: scale.com }
+  - { name: Anthropic,   platform: greenhouse, slug: anthropic, domain: anthropic.com }
+  - { name: Vercel,      platform: greenhouse, slug: vercel, domain: vercel.com }
 
   # ---- Tech (Ashby and Lever) ----
-  - { name: Plaid,       platform: ashby, slug: plaid }
-  - { name: Ramp,        platform: ashby, slug: ramp }
-  - { name: Notion,      platform: ashby, slug: notion }
-  - { name: OpenAI,      platform: ashby, slug: openai }
-  - { name: Cohere,      platform: ashby, slug: cohere }
-  - { name: Linear,      platform: ashby, slug: linear }
-  - { name: Palantir,    platform: lever, slug: palantir }
-  - { name: Spotify,     platform: lever, slug: spotify }
+  - { name: Plaid,       platform: ashby, slug: plaid, domain: plaid.com }
+  - { name: Ramp,        platform: ashby, slug: ramp, domain: ramp.com }
+  - { name: Notion,      platform: ashby, slug: notion, domain: notion.so }
+  - { name: OpenAI,      platform: ashby, slug: openai, domain: openai.com }
+  - { name: Cohere,      platform: ashby, slug: cohere, domain: cohere.com }
+  - { name: Linear,      platform: ashby, slug: linear, domain: linear.app }
+  - { name: Palantir,    platform: lever, slug: palantir, domain: palantir.com }
+  - { name: Spotify,     platform: lever, slug: spotify, domain: spotify.com }
+
+# Public job lists on GitHub, read every day. Their links also reveal new
+# employers' job boards, which are then tracked automatically (see README,
+# "Finding jobs beyond this file"). Any list using SimplifyJobs' format works.
+# `level` applies to entries whose title doesn't say (a new grad list's
+# "Software Developer"). Remove this section to use the defaults, or set
+# `lists: []` to turn it off.
+lists:
+  - { repo: SimplifyJobs/Summer2027-Internships, label: SimplifyJobs internships, level: intern }
+  - { repo: SimplifyJobs/New-Grad-Positions, label: SimplifyJobs new grad roles, level: new_grad }

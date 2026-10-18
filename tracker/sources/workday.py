@@ -2,7 +2,9 @@
 
 Workday career sites are backed by a JSON API ("cxs"). The listing endpoint
 returns titles and locations only, so descriptions need one extra request per
-job, which we only make for relevant roles (see common.wants_detail).
+job. Each posting is fetched once: the pipeline reuses stored descriptions,
+and new postings are taken in priority order up to a cap per run (see
+common.plan_details).
 
 Config slug, copied from the careers URL:
   https://td.wd3.myworkdayjobs.com/en-US/TD_Bank_Careers  ->  td.wd3.myworkdayjobs.com/TD_Bank_Careers
@@ -16,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 from tracker.models import Company, Job, JobList
 from tracker.sources import http
-from tracker.sources.common import wants_detail
+from tracker.sources.common import plan_details
 from tracker.sources.http import FetchError
 from tracker.text import html_to_text
 
@@ -69,26 +71,76 @@ def parse_workday_job(item: dict, detail: dict | None, base: str, site: str) -> 
     )
 
 
-def fetch_workday(company: Company, details: bool = True) -> JobList:
-    base, tenant, site = parse_workday_slug(company.board_slug)
-    api = f"{base}/wday/cxs/{tenant}/{site}"
+# Workday stops returning results past this many per search, however many
+# match. Employers with more postings are fetched as several smaller
+# searches, split by one of the site's own filters (facets).
+OFFSET_LIMIT = 2000
+MAX_SPLIT_DEPTH = 2
 
-    # 1. Page through every listing. Workday quirks:
-    #    * only the first page reports `total`; later pages may say 0
-    #    * the API stops returning results past an offset limit (2,000 on
-    #      the tenants seen so far), so very large employers come back
-    #      truncated. That is detected below and the listing marked partial.
+
+def flatten_facets(facets: list | None) -> dict[str, list[tuple[str, int]]]:
+    """{facetParameter: [(value id, count), ...]} from Workday's facet tree.
+
+    Facets nest: a value can itself carry a facetParameter and values (for
+    example, location groups containing countries). Leaves have an id and a
+    count.
+    """
+    found: dict[str, list[tuple[str, int]]] = {}
+
+    def walk(node: dict, parameter: str | None) -> None:
+        param = node.get("facetParameter") or parameter
+        children = node.get("values")
+        if isinstance(children, list) and children:
+            for child in children:
+                if isinstance(child, dict):
+                    walk(child, param)
+        elif param and node.get("id") and isinstance(node.get("count"), int):
+            found.setdefault(param, []).append((str(node["id"]), node["count"]))
+
+    for facet in facets or []:
+        if isinstance(facet, dict):
+            walk(facet, None)
+    return found
+
+
+def choose_split(
+    facets: dict[str, list[tuple[str, int]]], total: int, applied: dict
+) -> tuple[str, list[str]] | None:
+    """The facet that best splits a search into searches under the limit.
+
+    It must cover (nearly) every posting, so nothing is lost, and its
+    largest value should be as small as possible.
+    """
+    best = None
+    for param, values in facets.items():
+        if param in applied or len(values) < 2:
+            continue
+        covered = sum(count for _, count in values)
+        if covered < total * 0.98:
+            continue  # postings without a value for this facet would be missed
+        largest = max(count for _, count in values)
+        if best is None or largest < best[0]:
+            best = (largest, param, [value for value, count in values if count > 0])
+    return (best[1], best[2]) if best else None
+
+
+def _search(
+    api: str, applied: dict, text: str = "", limit: int = OFFSET_LIMIT
+) -> tuple[dict[str, dict], int, list]:
+    """One search, paged to the end, the offset limit, or `limit` results."""
     listings: dict[str, dict] = {}
     total = None
+    facets: list = []
     offset = 0
-    while True:
+    while offset < min(limit, OFFSET_LIMIT):
         page = http.request_json(
             "POST",
             f"{api}/jobs",
-            {"appliedFacets": {}, "limit": PAGE_SIZE, "offset": offset, "searchText": ""},
+            {"appliedFacets": applied, "limit": PAGE_SIZE, "offset": offset, "searchText": text},
         )
-        if total is None:
+        if total is None:  # Workday quirk: only the first page reports total and facets
             total = int(page.get("total") or 0)
+            facets = page.get("facets") or []
         postings = page.get("jobPostings") or []
         for posting in postings:
             if posting.get("externalPath"):
@@ -96,8 +148,54 @@ def fetch_workday(company: Company, details: bool = True) -> JobList:
         offset += PAGE_SIZE
         if not postings or offset >= total:
             break
+    return listings, total or 0, facets
 
-    complete = len(listings) >= total
+
+def _crawl(api: str, applied: dict, depth: int = 0) -> tuple[dict[str, dict], int]:
+    """Every posting matching `applied`, splitting the search when it's too big."""
+    listings, total, facets = _search(api, applied)
+    if len(listings) >= total or depth >= MAX_SPLIT_DEPTH:
+        return listings, total
+    split = choose_split(flatten_facets(facets), total, applied)
+    if split is None:
+        return listings, total
+    param, values = split
+    log.info("splitting a search of %d postings by %s (%d values)", total, param, len(values))
+    for value in values:
+        part, _ = _crawl(api, {**applied, param: [value]}, depth + 1)
+        for path, posting in part.items():
+            listings.setdefault(path, posting)
+    return listings, total
+
+
+def fetch_workday(
+    company: Company,
+    details: bool = True,
+    known: frozenset[str] = frozenset(),
+    queries: tuple[str, ...] | None = None,
+    per_query: int = 200,
+    max_details: int | None = None,
+) -> JobList:
+    """Every posting, or with `queries` only those matching the searches
+    (used for discovered employers: internships and new grad roles)."""
+    base, tenant, site = parse_workday_slug(company.board_slug)
+    api = f"{base}/wday/cxs/{tenant}/{site}"
+
+    # 1. Every listing. Workday stops paging at an offset limit (2,000), so a
+    #    big employer's search is split by one of its facets (job family,
+    #    country, ...) into searches under the limit. If even that comes back
+    #    short, the listing is marked partial so nothing is wrongly closed.
+    if queries:
+        listings, total, complete = {}, 0, True
+        for text in queries:
+            found, matched, _ = _search(api, {}, text, per_query)
+            complete = complete and len(found) >= matched  # complete for this search's scope
+            total += matched
+            for path, posting in found.items():
+                listings.setdefault(path, posting)
+    else:
+        listings, total = _crawl(api, {})
+        complete = len(listings) >= total
     if not complete:
         log.warning(
             "%s: Workday returned %d of %d postings; treating the listing as partial",
@@ -106,13 +204,22 @@ def fetch_workday(company: Company, details: bool = True) -> JobList:
             total,
         )
 
-    # 2. Details for relevant roles only. A failed detail call keeps the job
-    #    (without a description) instead of failing the whole company, so
-    #    closure tracking stays correct.
+    # 2. Details for postings not stored yet, most relevant first. A failed
+    #    detail call keeps the job (without a description) instead of failing
+    #    the whole company, so closure tracking stays correct.
+    wanted = (
+        plan_details(
+            [(path, item.get("title", ""), item.get("locationsText", "")) for path, item in listings.items()],
+            known,
+            max_details,
+        )
+        if details
+        else set()
+    )
     jobs = JobList(complete=complete, total=total)
-    for item in listings.values():
+    for path, item in listings.items():
         detail = None
-        if details and wants_detail(item.get("title", ""), item.get("locationsText", "")):
+        if path in wanted:
             try:
                 detail = http.get_json(f"{api}{item['externalPath']}")
             except FetchError as exc:

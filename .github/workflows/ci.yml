@@ -40,3 +40,62 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
       - run: pytest -v
+
+  web:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tracker
+          POSTGRES_PASSWORD: tracker
+          POSTGRES_DB: tracker
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://tracker:tracker@localhost:5432/tracker
+      GHOSTLESS_API_URL: http://127.0.0.1:8000
+      # shared by the API and the website so tests can act as distinct visitors
+      GHOSTLESS_INTERNAL_KEY: ci-internal-key
+      # dummy sign-in credentials: the browser tests check the redirect without contacting Google
+      GOOGLE_CLIENT_ID: ci-google-client
+      GOOGLE_CLIENT_SECRET: ci-google-secret
+      GHOSTLESS_SITE_URL: http://127.0.0.1:3100
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3100
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Start the API with demo data
+        working-directory: .
+        run: |
+          pip install -e ".[api]"
+          python scripts/seed_demo.py --yes
+          nohup ghostless serve --port 8000 > api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/health && break; sleep 1; done
+      - run: npm ci
+      - name: Check the API types are up to date
+        run: |
+          npm run gen:api
+          git diff --exit-code src/lib/api-schema.d.ts || (echo "API changed: run npm run gen:api and commit" && exit 1)
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7

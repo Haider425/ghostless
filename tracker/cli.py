@@ -4,6 +4,10 @@
     ghostless verify --only apple    check one company (by name or slug)
     ghostless verify --dump          also save raw responses to .debug/
     ghostless ingest                 run the pipeline into the database
+    ghostless reprocess              re-derive flags and pay for stored postings after an upgrade
+    ghostless discover               read public job lists and crawl discovered boards
+    ghostless migrate                create or upgrade the database tables (no fetching)
+    ghostless admin add EMAIL        give an account access to the admin dashboard
     ghostless gap --have "Python, SQL"   compare your skills with what postings ask for
     ghostless serve                   run the web API on http://127.0.0.1:8000
 
@@ -54,6 +58,25 @@ def _parser() -> argparse.ArgumentParser:
 
     commands.add_parser("verify", parents=[common], help="check that every source works")
     commands.add_parser("ingest", parents=[common], help="fetch postings into the database")
+    discover = commands.add_parser(
+        "discover", help="read the public job lists and crawl discovered job boards (part of ingest)"
+    )
+    discover.add_argument(
+        "--boards",
+        type=int,
+        default=None,
+        metavar="N",
+        help="how many discovered boards to crawl (default 120)",
+    )
+
+    commands.add_parser("migrate", help="create or upgrade the database tables")
+    admin = commands.add_parser("admin", help="manage admin accounts")
+    admin.add_argument("action", choices=["add", "remove", "list"])
+    admin.add_argument("email", nargs="?", help="the account's email (for add and remove)")
+
+    commands.add_parser(
+        "reprocess", help="re-derive pay, disclosures and repost links for stored postings (no fetching)"
+    )
 
     serve = commands.add_parser("serve", help="run the web API (needs the api extra)")
     serve.add_argument("--host", default="127.0.0.1", help="use 0.0.0.0 when deploying")
@@ -82,6 +105,18 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "serve":
         _serve(args)
+        return
+    if args.command == "reprocess":
+        _reprocess()
+        return
+    if args.command == "discover":
+        _discover(args)
+        return
+    if args.command == "migrate":
+        _migrate()
+        return
+    if args.command == "admin":
+        _admin(args)
         return
 
     level = logging.DEBUG if args.verbose else logging.INFO if args.command == "ingest" else logging.WARNING
@@ -127,6 +162,76 @@ def _serve(args: argparse.Namespace) -> None:
         reload=args.reload,
         proxy_headers=True,
     )
+
+
+def _migrate() -> None:
+    from tracker import db
+    from tracker.config import database_url
+
+    with db.connect(database_url()) as conn:
+        db.apply_schema(conn)
+    print("Database is up to date.")
+
+
+def _admin(args: argparse.Namespace) -> None:
+    from tracker import db
+    from tracker.accounts import store
+    from tracker.config import database_url
+
+    with db.connect(database_url()) as conn:
+        db.apply_schema(conn)
+        if args.action == "list":
+            rows = conn.execute(
+                "SELECT email, created_at FROM users WHERE role = 'admin' ORDER BY email"
+            ).fetchall()
+            print(
+                "\n".join(f"{email}  (since {created:%Y-%m-%d})" for email, created in rows)
+                or "No admins yet."
+            )
+            return
+        if not args.email:
+            raise SystemExit("Give the account's email, e.g. ghostless admin add you@example.com")
+        role = "admin" if args.action == "add" else "user"
+        if not store.set_role(conn, args.email, role):
+            raise SystemExit(f"No account with the email {args.email}. Sign up on the website first.")
+        conn.commit()
+    print(f"{args.email} is {'now an admin' if role == 'admin' else 'no longer an admin'}.")
+
+
+def _discover(args: argparse.Namespace) -> None:
+    from datetime import datetime, timezone
+
+    from tracker import db
+    from tracker.config import database_url, load_companies, load_lists
+    from tracker.discovery import run as discovery
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S", stream=sys.stdout
+    )
+    if args.boards is not None:
+        discovery.BOARDS_PER_RUN = args.boards
+    dsn = database_url()
+    with db.connect(dsn) as conn:
+        db.apply_schema(conn)
+    stats = dict(jobs_seen=0, jobs_new=0, jobs_closed=0)
+    discovery.run(dsn, load_companies(), load_lists(), datetime.now(timezone.utc), stats)
+    with db.connect(dsn) as conn:
+        db.refresh_signals(conn)
+    print(
+        f"Discovery: {stats.get('discovered_ok', 0)} boards crawled, {stats.get('list_companies', 0)} list-only "
+        f"companies, {stats['jobs_new']} new and {stats['jobs_closed']} closed postings."
+    )
+
+
+def _reprocess() -> None:
+    from tracker import reprocess
+    from tracker.config import database_url, load_companies
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S", stream=sys.stdout
+    )
+    result = reprocess.run(database_url(), load_companies())
+    print(f"Reprocessed {result['postings']} postings; {result['reposts_linked']} linked as reposts.")
 
 
 def _gap(args: argparse.Namespace) -> None:

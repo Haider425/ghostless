@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import datetime, timezone
 
 import psycopg
 
 from tracker import db
+from tracker.accounts.store import purge_expired
 from tracker.classify import enrich
-from tracker.config import database_url, load_companies, select
+from tracker.config import database_url, load_companies, load_lists, select
 from tracker.skills import extract_skills
-from tracker.sources import FetchError, fetch_jobs
+from tracker.sources import INCREMENTAL_DETAILS, FetchError, fetch_jobs
 
 log = logging.getLogger("tracker.ingest")
 
@@ -41,6 +43,33 @@ def _save(dsn: str, company, jobs, run_started: datetime) -> tuple[int, int]:
     raise AssertionError("unreachable")
 
 
+_MULTI_LOCATION = re.compile(r"^\s*\d+\s+locations?\s*$", re.I)
+
+
+def _stored_details(dsn: str, company) -> dict[str, tuple[str, str]]:
+    if company.platform not in INCREMENTAL_DETAILS:
+        return {}
+    try:
+        with db.connect(dsn) as conn:
+            return db.stored_details(conn, company)
+    except psycopg.Error as exc:  # first run, or the database is waking: fetch everything
+        log.warning("%s: could not read stored descriptions (%s)", company.name, exc)
+        return {}
+
+
+def reuse_details(jobs, stored: dict[str, tuple[str, str]]) -> None:
+    """Give postings whose description was not fetched this run their stored
+    description, and their full location when the listing only says
+    "3 Locations"."""
+    for job in jobs:
+        if job.description or job.external_id not in stored:
+            continue
+        description, location = stored[job.external_id]
+        job.description = description
+        if location and (not job.location or _MULTI_LOCATION.match(job.location)):
+            job.location = location
+
+
 def run(only: str | None = None) -> dict:
     companies = select(load_companies(), only)
     dsn = database_url()
@@ -54,12 +83,14 @@ def run(only: str | None = None) -> dict:
         run_id = db.start_run(conn, run_started)
 
     for company in companies:
+        stored = _stored_details(dsn, company)
         try:
-            jobs = fetch_jobs(company)
+            jobs = fetch_jobs(company, known=frozenset(stored))
         except FetchError as exc:
             stats["companies_failed"] += 1
             log.error("%s: fetch failed, skipping (no jobs closed): %s", company.name, exc)
             continue
+        reuse_details(jobs, stored)
 
         for job in jobs:
             enrich(job, extract_skills(f"{job.title} {job.description}"))
@@ -77,10 +108,21 @@ def run(only: str | None = None) -> dict:
         stats["jobs_closed"] += closed
         log.info("%s: %d jobs (%d new, %d closed)", company.name, len(jobs), new, closed)
 
+    if not only:
+        # beyond companies.yaml: public job lists and the boards they lead to
+        from tracker.discovery import run as discovery
+
+        try:
+            discovery.run(dsn, select(load_companies(), None), load_lists(), run_started, stats)
+        except Exception:
+            log.exception("discovery failed; the companies above were still saved")
+
     stats["duration_seconds"] = round(time.perf_counter() - clock, 2)
     with db.connect(dsn) as conn:
         db.finish_run(conn, run_id, stats)
         db.refresh_signals(conn)
+        purge_expired(conn)  # old sessions, used email links, analytics past retention
+        conn.commit()
 
     log.info(
         "run complete: %d companies ok, %d failed, %d jobs seen, %d new, %d closed in %.0fs",

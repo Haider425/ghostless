@@ -38,10 +38,12 @@ def parse_lever(data: list) -> list[Job]:
     jobs = []
     for item in data:
         categories = item.get("categories") or {}
-        list_text = " ".join(
-            f"{section.get('text', '')} {html_to_text(section.get('content'))}"
-            for section in item.get("lists") or []
-        )
+        sections = [html_to_text(item.get("description")) or (item.get("descriptionPlain") or "").strip()]
+        for section in item.get("lists") or []:
+            heading = (section.get("text") or "").strip()
+            body = html_to_text("<ul>" + (section.get("content") or "") + "</ul>")
+            sections.append(f"{heading}\n{body}".strip())
+        sections.append(html_to_text(item.get("additional")) or (item.get("additionalPlain") or "").strip())
         created_ms = item.get("createdAt")
         jobs.append(
             Job(
@@ -50,7 +52,7 @@ def parse_lever(data: list) -> list[Job]:
                 url=item.get("hostedUrl", ""),
                 location=categories.get("location", "") or "",
                 department=categories.get("team"),
-                description=f"{item.get('descriptionPlain', '')} {list_text}".strip(),
+                description="\n\n".join(part for part in sections if part),
                 posted_at=(
                     datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc) if created_ms else None
                 ),
@@ -72,7 +74,8 @@ def parse_ashby(data: dict) -> list[Job]:
                 url=item.get("jobUrl", ""),
                 location=item.get("location", "") or "",
                 department=item.get("department"),
-                description=item.get("descriptionPlain") or html_to_text(item.get("descriptionHtml")),
+                description=html_to_text(item.get("descriptionHtml"))
+                or (item.get("descriptionPlain") or "").strip(),
                 posted_at=parse_iso(item.get("publishedAt")),
                 source_remote=bool(item.get("isRemote")),
             )

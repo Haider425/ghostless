@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # ---------- Salary ----------
 
@@ -39,6 +39,7 @@ class Salary:
     maximum: float
     period: str  # "year" | "hour"
     currency: str | None  # "CAD" | "USD" | None when not stated
+    text: str = field(default="", compare=False)  # the sentence it came from
 
 
 def _to_number(raw: str, thousands: bool) -> float:
@@ -87,42 +88,74 @@ def parse_salary(text: str) -> Salary | None:
             continue
         currency_after = re.match(r"\s*\(?\s*(CAD|USD)\b", after, re.I)
         currency = _currency(match["cur1"], match["cur2"], currency_after and currency_after.group(1))
-        return Salary(low, high, period, currency)
+        return Salary(low, high, period, currency, _around(text, match.start(), match.end("max")))
     return None
 
 
-# ---------- Existing vacancy ----------
+def _around(text: str, start: int, end: int) -> str:
+    """The sentence containing text[start:end]."""
+    left = max(text.rfind(". ", 0, start), text.rfind("\n", 0, start))
+    right_candidates = [i for i in (text.find(". ", end), text.find("\n", end)) if i != -1]
+    right = min(right_candidates) + 1 if right_candidates else len(text)
+    return _trim(text[left + 1 : right])
 
+
+# ---------- Existing vacancy ----------
+#
+# Only explicit statements about THIS posting count. Phrases such as "future
+# hiring needs" or "talent pipeline" also appear in ordinary job duties (a
+# recruiter "builds pipelines for current and future hiring needs"), and
+# "future opportunities" appears in privacy notices, so those alone never
+# mark a posting as not a real opening.
+
+_SUBJECT = r"(?:this|the)\s+(?:job\s+)?(?:posting|position|role|requisition|opportunity|opening|advertisement|ad|vacancy)"
 _NOT_EXISTING = re.compile(
-    r"\b(?:not|isn['’]t|is\s+not)\s+(?:for\s+|to\s+fill\s+)?an?\s+existing\s+(?:vacancy|position|role|opening)"
+    r"\b(?:not|isn['’]t|is\s+not)\s+(?:for\s+|to\s+fill\s+)?an?\s+(?:current(?:ly)?\s+)?existing\s+(?:vacancy|position|role|opening)"
     r"|\bexisting\s+vacancy\s*[:?]\s*no\b"
-    r"|\bfuture\s+(?:vacanc|opportunit|opening|hiring\s+need)"
-    r"|\btalent\s+(?:pool|pipeline|community)\b"
-    r"|\bpipeline\s+(?:requisition|posting|role)\b"
-    r"|\bevergreen\s+(?:requisition|posting|role|opening)\b",
+    rf"|\b{_SUBJECT}\s+(?:is|will\s+be\s+used|serves|is\s+being\s+used)\b[^.\n]{{0,60}}?"
+    r"\b(?:future|anticipated|upcoming|potential)\s+(?:vacanc|opening|need|position|role|opportunit|hiring)"
+    rf"|\b{_SUBJECT}\s+is\s+(?:an?\s+)?(?:evergreen|pipeline|pooled|talent[\s-]+pool|talent[\s-]+community|general\s+application)\b"
+    r"|\b(?:evergreen|pipeline|pooled)\s+(?:requisition|job\s+posting|posting)\b"
+    r"|\btalent[\s-]+(?:pool|community)\s+(?:posting|requisition)\b"
+    r"|\bthere\s+is\s+(?:currently\s+)?no\s+(?:existing\s+|current\s+)?vacancy\b"
+    r"|\b(?:accepting|collecting)\s+applications\s+for\s+(?:future|upcoming|anticipated)\s+"
+    r"(?:vacanc|opening|opportunit|position|role)",
     re.I,
 )
 _EXISTING = re.compile(
-    r"\b(?:is|for|fill(?:s|ing)?|represents|this\s+is)\s+an?\s+existing\s+(?:vacancy|position|role|opening)"
+    r"\b(?:is|for|fill(?:s|ing)?|represents|this\s+is)\s+an?\s+(?:current(?:ly)?\s+)?existing\s+(?:vacancy|position|role|opening)"
     r"|\bexisting\s+vacancy\s*[:?]\s*yes\b",
     re.I,
 )
+_SENTENCES = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def vacancy_evidence(text: str) -> tuple[str | None, str | None]:
+    """The vacancy status and the sentence that states it.
+
+    Returns ('existing' | 'not_existing' | None, sentence | None).
+    """
+    if not text:
+        return None, None
+    for pattern, status in ((_NOT_EXISTING, "not_existing"), (_EXISTING, "existing")):
+        for sentence in _SENTENCES.split(text):
+            if pattern.search(sentence):
+                return status, _trim(sentence)
+    return None, None
 
 
 def parse_vacancy(text: str) -> str | None:
     """'existing', 'not_existing', or None when the posting does not say."""
-    if not text:
-        return None
-    if _NOT_EXISTING.search(text):
-        return "not_existing"
-    if _EXISTING.search(text):
-        return "existing"
-    return None
+    return vacancy_evidence(text)[0]
+
+
+def _trim(sentence: str, limit: int = 300) -> str:
+    sentence = " ".join(sentence.split()).lstrip("•-* ")
+    return sentence if len(sentence) <= limit else sentence[: limit - 1].rsplit(" ", 1)[0] + "…"
 
 
 # ---------- AI screening ----------
 
-_SENTENCE = re.compile(r"(?<=[.!?])\s+")
 _AI = re.compile(r"\b(?:(?i:artificial\s+intelligence)|AI|A\.I\.)\b")
 _HIRING = re.compile(r"\b(?:applica|candidat|hiring|recruit|selection|screening)", re.I)
 _SCREEN_VERB = re.compile(r"\b(?:screen|assess|select|evaluat|review|rank|shortlist|sort)", re.I)
@@ -132,15 +165,19 @@ _NEGATION = re.compile(
 )
 
 
-def parse_ai_screening(text: str) -> bool | None:
-    """True if the posting says AI is used to screen applicants, False if it
-    says AI is not used, None if it says nothing about it."""
+def ai_screening_evidence(text: str) -> tuple[bool | None, str | None]:
+    """(uses_ai, sentence): True if the posting says AI is used to screen
+    applicants, False if it says AI is not used, None if it says nothing."""
     if not text:
-        return None
-    for sentence in _SENTENCE.split(text):
+        return None, None
+    for sentence in _SENTENCES.split(text):
         if _AI.search(sentence) and _HIRING.search(sentence) and _SCREEN_VERB.search(sentence):
-            return not _NEGATION.search(sentence)
-    return None
+            return not _NEGATION.search(sentence), _trim(sentence)
+    return None, None
+
+
+def parse_ai_screening(text: str) -> bool | None:
+    return ai_screening_evidence(text)[0]
 
 
 # ---------- Repost fingerprint ----------
@@ -169,13 +206,22 @@ def fingerprint(title: str, location: str = "", description: str = "") -> str:
     role, so one closing and another appearing is a repost. The description
     is part of the identity, because large employers post many different
     roles under identical titles; requisition ids and dates are removed so a
-    plain repost still matches. Without a description, title and location
-    alone are used.
+    plain repost still matches. Every location counts, so the same role in
+    two cities is two roles. Without a description, title and location alone
+    are used, and such a fingerprint is too weak to call two open postings
+    duplicates (see has_description_hash).
     """
     clean_title = _words(_REQ_ID.sub(" ", title))
-    clean_location = _words(location.split("|")[0])
+    clean_location = ",".join(sorted({_words(part) for part in location.split("|") if _words(part)}))
     key = f"{clean_title}|{clean_location}"
     if description:
         body = _words(_REQ_ID.sub(" ", _DATES.sub(" ", description)))[:DESCRIPTION_CHARS]
         key += "|" + hashlib.sha1(body.encode("utf-8")).hexdigest()[:12]
     return key
+
+
+_HASHED = re.compile(r"\|[0-9a-f]{12}$")
+
+
+def has_description_hash(value: str) -> bool:
+    return bool(_HASHED.search(value))

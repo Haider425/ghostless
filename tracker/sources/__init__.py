@@ -60,19 +60,29 @@ def listing_is_complete(company: Company) -> bool:
     return company.platform not in PARTIAL_LISTINGS
 
 
-def fetch_jobs(company: Company, details: bool = True) -> JobList:
+# Platforms that need one extra request per posting for its description.
+# They accept `known`: ids already stored with a description, which are not
+# fetched again.
+INCREMENTAL_DETAILS = {"workday", "eightfold"}
+
+
+def fetch_jobs(company: Company, details: bool = True, known: frozenset[str] = frozenset()) -> JobList:
     """Fetch current postings for a company.
 
     Returns a JobList whose `complete` flag is False when the platform only
     ever returns part of the postings (Google) or when this particular fetch
     came back truncated (very large Workday employers). `details=False` skips
-    slow per-job requests on platforms that need them (used by verify). Jobs
-    with no location get the company's configured `region`.
+    slow per-job requests on platforms that need them (used by verify), and
+    `known` lists postings whose description is already stored, so it is not
+    fetched again. Jobs with no location get the company's configured `region`.
     """
     fetcher = FETCHERS.get(company.platform)
     if fetcher is None:
         raise FetchError(f"unknown platform: {company.platform}")
-    result = fetcher(company, details=details)
+    if company.platform in INCREMENTAL_DETAILS:
+        result = fetcher(company, details=details, known=known)
+    else:
+        result = fetcher(company, details=details)
     jobs = JobList(
         result,
         complete=listing_is_complete(company) and getattr(result, "complete", True),

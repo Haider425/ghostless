@@ -15,7 +15,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 def companies_path() -> Path:
     """companies.yaml location: $GHOSTLESS_COMPANIES, then the current
     directory, then the repository root."""
-    override = os.environ.get("GHOSTLESS_COMPANIES")
+    override = os.environ.get("GHOSTLESS_COMPANIES") or os.environ.get("JOB_TRACKER_COMPANIES")
     if override:
         return Path(override)
     local = Path.cwd() / "companies.yaml"
@@ -53,6 +53,7 @@ def load_companies(path: Path | None = None) -> list[Company]:
                 platform=entry["platform"],
                 board_slug=str(entry["slug"]),
                 region=entry.get("region"),
+                domain=entry.get("domain"),
             )
         )
     return companies
@@ -67,3 +68,31 @@ def select(companies: list[Company], only: str | None) -> list[Company]:
     if not chosen:
         raise SystemExit(f"no company named {only!r} in companies.yaml")
     return chosen
+
+
+def load_lists(path: Path | None = None) -> list:
+    """Public job lists to read (the `lists:` section of companies.yaml).
+
+    Without the section, the default SimplifyJobs lists are read; `lists: []`
+    turns list reading off.
+    """
+    from tracker.discovery.lists import DEFAULT_LISTS, JobList
+
+    path = path or companies_path()
+    data = (yaml.safe_load(path.read_text()) or {}) if path.is_file() else {}
+    if "lists" not in data:
+        return list(DEFAULT_LISTS)
+    out = []
+    for number, entry in enumerate(data.get("lists") or [], start=1):
+        if not isinstance(entry, dict) or not entry.get("repo") or "/" not in str(entry["repo"]):
+            raise SystemExit(f"{path}: list #{number} needs repo: owner/name")
+        out.append(
+            JobList(
+                repo=str(entry["repo"]),
+                branch=str(entry.get("branch", "dev")),
+                path=str(entry.get("path", ".github/scripts/listings.json")),
+                label=str(entry.get("label", "")),
+                level=entry.get("level") if entry.get("level") in ("intern", "new_grad") else None,
+            )
+        )
+    return out

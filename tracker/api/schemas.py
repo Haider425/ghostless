@@ -8,7 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Level = Literal["intern", "new_grad", "mid", "senior"]
-RoleType = Literal["sde", "data_eng", "data", "other"]
+RoleType = Literal["sde", "data_eng", "data", "ml", "hardware", "security", "other"]
 GhostRisk = Literal["low", "medium", "high"]
 
 
@@ -36,6 +36,8 @@ class GhostSignals(BaseModel):
 class JobSummary(BaseModel):
     id: int
     company: str
+    company_slug: str = Field(description="for /companies/{slug}")
+    company_domain: str | None = Field(None, description="the company's website, for its logo")
     title: str
     location: str | None
     url: str
@@ -52,6 +54,8 @@ class JobSummary(BaseModel):
     )
     ai_screening: bool | None = Field(None, description="Ontario disclosure; null when not stated")
     skills: list[str]
+    terms: list[str] = Field(default_factory=list, description='seasons, e.g. "Summer 2027"')
+    listed_in: str | None = Field(None, description="the public job list this posting came from, if any")
     signals: GhostSignals
 
 
@@ -63,8 +67,18 @@ class RepostEntry(BaseModel):
     is_active: bool
 
 
+class Evidence(BaseModel):
+    """The sentence in the posting each disclosure was read from, so readers
+    can check it themselves."""
+
+    vacancy: str | None = None
+    salary: str | None = None
+    ai_screening: str | None = None
+
+
 class JobDetail(JobSummary):
     department: str | None
+    evidence: Evidence
     description: str | None
     source_posted_at: datetime | None = Field(
         None, description="the date the source displays, which reposts refresh"
@@ -84,10 +98,36 @@ class JobPage(BaseModel):
 
 class Company(BaseModel):
     name: str
+    slug: str
+    domain: str | None
     platform: str
+    origin: Literal["configured", "discovered", "list"] = Field(
+        "configured",
+        description="configured: tracked by name; discovered: board found through a job list; list: only known from the lists",
+    )
     active_jobs: int
+    tech_active_jobs: int = Field(description="software, data engineering and data roles")
     high_risk_jobs: int
     new_last_7_days: int
+    typical_days_open: int | None = Field(
+        None, description="median days from first seen to closed, once 5+ postings have closed"
+    )
+
+
+class TermCount(BaseModel):
+    term: str
+    jobs: int
+
+
+class Count(BaseModel):
+    key: str
+    count: int
+
+
+class WeekCount(BaseModel):
+    week_start: date = Field(description="Monday, Toronto time")
+    new: int = Field(description="postings first seen that week (after tracking began)")
+    closed: int
 
 
 class LastRun(BaseModel):
@@ -103,6 +143,10 @@ class LastRun(BaseModel):
 
 class Stats(BaseModel):
     active_jobs: int
+    tech_active_jobs: int
+    tech_new_last_7_days: int
+    tech_high_risk_active_jobs: int
+    tech_with_salary_active_jobs: int
     companies: int
     new_last_7_days: int
     canada_active_jobs: int
@@ -138,3 +182,135 @@ class CalendarEntry(BaseModel):
     first_opened: date
     last_opened: date
     postings: int
+
+
+class CompanyDetail(Company):
+    tracking_since: datetime
+    closed_last_30_days: int
+    with_salary_active_jobs: int
+    roles: list[Count] = Field(description="active postings by role type")
+    levels: list[Count] = Field(description="active tech postings by level")
+    weekly: list[WeekCount] = Field(description="tech postings, oldest week first")
+    top_skills: list[SkillCount]
+
+
+# ---------- accounts ----------
+
+Theme = Literal["system", "light", "dark"]
+TextSize = Literal["sm", "md", "lg", "xl"]
+Density = Literal["comfortable", "compact"]
+LocationPref = Literal["any", "canada", "remote", "canada_or_remote"]
+
+
+class Settings(BaseModel):
+    """Display and search preferences. Unknown keys are dropped."""
+
+    theme: Theme = "system"
+    text_size: TextSize = "md"
+    density: Density = "comfortable"
+    reduce_motion: bool = False
+    underline_links: bool = False
+    default_location: LocationPref = "any"
+    hide_high_risk: bool = False
+    analytics: bool = Field(True, description="share anonymous usage stats")
+
+
+OAuthProvider = Literal["google", "github"]
+
+
+class User(BaseModel):
+    id: int
+    email: str
+    name: str | None
+    role: Literal["user", "admin"]
+    email_verified: bool
+    settings: Settings
+    created_at: datetime
+    has_password: bool = Field(
+        True, description="false for accounts made with Google or GitHub, until a password is set"
+    )
+    sign_in_providers: list[OAuthProvider] = Field(
+        default_factory=list, description="linked Google or GitHub sign-ins"
+    )
+
+
+class Providers(BaseModel):
+    google: bool
+    github: bool
+
+
+class AuthorizeOut(BaseModel):
+    url: str
+
+
+class OAuthIn(BaseModel):
+    code: str = Field(min_length=1, max_length=2000)
+    redirect_uri: str = Field(min_length=1, max_length=500)
+    code_verifier: str = Field(min_length=43, max_length=128)
+
+
+class Session(BaseModel):
+    token: str = Field(description="send as `Authorization: Bearer <token>`")
+    user: User
+
+
+class SignupIn(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=256)
+    name: str | None = Field(None, max_length=80)
+
+
+class LoginIn(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class EmailIn(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+
+class TokenIn(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+
+
+class ResetIn(TokenIn):
+    password: str = Field(min_length=1, max_length=256)
+
+
+class ProfileIn(BaseModel):
+    name: str | None = Field(None, max_length=80)
+
+
+class PasswordChangeIn(BaseModel):
+    current_password: str = Field(
+        "", max_length=256, description="leave empty when the account has no password yet"
+    )
+    new_password: str = Field(min_length=1, max_length=256)
+
+
+class PasswordIn(BaseModel):
+    password: str = Field("", max_length=256, description="leave empty when the account has no password")
+
+
+class SavedJobsIn(BaseModel):
+    job_ids: list[int] = Field(max_length=500)
+
+
+ApplicationStatus = Literal["saved", "applied", "interviewing", "offer", "rejected"]
+
+
+class SavedUpdateIn(BaseModel):
+    status: ApplicationStatus | None = None
+    notes: str | None = Field(None, max_length=2000, description="private notes; empty string clears them")
+
+
+class SavedJob(BaseModel):
+    job: JobSummary
+    status: ApplicationStatus
+    notes: str | None
+    saved_at: datetime
+    updated_at: datetime
+
+
+class Message(BaseModel):
+    detail: str

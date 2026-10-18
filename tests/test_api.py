@@ -60,7 +60,7 @@ def client():
     with db.connect(DSN) as conn:
         reset_database(conn)
         db.apply_schema(conn)
-        acme = db.upsert_company(conn, Company("Acme", "greenhouse", "acme"))
+        acme = db.upsert_company(conn, Company("Acme", "greenhouse", "acme", domain="acme.example"))
         beta = db.upsert_company(conn, Company("Beta", "workday", "beta"))
 
         run = db.start_run(conn, DAY0)
@@ -184,10 +184,15 @@ def test_companies_and_stats(client):
     companies = {c["name"]: c for c in client.get("/companies").json()}
     assert companies["Acme"] == {
         "name": "Acme",
+        "slug": "acme",
+        "domain": "acme.example",
         "platform": "greenhouse",
+        "origin": "configured",
         "active_jobs": 3,
+        "tech_active_jobs": 3,
         "high_risk_jobs": 1,
         "new_last_7_days": 2,
+        "typical_days_open": None,
     }
     stats = client.get("/stats").json()
     assert stats["active_jobs"] == 4
@@ -198,6 +203,36 @@ def test_companies_and_stats(client):
     assert stats["with_salary_active_jobs"] == 2
     assert stats["signals_computed_at"] is not None
     assert stats["last_run"]["jobs_closed"] == 1
+    assert stats["tech_active_jobs"] == 4
+
+
+@needs_db
+def test_company_detail(client):
+    acme = client.get("/companies/acme").json()
+    assert acme["name"] == "Acme" and acme["domain"] == "acme.example"
+    assert {r["key"]: r["count"] for r in acme["roles"]} == {"sde": 2, "data_eng": 1}
+    assert len(acme["weekly"]) == 12
+    assert sum(w["new"] for w in acme["weekly"]) == 2
+    assert sum(w["closed"] for w in acme["weekly"]) == 1
+    assert acme["top_skills"][0]["postings"] >= 1
+    assert client.get("/companies/nope").status_code == 404
+
+
+@needs_db
+def test_weekly_trend(client):
+    weeks = client.get("/trends/weekly", params={"weeks": 4}).json()
+    assert len(weeks) == 4
+    assert weeks[0]["week_start"] < weeks[-1]["week_start"]
+
+
+@needs_db
+def test_job_detail_quotes_its_evidence(client):
+    pool = client.get("/jobs", params={"risk": "high"}).json()["items"][0]
+    assert pool["company_slug"] == "acme"
+    detail = client.get(f"/jobs/{pool['id']}").json()
+    assert detail["evidence"]["vacancy"] == "This posting is not for an existing vacancy."
+    assert detail["evidence"]["salary"] == "Salary $85,000 - $105,000 per year."
+    assert detail["evidence"]["ai_screening"] is None
 
 
 @needs_db
