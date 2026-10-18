@@ -33,26 +33,22 @@ function Dropdown({ label, summary, active, children }: { label: string; summary
   return (
     <details data-popover className="group relative">
       <summary
-        className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors select-none ${
-          active
-            ? "border-accent bg-accent-tint text-accent"
-            : "border-line-strong bg-surface text-ink hover:border-ink-faint"
-        }`}
+        className={`btn btn-secondary btn-sm gap-1.5 group-open:bg-sunken ${active ? "border-accent/60 bg-accent-tint text-accent hover:bg-accent-tint" : ""}`}
       >
         <span>
           {summary ? `${label}: ` : label}
           {summary && <span className="font-normal">{summary}</span>}
         </span>
-        <ChevronDownIcon className="size-3.5 transition-transform group-open:rotate-180" />
+        <ChevronDownIcon className="size-3.5 opacity-70 transition-transform group-open:rotate-180" />
       </summary>
-      <div className="fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-line bg-surface p-4 shadow-pop sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:mt-2 sm:w-64 sm:p-3">
+      <div className="fixed inset-x-3 bottom-3 z-40 panel p-4 shadow-pop sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:mt-1.5 sm:w-60 sm:rounded-xl sm:p-2">
         <fieldset className="space-y-0.5">
-          <legend className="mb-1.5 px-1 text-xs font-semibold text-ink-soft">{label}</legend>
+          <legend className="mb-1 px-2 pt-1 text-xs font-medium text-ink-faint">{label}</legend>
           {children}
         </fieldset>
         <button
           type="submit"
-          className="mt-3 h-9 w-full rounded-lg bg-accent text-sm font-medium text-on-accent hover:bg-accent-hover"
+          className="btn btn-primary btn-sm mt-3 w-full"
         >
           Show results
         </button>
@@ -63,7 +59,7 @@ function Dropdown({ label, summary, active, children }: { label: string; summary
 
 function Option({ type, name, value, checked, children }: { type: "checkbox" | "radio"; name: string; value: string; checked: boolean; children: ReactNode }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-ink hover:bg-sunken sm:py-1.5">
+    <label className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-sm text-ink hover:bg-sunken sm:py-1.5">
       {/* keyed by state: when the URL changes (Clear all, back button) the box resets to match it */}
       <input
         key={`${value}-${checked}`}
@@ -102,16 +98,16 @@ export function FilterBar({ filters, seasons = [] }: { filters: JobFilters; seas
             maxLength={100}
             placeholder="Title, company, skill or city: amazon, python, toronto..."
             autoComplete="off"
-            className="h-11 w-full rounded-xl border border-line-strong bg-surface pr-3 pl-10 text-ink placeholder:text-ink-faint focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+            className="field h-10 pl-10"
           />
         </div>
-        <button type="submit" className="h-11 shrink-0 rounded-xl bg-accent px-5 font-medium text-on-accent hover:bg-accent-hover">
+        <button type="submit" className="btn btn-primary h-10 px-4">
           Search
         </button>
       </div>
 
       {/* phones: one scrolling row (dropdowns open as bottom sheets, so nothing is clipped) */}
-      <div className="scroll-quiet flex items-center gap-2 max-sm:overflow-x-auto max-sm:pb-1 sm:flex-wrap [&>*]:shrink-0">
+      <div className="scroll-quiet flex items-center gap-1.5 max-sm:overflow-x-auto max-sm:pb-1 sm:flex-wrap [&>*]:shrink-0">
         <Dropdown label="Level" summary={summarize(filters.level, LEVEL_LABELS)} active={filters.level.length > 0}>
           {LEVELS.map((level) => (
             <Option key={level} type="checkbox" name="level" value={level} checked={filters.level.includes(level)}>
@@ -161,7 +157,7 @@ export function FilterBar({ filters, seasons = [] }: { filters: JobFilters; seas
           ))}
         </Dropdown>
         <label
-          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-line-strong bg-surface px-3.5 text-sm font-medium text-ink transition-colors hover:border-ink-faint has-[:checked]:border-accent has-[:checked]:bg-accent-tint has-[:checked]:text-accent has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[var(--focus)]"
+          className="btn btn-secondary btn-sm cursor-pointer has-[:checked]:border-accent/60 has-[:checked]:bg-accent-tint has-[:checked]:text-accent has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[var(--focus)]"
         >
           <input
             key={String(filters.hasSalary)}
@@ -187,7 +183,7 @@ export function FilterBar({ filters, seasons = [] }: { filters: JobFilters; seas
         {count > 0 && (
           <Link
             href={jobsHref({ ...EMPTY_FILTERS, q: filters.q, role: filters.role })}
-            className="ml-1 text-sm font-medium text-accent hover:underline"
+            className="link ml-1 text-sm"
           >
             Clear all
           </Link>

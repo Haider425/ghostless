@@ -34,19 +34,19 @@ export function StaticMatches({ scores, children }: { scores: Record<number, Mat
 }
 
 const TONES = {
-  strong: "bg-good-tint text-good",
-  good: "bg-accent-tint text-accent",
-  fair: "bg-neutral-tint text-ink-soft",
-  low: "bg-neutral-tint text-ink-faint",
+  strong: "text-good",
+  good: "text-accent",
+  fair: "text-ink-soft",
+  low: "text-ink-faint",
 };
 
+/** The score in a job row's side slot: a number under the save button, so it never shifts the row. */
 export function MatchBadge({ jobId }: { jobId: number }) {
   const match = useContext(MatchContext)[jobId];
   if (!match) return null;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${TONES[scoreTone(match.score)]}`}>
-      {match.score}% match
-      <span className="sr-only">: {match.label}</span>
+    <span title={`${match.score}% match: ${match.label}`} className={`text-xs font-semibold tabular-nums ${TONES[scoreTone(match.score)]}`}>
+      {match.score}%<span className="sr-only"> match: {match.label}</span>
     </span>
   );
 }
@@ -101,7 +101,7 @@ function Breakdown({ match }: { match: Match }) {
               </span>
             </div>
             <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-sunken" aria-hidden="true">
-              <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, (p.points / p.max) * 100)}%` }} />
+              <div className="h-full rounded-full bg-accent-solid" style={{ width: `${Math.min(100, (p.points / p.max) * 100)}%` }} />
             </div>
             <p className="mt-1 text-xs text-ink-soft">{p.detail}</p>
           </li>
@@ -196,17 +196,17 @@ export function MatchPanel({ jobId, hasDescription, headingAs = "h2" }: { jobId:
   const match = fresh?.match ?? null;
   const loading = Boolean(resume) && !fresh;
 
-  const box = "rounded-xl border border-line bg-surface p-5";
+  const box = "record-box";
   if (!ready) return <div className={`${box} h-40 animate-pulse`} aria-busy="true" />;
   if (!resume) {
     return (
       <section className={`${box} space-y-3`}>
-        <Heading className="font-sans text-base font-semibold text-ink">How well do you match?</Heading>
+        <Heading className="panel-title">How well do you match?</Heading>
         <p className="text-sm text-ink-soft">
           Upload your resume to get a match score for this job, the skills you&apos;re missing, and what to change. Free, and it
           stays in your browser unless you save it to an account.
         </p>
-        <Link href="/resume" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover">
+        <Link href="/resume" className="btn btn-primary">
           Upload your resume
         </Link>
       </section>
@@ -216,7 +216,7 @@ export function MatchPanel({ jobId, hasDescription, headingAs = "h2" }: { jobId:
   if (!match) {
     return (
       <section className={box}>
-        <Heading className="font-sans text-base font-semibold text-ink">How well do you match?</Heading>
+        <Heading className="panel-title">How well do you match?</Heading>
         <p className="mt-2 text-sm text-ink-soft">This job couldn&apos;t be scored right now. Try again in a moment.</p>
       </section>
     );
@@ -227,7 +227,7 @@ export function MatchPanel({ jobId, hasDescription, headingAs = "h2" }: { jobId:
       <div className="flex items-center gap-4">
         <Ring score={match.score} />
         <div className="min-w-0">
-          <Heading className="font-sans text-base font-semibold text-ink">{match.label}</Heading>
+          <Heading className="font-sans text-base font-semibold tracking-normal text-ink">{match.label}</Heading>
           <p className="text-sm text-ink-soft">
             Your resume &ldquo;{resume.title}&rdquo; against this posting.{" "}
             <Link href="/resume" className="text-accent hover:underline">Change</Link>
@@ -264,7 +264,7 @@ export function MatchPanel({ jobId, hasDescription, headingAs = "h2" }: { jobId:
         </div>
       )}
       <p className="text-sm">
-        <Link href={`/resume/builder?job=${jobId}${resume.id ? `&id=${resume.id}` : ""}`} className="font-medium text-accent hover:underline">
+        <Link href={`/resume/builder?job=${jobId}${resume.id ? `&id=${resume.id}` : ""}`} className="link">
           Tailor your resume to this job
         </Link>
         <span className="text-ink-soft"> in the builder, with the score updating as you edit.</span>
@@ -291,7 +291,7 @@ function AIReview({ jobId }: { jobId: number }) {
   if (!viewer) {
     return (
       <p className="border-t border-line pt-4 text-sm text-ink-soft">
-        <Link href="/login" className="font-medium text-accent hover:underline">Sign in</Link> for a detailed AI review of your resume
+        <Link href="/login" className="link">Sign in</Link> for a detailed AI review of your resume
         for this job.
       </p>
     );
@@ -318,7 +318,7 @@ function AIReview({ jobId }: { jobId: number }) {
   if (resume.id === null) {
     return (
       <p className="border-t border-line pt-4 text-sm text-ink-soft">
-        Save your resume to your account on the <Link href="/resume" className="font-medium text-accent hover:underline">resume page</Link> to
+        Save your resume to your account on the <Link href="/resume" className="link">resume page</Link> to
         get a detailed AI review for this job.
       </p>
     );
@@ -332,7 +332,7 @@ function AIReview({ jobId }: { jobId: number }) {
             type="button"
             onClick={run}
             disabled={state === "loading"}
-            className="inline-flex h-10 items-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink hover:border-accent hover:text-accent disabled:opacity-60"
+            className="btn btn-secondary"
           >
             {state === "loading" ? "Reviewing your resume..." : "Get a detailed AI review"}
           </button>

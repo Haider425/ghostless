@@ -22,10 +22,10 @@ export function AccountMenu() {
     const next = pathname && pathname !== "/" && !pathname.startsWith("/log") ? `?next=${encodeURIComponent(pathname)}` : "";
     return (
       <div className="hidden items-center gap-2 sm:flex">
-        <Link href={`/login${next}`} className="rounded-md px-3 py-2 text-sm font-medium text-ink-soft hover:bg-sunken hover:text-ink">
+        <Link href={`/login${next}`} className="btn btn-ghost btn-sm">
           Sign in
         </Link>
-        <Link href="/signup" className="inline-flex h-9 items-center rounded-lg bg-accent px-3.5 text-sm font-medium text-on-accent hover:bg-accent-hover">
+        <Link href="/signup" className="btn btn-primary btn-sm">
           Create account
         </Link>
       </div>
@@ -35,7 +35,7 @@ export function AccountMenu() {
   const item = "block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-sunken";
   return (
     <details data-popover className="group relative" key={pathname}>
-      <summary className="grid size-9 place-items-center rounded-full bg-accent-tint text-sm font-semibold text-accent ring-offset-2 ring-offset-surface hover:ring-2 hover:ring-line-strong">
+      <summary className="grid size-8 place-items-center rounded-full bg-accent-tint text-xs font-semibold text-accent ring-offset-2 ring-offset-paper hover:ring-2 hover:ring-line-strong">
         <span aria-hidden="true">{initialsOf(viewer.name, viewer.email)}</span>
         <span className="sr-only">Account menu</span>
       </summary>

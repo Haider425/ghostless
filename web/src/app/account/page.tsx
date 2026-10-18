@@ -46,7 +46,7 @@ export default async function AccountPage({
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <h1 className="text-4xl font-semibold text-ink">Your account</h1>
+      <h1 className="text-3xl font-semibold text-ink">Your account</h1>
       <p className="mt-2 text-ink-soft">
         Signed in as <span className="font-medium text-ink">{user.email}</span>. Member since {formatDate(user.created_at)}.
       </p>
@@ -55,8 +55,8 @@ export default async function AccountPage({
         <div className="mt-6 rounded-xl border border-accent/30 bg-accent-tint p-5">
           <p className="font-semibold text-ink">Welcome to Ghostless.</p>
           <p className="mt-1 text-sm text-ink-soft">
-            Next: <Link href="/resume" className="font-medium text-accent hover:underline">upload your resume</Link> to see how you
-            match every job, or <Link href="/jobs" className="font-medium text-accent hover:underline">start searching</Link>.
+            Next: <Link href="/resume" className="link">upload your resume</Link> to see how you
+            match every job, or <Link href="/jobs" className="link">start searching</Link>.
           </p>
         </div>
       )}
@@ -98,7 +98,7 @@ export default async function AccountPage({
                   ) : (
                     <a
                       href={`/api/auth/oauth/${p}/start?link=1`}
-                      className="inline-flex h-10 items-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink hover:border-ink-faint"
+                      className="btn btn-secondary"
                     >
                       Connect {PROVIDER_INFO[p].label}
                     </a>
@@ -115,7 +115,7 @@ export default async function AccountPage({
           <SessionsForm />
         </Section>
         <Section title="Your data" description="Everything Ghostless stores about you, as a file.">
-          <a href="/api/me/export" className="inline-flex h-11 items-center rounded-lg border border-line-strong bg-surface px-5 font-medium text-ink hover:border-ink-faint">
+          <a href="/api/me/export" className="btn btn-secondary btn-lg">
             Download my data
           </a>
           <p className="mt-2 text-sm text-ink-soft">

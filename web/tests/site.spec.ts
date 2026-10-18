@@ -134,14 +134,14 @@ test("skills gap marks what you have and what you're missing", async ({ page }) 
 
 test("companies link to their hiring record and jobs", async ({ page }) => {
   await page.goto("/companies");
-  const first = page.getByRole("article").first().getByRole("heading").getByRole("link");
+  const first = page.getByRole("table").getByRole("rowheader").first().getByRole("link");
   const name = (await first.textContent()) ?? "";
   await first.click();
   await expect(page).toHaveURL(/\/companies\/[a-z0-9-]+$/);
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
   await expect(page.getByRole("img", { name: /Tech postings, last 12 weeks/ })).toBeVisible();
 
-  await page.getByRole("link", { name: /^See all \d+ open tech roles?$/ }).click();
+  await page.getByRole("link", { name: /^See all [\d,]+ open tech roles?$/ }).click();
   await expect(page).toHaveURL(/\/jobs\?company=/);
   for (const row of await page.getByRole("region", { name: /jobs?/ }).getByRole("article").all()) {
     await expect(row).toContainText(name);

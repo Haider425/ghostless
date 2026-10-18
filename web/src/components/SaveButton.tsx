@@ -18,7 +18,7 @@ export function SaveButton({ job, variant = "icon" }: Props) {
         type="button"
         onClick={() => toggle(job)}
         aria-pressed={saved}
-        className="inline-flex h-11 items-center gap-2 rounded-lg border border-line-strong bg-surface px-4 font-medium text-ink transition-colors hover:border-accent hover:text-accent aria-pressed:border-accent aria-pressed:bg-accent-tint aria-pressed:text-accent"
+        className="btn btn-secondary btn-lg aria-pressed:border-accent aria-pressed:bg-accent-tint aria-pressed:text-accent"
       >
         <BookmarkIcon className="size-4" filled={saved} />
         {saved ? "Saved" : "Save"}

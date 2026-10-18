@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DailyBars } from "@/components/DailyBars";
-import { Stat } from "@/components/Stat";
+import { Stat, StatStrip } from "@/components/Stat";
 import { api } from "@/lib/api";
 import type { ReportRow } from "@/lib/api-types";
 import { ago, formatDate, pluralize } from "@/lib/format";
@@ -58,7 +58,7 @@ export default async function AdminPage({ searchParams }: Props) {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-semibold text-ink">Admin</h1>
+          <h1 className="text-3xl font-semibold text-ink">Admin</h1>
           <p className="text-ink-soft">How people use Ghostless, what they report, and whether the data is fresh.</p>
         </div>
       </div>
@@ -94,7 +94,7 @@ async function Overview({ c }: { c: Client }) {
   const lastRun = o.last_run as { started_at?: string; companies_failed?: number } | null;
   return (
     <div className="space-y-8">
-      <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <StatStrip>
         <Stat label="Accounts" value={o.users_total.toLocaleString("en-CA")} note={`${o.users_new_7d} new this week, ${o.users_verified} verified`} />
         <Stat label="Active users" value={o.users_active_7d.toLocaleString("en-CA")} note={`last 7 days; ${o.users_active_30d} in 30 days`} />
         <Stat label="Visitors today" value={o.visitors_today.toLocaleString("en-CA")} note={`${o.visitors_7d.toLocaleString("en-CA")} this week, ${o.pageviews_7d.toLocaleString("en-CA")} page views`} />
@@ -108,21 +108,21 @@ async function Overview({ c }: { c: Client }) {
           note={lastRun?.started_at ? `last run ${ago(lastRun.started_at)}${lastRun.companies_failed ? `, ${lastRun.companies_failed} failed` : ""}` : "no runs yet"}
           tone={lastRun?.companies_failed ? "warn" : undefined}
         />
-      </dl>
+      </StatStrip>
       <div className="grid gap-5 lg:grid-cols-2">
-        <section className="rounded-2xl border border-line bg-surface p-5">
+        <section className="panel p-5">
           <h2 className="sr-only">Visitors</h2>
           <DailyBars title="Visitors per day" days={days} values={daily.map((d) => d.visitors)} unit="visitors" />
         </section>
-        <section className="rounded-2xl border border-line bg-surface p-5">
+        <section className="panel p-5">
           <h2 className="sr-only">Sign-ups</h2>
           <DailyBars title="Sign-ups per day" days={days} values={daily.map((d) => d.signups)} unit="sign-ups" />
         </section>
-        <section className="rounded-2xl border border-line bg-surface p-5">
+        <section className="panel p-5">
           <h2 className="sr-only">Active users</h2>
           <DailyBars title="Signed-in users active per day" days={days} values={daily.map((d) => d.active_users)} unit="active users" />
         </section>
-        <section className="rounded-2xl border border-line bg-surface p-5">
+        <section className="panel p-5">
           <h2 className="sr-only">Resume checks</h2>
           <DailyBars title="Resume checks per day" days={days} values={daily.map((d) => d.analyses)} unit="checks" />
         </section>
@@ -169,8 +169,8 @@ async function Users({ c, q, page }: { c: Client; q: string; page: number }) {
       <form action="/admin" method="get" className="flex max-w-md gap-2">
         <input type="hidden" name="tab" value="users" />
         <label htmlFor="admin-q" className="sr-only">Search by email or name</label>
-        <input id="admin-q" name="q" defaultValue={q} placeholder="Search by email or name" className="h-10 min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3 text-ink" />
-        <button className="h-10 rounded-lg bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover">Search</button>
+        <input id="admin-q" name="q" defaultValue={q} placeholder="Search by email or name" className="field h-10 min-w-0 flex-1" />
+        <button className="btn btn-primary">Search</button>
       </form>
       <p className="text-sm text-ink-soft">{pluralize(result.total, "account")}</p>
       <Table caption="Accounts">
@@ -264,9 +264,9 @@ async function Reports({ c, status }: { c: Client; status?: ReportRow["status"] 
                 </label>
                 <label className="min-w-0 flex-1 text-sm text-ink-soft">
                   <span className="mb-1 block">Note (private)</span>
-                  <input name="admin_note" defaultValue={r.admin_note ?? ""} maxLength={2000} className="h-9 w-full rounded-lg border border-line-strong bg-surface px-3 text-ink" />
+                  <input name="admin_note" defaultValue={r.admin_note ?? ""} maxLength={2000} className="field h-9" />
                 </label>
-                <button className="h-9 rounded-lg bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover">Update</button>
+                <button className="btn btn-primary btn-sm">Update</button>
               </form>
             </li>
           ))}

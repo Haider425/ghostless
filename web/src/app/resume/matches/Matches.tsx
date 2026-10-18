@@ -79,7 +79,7 @@ export function Matches() {
         <p className="font-display text-xl font-semibold text-ink">Add your resume first</p>
         <p className="mx-auto mt-2 max-w-md text-sm text-ink-soft">Upload a PDF or Word file, or build one, and your matches appear here.</p>
         <div className="mt-5 flex justify-center gap-3">
-          <Link href="/resume" className="inline-flex h-11 items-center rounded-lg bg-accent px-5 font-medium text-on-accent">Upload resume</Link>
+          <Link href="/resume" className="btn btn-primary btn-lg">Upload resume</Link>
           <Link href="/resume/builder" className="inline-flex h-11 items-center rounded-lg border border-line-strong px-5 font-medium text-ink">Build one</Link>
         </div>
       </div>
@@ -133,7 +133,7 @@ export function Matches() {
             ))}
           </ol>
           {items.length < total && items.length < 1000 && (
-            <button type="button" onClick={more} disabled={state === "more"} className="h-11 w-full rounded-xl border border-line-strong bg-surface font-medium text-ink hover:border-ink-faint disabled:opacity-60">
+            <button type="button" onClick={more} disabled={state === "more"} className="btn btn-secondary btn-lg w-full">
               {state === "more" ? "Loading..." : "Show more"}
             </button>
           )}

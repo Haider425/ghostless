@@ -13,7 +13,7 @@ export function VerifyForm({ token }: { token: string }) {
       {state.message ? (
         <div className="space-y-4">
           <FormMessage state={state} />
-          <Link href="/jobs" className="inline-flex h-11 items-center rounded-lg bg-accent px-5 font-medium text-on-accent">Browse jobs</Link>
+          <Link href="/jobs" className="btn btn-primary btn-lg">Browse jobs</Link>
         </div>
       ) : (
         <form action={action} className="space-y-4">

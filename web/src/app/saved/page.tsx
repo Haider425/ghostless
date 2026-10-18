@@ -20,7 +20,7 @@ export default async function SavedPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <div className="mb-8 space-y-2">
-        <h1 className="text-4xl font-semibold text-ink">{user ? "Applications" : "Saved jobs"}</h1>
+        <h1 className="text-3xl font-semibold text-ink">{user ? "Applications" : "Saved jobs"}</h1>
         {user ? (
           <p className="text-ink-soft">
             Every job you&apos;ve saved, and where each application stands. Notes are private to you.
@@ -28,7 +28,7 @@ export default async function SavedPage() {
         ) : (
           <p className="text-ink-soft">
             Saved in this browser only.{" "}
-            <Link href="/signup?next=/saved" className="font-medium text-accent hover:underline">
+            <Link href="/signup?next=/saved" className="link">
               Create a free account
             </Link>{" "}
             to keep them on every device and track each application.

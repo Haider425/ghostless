@@ -49,20 +49,21 @@ function Preview({ job }: { job: JobDetail }) {
     <div
       data-preview
       key={job.id /* new job, new scroll position */}
-      className="scroll-quiet sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-line bg-surface"
+      className="panel scroll-quiet sticky top-[4.5rem] max-h-[calc(100dvh-5.5rem)] overflow-y-auto"
     >
       <div className="border-b border-line p-6">
         <JobHeader job={job} titleAs="h2" showPageLink />
       </div>
-      <div className="space-y-5 p-6">
-        <MatchPanel jobId={job.id} hasDescription={Boolean(job.description)} headingAs="h3" />
+      {/* the record first: it's what Ghostless adds; the personal match follows */}
+      <div data-flat className="divide-y divide-line px-6 [&>*]:py-6">
         <PostingRecord job={job} headingAs="h3" />
+        <MatchPanel jobId={job.id} hasDescription={Boolean(job.description)} headingAs="h3" />
         <PostingHistory job={job} headingAs="h3" />
         <Disclosures job={job} headingAs="h3" />
         <SkillChips skills={job.skills} headingAs="h3" />
         <JobDescription job={job} headingAs="h3" />
-        <p className="border-t border-line pt-4 text-sm text-ink-soft">
-          Something wrong with this posting? <ReportDialog jobId={job.id} label="Report it" className="font-medium text-accent hover:underline" />
+        <p className="text-sm text-ink-soft">
+          Something wrong with this posting? <ReportDialog jobId={job.id} label="Report it" className="link" />
         </p>
       </div>
     </div>
@@ -80,9 +81,9 @@ export default async function JobsPage({ searchParams }: Props) {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6">
       <h1 className="sr-only">Search jobs</h1>
-      <div className="mb-4">
+      <div className="mb-3">
         <FilterBar filters={filters} seasons={seasons.slice(0, 8)} />
       </div>
       <div className="mb-5">
@@ -92,7 +93,7 @@ export default async function JobsPage({ searchParams }: Props) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
         <section aria-labelledby="results-heading" className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <h2 id="results-heading" aria-live="polite" className="font-sans text-sm font-semibold text-ink">
+            <h2 id="results-heading" aria-live="polite" className="font-sans text-sm font-semibold tracking-normal text-ink tabular-nums">
               {resultsLabel(page.total, filters.role)}
               {filters.q && (
                 <span className="font-normal text-ink-soft">
@@ -101,14 +102,14 @@ export default async function JobsPage({ searchParams }: Props) {
                 </span>
               )}
             </h2>
-            <label className="flex items-center gap-2 text-sm text-ink-soft">
+            <label className="flex items-center gap-2 text-sm text-ink-faint">
               Sort
               <select
                 key={filters.sort}
                 name="sort"
                 form={FILTER_FORM_ID}
                 defaultValue={filters.sort}
-                className="h-9 rounded-lg border border-line-strong bg-surface px-2 text-sm text-ink"
+                className="field h-8 w-auto text-sm"
               >
                 {Object.entries(SORT_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -125,7 +126,7 @@ export default async function JobsPage({ searchParams }: Props) {
                 <li key={label}>
                   <Link
                     href={href}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-accent-tint py-1 pr-2 pl-3 font-medium text-accent hover:bg-accent hover:text-on-accent"
+                    className="tag h-7 gap-1.5 border-accent/40 bg-accent-tint pr-1.5 pl-2.5 text-[0.8125rem] text-accent hover:border-accent"
                   >
                     {label}
                     <CloseIcon className="size-3.5" />
@@ -152,7 +153,7 @@ export default async function JobsPage({ searchParams }: Props) {
             <EmptyState title="No postings match these filters">
               <p>
                 Try removing a filter or searching for a broader title.{" "}
-                <Link href="/jobs" className="font-medium text-accent hover:underline">
+                <Link href="/jobs" className="link">
                   Clear everything
                 </Link>
                 .

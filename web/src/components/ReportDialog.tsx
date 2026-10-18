@@ -79,7 +79,7 @@ export function ReportDialog({
       <dialog
         ref={dialog}
         aria-labelledby="report-title"
-        className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-0 text-ink shadow-pop"
+        className="m-auto w-[min(32rem,calc(100vw-2rem))] panel p-0 text-ink shadow-pop"
         onClick={(e) => e.target === dialog.current && dialog.current?.close()}
       >
         <div className="p-5 sm:p-6">
@@ -95,7 +95,7 @@ export function ReportDialog({
           {state === "sent" ? (
             <div className="space-y-4">
               <p className="text-ink-soft">Your report reached the Ghostless team. Reports about job data are usually checked within a day.</p>
-              <button type="button" onClick={() => dialog.current?.close()} className="h-10 rounded-lg bg-accent px-4 font-medium text-on-accent hover:bg-accent-hover">
+              <button type="button" onClick={() => dialog.current?.close()} className="btn btn-primary">
                 Done
               </button>
             </div>
@@ -120,7 +120,7 @@ export function ReportDialog({
                   maxLength={4000}
                   rows={4}
                   placeholder={jobId ? "For example: this job is closed on their site, or the pay is wrong" : "What happened, and on which page?"}
-                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 placeholder:text-ink-faint focus:border-accent focus:outline-none"
+                  className="field py-2"
                 />
               </div>
               {!viewer && (
@@ -128,12 +128,12 @@ export function ReportDialog({
                   <label htmlFor="report-email" className="text-sm font-medium">
                     Email <span className="font-normal text-ink-soft">(optional, if you&apos;d like a reply)</span>
                   </label>
-                  <input id="report-email" name="email" type="email" maxLength={254} className="h-10 w-full rounded-lg border border-line-strong bg-surface px-3 focus:border-accent focus:outline-none" />
+                  <input id="report-email" name="email" type="email" maxLength={254} className="field h-10" />
                 </div>
               )}
               {state === "error" && <p role="alert" className="rounded-lg bg-brick-tint px-3 py-2 text-sm text-brick">{error}</p>}
               <div className="flex items-center gap-3">
-                <button type="submit" disabled={state === "sending"} className="h-10 rounded-lg bg-accent px-4 font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60">
+                <button type="submit" disabled={state === "sending"} className="btn btn-primary">
                   {state === "sending" ? "Sending..." : "Send report"}
                 </button>
                 <button type="button" onClick={() => dialog.current?.close()} className="h-10 rounded-lg px-3 text-ink-soft hover:bg-sunken">

@@ -35,7 +35,7 @@ export function EmptySaved() {
       </p>
       <Link
         href="/jobs"
-        className="mt-5 inline-flex h-10 items-center rounded-lg bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover"
+        className="btn btn-primary mt-5"
       >
         Browse jobs
       </Link>
@@ -118,7 +118,7 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
             role="tab"
             aria-selected={filter === value}
             onClick={() => setFilter(value)}
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-line-strong bg-surface px-3.5 text-sm font-medium text-ink hover:border-ink-faint aria-selected:border-accent aria-selected:bg-accent-tint aria-selected:text-accent"
+            className="btn btn-secondary btn-sm aria-selected:border-accent aria-selected:bg-accent-tint aria-selected:text-accent"
           >
             {label}
             <span className="text-xs text-ink-faint">{counts[value] ?? 0}</span>
@@ -175,7 +175,7 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
                           href={job.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+                          className="inline-flex items-center gap-1 text-sm link"
                         >
                           Apply on {possessive(job.company)} site
                           <ExternalIcon className="size-3.5" />
@@ -207,7 +207,7 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
                     rows={3}
                     placeholder="Recruiter's name, interview dates, what to prepare..."
                     onBlur={(e) => saveNotes(entry, e.target.value)}
-                    className="mt-2 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+                    className="field mt-2 py-2 text-sm"
                   />
                   <p className="text-xs text-ink-faint">Saved when you click away.</p>
                 </details>

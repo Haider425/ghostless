@@ -1,8 +1,9 @@
 import type { GhostRisk } from "@/lib/api";
 import { RISK_LABELS } from "@/lib/format";
 
+/* "No flags" is the common case, so it stays quiet; only flagged postings get a filled badge. */
 const STYLES: Record<GhostRisk, string> = {
-  low: "bg-neutral-tint text-ink-soft",
+  low: "text-ink-soft",
   medium: "bg-ochre-tint text-ochre",
   high: "bg-brick-tint text-brick",
 };
@@ -37,9 +38,9 @@ export function RiskBadge({ risk, size = "sm" }: { risk: GhostRisk | null | unde
   }
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full font-medium ${STYLES[risk]} ${
-        size === "md" ? "px-3 py-1 text-sm" : "px-2.5 py-0.5 text-xs"
-      }`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-md font-medium ${STYLES[risk]} ${
+        size === "md" ? "h-7 text-sm" : "h-5.5 text-xs"
+      } ${risk === "low" ? "" : size === "md" ? "px-2.5" : "px-1.5"}`}
     >
       <Glyph risk={risk} />
       {RISK_LABELS[risk]}

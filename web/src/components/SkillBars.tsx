@@ -51,7 +51,7 @@ export function SkillBars({ skills, showHave = false }: { skills: SkillBar[]; sh
                 </Link>
               </th>
               <td className="py-2.5 pr-3" aria-hidden="true">
-                <div className="h-3 min-w-24">
+                <div className="h-3 min-w-10 sm:min-w-24">
                   <div
                     className={`h-full rounded-r ${
                       missing ? "border-2 border-bar-missing bg-transparent" : "bg-bar-have"

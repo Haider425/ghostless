@@ -22,7 +22,7 @@ export function isCurrent(pathname: string, href: string) {
 }
 
 const linkClass =
-  "block rounded-md px-3 py-2 text-ink-soft transition-colors hover:bg-sunken hover:text-ink aria-[current=page]:text-ink aria-[current=page]:font-semibold";
+  "block rounded-md px-2.5 py-1.5 font-medium text-ink-soft transition-colors hover:bg-sunken hover:text-ink aria-[current=page]:bg-sunken aria-[current=page]:text-ink";
 
 /** Desktop navigation. */
 export function NavLinks() {
@@ -45,20 +45,20 @@ export function NavLinks() {
         </li>
         <li>
           <details data-popover className="group relative">
-            <summary className={`${linkClass} inline-flex items-center gap-1 ${insightsActive ? "font-semibold text-ink" : ""}`}>
+            <summary className={`${linkClass} inline-flex items-center gap-1 group-open:bg-sunken ${insightsActive ? "bg-sunken text-ink" : ""}`}>
               Insights
-              <ChevronDownIcon className="size-3.5 transition-transform group-open:rotate-180" />
+              <ChevronDownIcon className="size-3.5 opacity-70 transition-transform group-open:rotate-180" />
             </summary>
-            <ul className="absolute left-0 z-40 mt-2 w-72 rounded-xl border border-line bg-surface p-2 shadow-pop">
+            <ul className="absolute left-0 z-40 mt-1.5 w-72 rounded-xl border border-line bg-surface p-1.5 shadow-pop">
               {INSIGHTS.map((item) => (
                 <li key={item.href}>
                   <Link
                     href={item.href}
                     aria-current={isCurrent(pathname, item.href) ? "page" : undefined}
-                    className="block rounded-lg px-3 py-2 whitespace-normal hover:bg-sunken aria-[current=page]:bg-accent-tint"
+                    className="block rounded-lg px-2.5 py-2 whitespace-normal hover:bg-sunken aria-[current=page]:bg-sunken"
                   >
                     <span className="block font-medium text-ink">{item.label}</span>
-                    <span className="block text-xs text-ink-soft">{item.note}</span>
+                    <span className="block text-xs text-ink-faint">{item.note}</span>
                   </Link>
                 </li>
               ))}
@@ -78,12 +78,12 @@ export function SavedLink({ className = "" }: { className?: string }) {
     <Link
       href="/saved"
       aria-current={isCurrent(pathname, "/saved") ? "page" : undefined}
-      className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-sunken hover:text-ink aria-[current=page]:text-ink ${className}`}
+      className={`inline-flex h-8 items-center gap-2 rounded-md px-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-sunken hover:text-ink aria-[current=page]:bg-sunken aria-[current=page]:text-ink ${className}`}
     >
       <BookmarkIcon className="size-4" filled={count > 0} />
       <span>Saved</span>
       {count > 0 && (
-        <span className="rounded-full bg-accent px-1.5 text-xs leading-5 font-semibold text-on-accent">
+        <span className="min-w-5 rounded-full bg-accent-tint px-1.5 text-center text-xs leading-5 font-semibold text-accent tabular-nums">
           {count}
           <span className="sr-only"> jobs</span>
         </span>
@@ -108,7 +108,7 @@ export function MobileNav() {
   ];
   return (
     <details className="group lg:hidden" key={pathname /* closes after navigating */}>
-      <summary className="grid size-10 place-items-center rounded-md text-ink hover:bg-sunken">
+      <summary className="grid size-9 place-items-center rounded-md text-ink hover:bg-sunken">
         <span className="sr-only">Menu</span>
         <svg viewBox="0 0 20 20" className="size-5 group-open:hidden" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
           <path d="M3.5 6h13M3.5 10h13M3.5 14h13" />
@@ -136,7 +136,7 @@ export function MobileNav() {
             <Link href="/login" className="inline-flex h-10 items-center justify-center rounded-lg border border-line-strong font-medium text-ink">
               Sign in
             </Link>
-            <Link href="/signup" className="inline-flex h-10 items-center justify-center rounded-lg bg-accent font-medium text-on-accent">
+            <Link href="/signup" className="btn btn-primary">
               Create account
             </Link>
           </div>

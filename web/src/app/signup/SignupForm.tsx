@@ -15,7 +15,7 @@ export function SignupForm({ next, oauth, notice }: { next: string; oauth?: Reac
       footer={
         <>
           Already have an account?{" "}
-          <Link href="/login" className="font-medium text-accent hover:underline">
+          <Link href="/login" className="link">
             Sign in
           </Link>
         </>

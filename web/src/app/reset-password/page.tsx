@@ -12,7 +12,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
   if (!token) {
     return (
       <AuthCard title="This link is incomplete" lead="Open the link from your email again, or ask for a new one.">
-        <Link href="/forgot-password" className="font-medium text-accent hover:underline">Send a new reset link</Link>
+        <Link href="/forgot-password" className="link">Send a new reset link</Link>
       </AuthCard>
     );
   }

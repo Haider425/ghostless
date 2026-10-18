@@ -10,7 +10,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
 
   return (
     <div className="mx-auto max-w-xl px-4 py-20 text-center sm:px-6">
-      <h1 className="text-4xl font-semibold text-ink">This page couldn&apos;t load</h1>
+      <h1 className="text-3xl font-semibold text-ink">This page couldn&apos;t load</h1>
       <p className="mt-3 text-ink-soft">
         Ghostless couldn&apos;t reach its job data. This is usually brief. Try again in a moment.
       </p>
@@ -19,7 +19,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
         <button
           type="button"
           onClick={reset}
-          className="h-10 rounded-lg bg-accent px-4 font-medium text-on-accent hover:bg-accent-hover"
+          className="btn btn-primary"
         >
           Try again
         </button>

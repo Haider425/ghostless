@@ -5,7 +5,7 @@ export function ProsePage({ title, intro, updated, children }: { title: string; 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <header className="mb-10 space-y-3">
-        <h1 className="text-4xl font-semibold text-ink">{title}</h1>
+        <h1 className="text-3xl font-semibold text-ink">{title}</h1>
         <p className="text-lg text-ink-soft">{intro}</p>
         {updated && <p className="text-sm text-ink-faint">Last updated {updated}</p>}
       </header>

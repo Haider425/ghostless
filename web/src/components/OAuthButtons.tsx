@@ -50,7 +50,7 @@ export function OAuthButtons({
           <a
             key={p.id}
             href={`/api/auth/oauth/${p.id}/start${query}`}
-            className="inline-flex h-11 items-center justify-center gap-2.5 rounded-lg border border-line-strong bg-surface px-4 font-medium text-ink transition-colors hover:border-ink-faint hover:bg-sunken"
+            className="btn btn-secondary btn-lg"
           >
             {p.mark}
             Continue with {p.label}

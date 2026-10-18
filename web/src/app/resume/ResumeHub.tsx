@@ -99,7 +99,7 @@ function Upload({ signedIn, onDone }: { signedIn: boolean; onDone: (title: strin
           type="button"
           onClick={() => input.current?.click()}
           disabled={state === "reading"}
-          className="mt-5 inline-flex h-11 items-center rounded-lg bg-accent px-5 font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
+          className="btn btn-primary btn-lg mt-5"
         >
           {state === "reading" ? "Analyzing..." : "Choose a file"}
         </button>
@@ -125,7 +125,7 @@ function Report({ title, analysis }: { title: string; analysis: Analysis }) {
   const p = analysis.profile;
   return (
     <div className="grid gap-5 lg:grid-cols-[22rem_1fr]">
-      <section className="space-y-5 rounded-2xl border border-line bg-surface p-6">
+      <section className="space-y-5 panel p-6">
         <div className="flex items-center gap-4">
           <Ring score={analysis.strength} label={`Resume strength ${analysis.strength} out of 100`} />
           <div>
@@ -168,7 +168,7 @@ function Report({ title, analysis }: { title: string; analysis: Analysis }) {
         <p className="border-t border-line pt-4 text-xs text-ink-faint">From &ldquo;{title}&rdquo;. Missing a skill? Name it the way postings do, like &ldquo;PostgreSQL&rdquo; or &ldquo;React&rdquo;.</p>
       </section>
 
-      <section className="space-y-5 rounded-2xl border border-line bg-surface p-6">
+      <section className="space-y-5 panel p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-sans text-base font-semibold text-ink">What to improve</h2>
@@ -176,7 +176,7 @@ function Report({ title, analysis }: { title: string; analysis: Analysis }) {
               {analysis.checks.length ? `${pluralize(analysis.checks.length, "suggestion")}, most important first.` : "Nothing major. Nice work."}
             </p>
           </div>
-          <Link href="/resume/matches" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover">
+          <Link href="/resume/matches" className="btn btn-primary">
             See jobs that fit you
           </Link>
         </div>
@@ -226,10 +226,10 @@ function SavedResumes({ resumes, activeId }: { resumes: ResumeSummary[]; activeI
     setBusy(null);
   }
   return (
-    <section className="rounded-2xl border border-line bg-surface p-6">
+    <section className="panel p-6">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-sans text-base font-semibold text-ink">Your resumes</h2>
-        <Link href="/resume/builder?new=1" className="text-sm font-medium text-accent hover:underline">Build a new one</Link>
+        <Link href="/resume/builder?new=1" className="text-sm link">Build a new one</Link>
       </div>
       <ul className="divide-y divide-line">
         {resumes.map((r) => (
@@ -297,10 +297,10 @@ export function ResumeHub({ signedIn, resumes }: { signedIn: boolean; resumes: R
       {shown && !replacing ? (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={() => setReplacing(true)} className="inline-flex h-10 items-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink hover:border-ink-faint">
+            <button type="button" onClick={() => setReplacing(true)} className="btn btn-secondary">
               Upload a new version
             </button>
-            <Link href="/resume/builder" className="inline-flex h-10 items-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink hover:border-ink-faint">
+            <Link href="/resume/builder" className="btn btn-secondary">
               Open the resume builder
             </Link>
             {!signedIn && (
@@ -314,7 +314,7 @@ export function ResumeHub({ signedIn, resumes }: { signedIn: boolean; resumes: R
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
           <Upload signedIn={signedIn} onDone={onAnalyzed} />
-          <aside className="space-y-4 rounded-2xl border border-line bg-surface p-6 text-sm text-ink-soft">
+          <aside className="space-y-4 panel p-6 text-sm text-ink-soft">
             <h2 className="font-sans text-base font-semibold text-ink">What you&apos;ll get</h2>
             <ul className="list-disc space-y-1.5 pl-5 marker:text-line-strong">
               <li>A strength score and the fixes that matter most</li>
@@ -322,7 +322,7 @@ export function ResumeHub({ signedIn, resumes }: { signedIn: boolean; resumes: R
               <li>Jobs ranked by how well you fit, without likely ghost jobs</li>
             </ul>
             <p>
-              No resume yet? <Link href="/resume/builder" className="font-medium text-accent hover:underline">Build one</Link> in a few
+              No resume yet? <Link href="/resume/builder" className="link">Build one</Link> in a few
               minutes, with a clean layout recruiters and applicant tracking systems can read.
             </p>
             {replacing && (

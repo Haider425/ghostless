@@ -9,12 +9,18 @@ import { formatMonthDay } from "@/lib/format";
 
 const W = 640;
 const H = 220;
-const PAD = { top: 12, right: 8, bottom: 26, left: 32 };
+const PAD = { top: 12, right: 8, bottom: 26, left: 36 };
 
 /** A bar rounded at its data end only, square on the baseline. */
 function barPath(x: number, top: number, width: number, bottom: number): string {
   const r = Math.min(3, width / 2, bottom - top);
   return `M${x},${bottom}V${top + r}Q${x},${top} ${x + r},${top}H${x + width - r}Q${x + width},${top} ${x + width},${top + r}V${bottom}Z`;
+}
+
+/** Axis labels stay short enough for the gutter: 1000 -> "1k", 2500 -> "2.5k". */
+function tickLabel(value: number): string {
+  const v = Math.round(value);
+  return v >= 1000 ? `${Number((v / 1000).toFixed(1))}k` : String(v);
 }
 
 function niceMax(value: number): number {
@@ -38,8 +44,8 @@ export function WeeklyChart({ weeks, title }: { weeks: WeekCount[]; title: strin
   return (
     <figure className="space-y-3">
       <figcaption className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <span className="font-sans text-base font-semibold text-ink">{title}</span>
-        <span className="flex gap-4 text-sm text-ink-soft">
+        <span className="panel-title">{title}</span>
+        <span className="flex gap-4 text-sm text-ink-soft tabular-nums">
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden="true" className="size-2.5 rounded-sm bg-bar-new" />
             New <span className="font-medium text-ink">{totalNew.toLocaleString("en-CA")}</span>
@@ -55,7 +61,7 @@ export function WeeklyChart({ weeks, title }: { weeks: WeekCount[]; title: strin
           <g key={t}>
             <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--line)" strokeWidth="1" />
             <text x={PAD.left - 8} y={y(t)} dy="0.32em" textAnchor="end" fontSize="11" fill="var(--ink-faint)">
-              {Math.round(t)}
+              {tickLabel(t)}
             </text>
           </g>
         ))}
@@ -84,7 +90,7 @@ export function WeeklyChart({ weeks, title }: { weeks: WeekCount[]; title: strin
         <line x1={PAD.left} x2={W - PAD.right} y1={y(0)} y2={y(0)} stroke="var(--line-strong)" strokeWidth="1" />
       </svg>
       <details className="text-sm">
-        <summary className="inline-block text-ink-soft hover:text-ink">Show the numbers</summary>
+        <summary className="inline-block text-xs text-ink-faint hover:text-ink">Show the numbers</summary>
         <table className="mt-2 w-full max-w-sm text-left">
           <thead>
             <tr className="text-ink-soft">

@@ -63,7 +63,10 @@ JOB_COLUMNS = """
     j.is_canada, j.is_remote, j.first_seen, j.closed_at, j.is_active,
     j.salary_min, j.salary_max, j.salary_period, j.salary_currency,
     j.vacancy, j.ai_screening,
-    floor(extract(epoch FROM coalesce(j.closed_at, now()) - j.first_seen) / 86400)::int AS days_open,
+    -- same age as job_signals, so a flag and the age shown beside it always agree
+    floor(extract(epoch FROM coalesce(j.closed_at, now()) - CASE
+        WHEN j.listed_in IS NOT NULL AND j.posted_at < j.first_seen THEN j.posted_at
+        ELSE j.first_seen END) / 86400)::int AS days_open,
     s.ghost_risk, s.flags, s.age_known, s.typical_days_open, s.times_posted_before,
     j.terms, j.listed_in
 """

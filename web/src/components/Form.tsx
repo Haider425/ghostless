@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 import type { FormState } from "@/app/actions/auth";
 
 export const inputClass =
-  "h-11 w-full rounded-lg border border-line-strong bg-surface px-3 text-ink placeholder:text-ink-faint focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none";
+  "field h-10";
 
 export function Field({
   label,
@@ -32,7 +32,7 @@ export function Field({
 export function SubmitButton({ children, pending, tone = "primary" }: { children: ReactNode; pending?: string; tone?: "primary" | "danger" | "secondary" }) {
   const status = useFormStatus();
   const styles = {
-    primary: "bg-accent text-on-accent hover:bg-accent-hover",
+    primary: "bg-accent-solid text-on-accent hover:bg-accent-hover",
     danger: "bg-brick text-white hover:opacity-90",
     secondary: "border border-line-strong bg-surface text-ink hover:border-ink-faint",
   }[tone];
@@ -64,7 +64,7 @@ export function FormMessage({ state }: { state: FormState }) {
 export function AuthCard({ title, lead, children, footer }: { title: string; lead?: ReactNode; children: ReactNode; footer?: ReactNode }) {
   return (
     <div className="mx-auto max-w-md px-4 py-12 sm:py-16">
-      <div className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
+      <div className="panel p-6 sm:p-8">
         <h1 className="text-3xl font-semibold text-ink">{title}</h1>
         {lead && <p className="mt-2 text-ink-soft">{lead}</p>}
         <div className="mt-6">{children}</div>

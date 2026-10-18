@@ -69,7 +69,7 @@ function BulletList({ label, items, onChange, placeholder, tips = true, current 
                 rows={2}
                 placeholder={i === 0 ? placeholder : ""}
                 aria-label={`${label} ${i + 1}`}
-                className="min-h-10 w-full resize-y rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+                className="field min-h-10 resize-y py-2 text-sm"
               />
               <button type="button" onClick={() => onChange(list.filter((_, j) => j !== i))} className="h-9 shrink-0 rounded-md px-2 text-ink-faint hover:bg-sunken hover:text-brick" aria-label={`Remove ${label.toLowerCase()} ${i + 1}`}>
                 ×
@@ -91,7 +91,7 @@ function BulletList({ label, items, onChange, placeholder, tips = true, current 
         );
       })}
       {list.length < 8 && (
-        <button type="button" onClick={() => onChange([...list, ""])} className="ml-5 text-sm font-medium text-accent hover:underline">
+        <button type="button" onClick={() => onChange([...list, ""])} className="ml-5 text-sm link">
           Add a line
         </button>
       )}
@@ -125,7 +125,7 @@ function move<T>(list: T[], from: number, to: number): T[] {
 
 function Section({ id, title, children, onUp, onDown, hint }: { id: string; title: string; children: ReactNode; onUp?: () => void; onDown?: () => void; hint?: string }) {
   return (
-    <details open className="group rounded-2xl border border-line bg-surface" id={id}>
+    <details open className="group panel" id={id}>
       <summary className="flex items-center justify-between gap-3 px-5 py-4">
         <span>
           <span className="font-sans text-base font-semibold text-ink">{title}</span>
@@ -327,7 +327,7 @@ export function Builder({
   const editors: Record<SectionKey, ReactNode> = {
     summary: (
       <Section id="summary" title="Summary" hint="Optional. Two lines on what you do and want next." {...sectionControls("summary")}>
-        <textarea value={doc.summary} onChange={(e) => set("summary", e.target.value)} rows={3} maxLength={600} placeholder="Computer Science student who builds data tools. Looking for a summer 2027 software or data internship." className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none" />
+        <textarea value={doc.summary} onChange={(e) => set("summary", e.target.value)} rows={3} maxLength={600} placeholder="Computer Science student who builds data tools. Looking for a summer 2027 software or data internship." className="field py-2 text-sm" />
       </Section>
     ),
     education: (
@@ -345,7 +345,7 @@ export function Builder({
             </Entry>
           );
         })}
-        {doc.education.length < 6 && <button type="button" onClick={() => set("education", [...doc.education, blankEducation()])} className="text-sm font-medium text-accent hover:underline">Add education</button>}
+        {doc.education.length < 6 && <button type="button" onClick={() => set("education", [...doc.education, blankEducation()])} className="text-sm link">Add education</button>}
       </Section>
     ),
     experience: (
@@ -363,7 +363,7 @@ export function Builder({
             </Entry>
           );
         })}
-        {doc.experience.length < 12 && <button type="button" onClick={() => set("experience", [...doc.experience, blankExperience()])} className="text-sm font-medium text-accent hover:underline">Add a role</button>}
+        {doc.experience.length < 12 && <button type="button" onClick={() => set("experience", [...doc.experience, blankExperience()])} className="text-sm link">Add a role</button>}
       </Section>
     ),
     projects: (
@@ -380,7 +380,7 @@ export function Builder({
             </Entry>
           );
         })}
-        {doc.projects.length < 10 && <button type="button" onClick={() => set("projects", [...doc.projects, blankProject()])} className="text-sm font-medium text-accent hover:underline">Add a project</button>}
+        {doc.projects.length < 10 && <button type="button" onClick={() => set("projects", [...doc.projects, blankProject()])} className="text-sm link">Add a project</button>}
       </Section>
     ),
     skills: (
@@ -392,7 +392,7 @@ export function Builder({
             <button type="button" onClick={() => set("skills", doc.skills.filter((_, j) => j !== i))} className="h-10 rounded-md px-2 text-sm text-ink-soft hover:bg-brick-tint hover:text-brick">Remove</button>
           </div>
         ))}
-        {doc.skills.length < 8 && <button type="button" onClick={() => set("skills", [...doc.skills, blankSkills()])} className="text-sm font-medium text-accent hover:underline">Add a skill group</button>}
+        {doc.skills.length < 8 && <button type="button" onClick={() => set("skills", [...doc.skills, blankSkills()])} className="text-sm link">Add a skill group</button>}
       </Section>
     ),
     certifications: (
@@ -407,7 +407,7 @@ export function Builder({
             </Entry>
           );
         })}
-        {doc.certifications.length < 10 && <button type="button" onClick={() => set("certifications", [...doc.certifications, blankCertification()])} className="text-sm font-medium text-accent hover:underline">Add a certification</button>}
+        {doc.certifications.length < 10 && <button type="button" onClick={() => set("certifications", [...doc.certifications, blankCertification()])} className="text-sm link">Add a certification</button>}
       </Section>
     ),
   };
@@ -440,7 +440,7 @@ export function Builder({
               <option value="compact">Compact</option>
             </select>
           </label>
-          <button type="button" onClick={() => fileInput.current?.click()} disabled={importing} className="h-10 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink hover:border-ink-faint disabled:opacity-60">
+          <button type="button" onClick={() => fileInput.current?.click()} disabled={importing} className="btn btn-secondary">
             {importing ? "Reading..." : "Import a file"}
           </button>
           <input
@@ -456,19 +456,19 @@ export function Builder({
               if (file) void importFile(file);
             }}
           />
-          <button type="button" onClick={check} disabled={checking} className="h-10 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink hover:border-ink-faint disabled:opacity-60">
+          <button type="button" onClick={check} disabled={checking} className="btn btn-secondary">
             {checking ? "Checking..." : "Check my resume"}
           </button>
-          <button type="button" onClick={() => window.print()} className="h-10 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink hover:border-ink-faint">
+          <button type="button" onClick={() => window.print()} className="btn btn-secondary">
             Download PDF
           </button>
           {viewer && !resumeId && (
-            <button type="button" onClick={saveToAccount} className="h-10 rounded-lg bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover">
+            <button type="button" onClick={saveToAccount} className="btn btn-primary">
               Save to account
             </button>
           )}
           {!viewer && (
-            <Link href="/signup?next=/resume/builder" className="h-10 content-center rounded-lg bg-accent px-4 text-sm font-medium text-on-accent hover:bg-accent-hover">
+            <Link href="/signup?next=/resume/builder" className="btn btn-primary content-center">
               Sign up to save
             </Link>
           )}
@@ -490,13 +490,13 @@ export function Builder({
       )}
 
       {analysis && (
-        <div className="mb-6 rounded-2xl border border-line bg-surface p-5">
+        <div className="mb-6 panel p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <p className="font-semibold text-ink">
               Resume strength {analysis.strength} out of 100, with {(analysis.profile.skills ?? []).length} skills recognized
             </p>
             <div className="flex gap-3 text-sm">
-              <Link href="/resume/matches" className="font-medium text-accent hover:underline">See jobs that fit</Link>
+              <Link href="/resume/matches" className="link">See jobs that fit</Link>
               <button type="button" onClick={() => setAnalysis(null)} className="text-ink-soft hover:underline">Hide</button>
             </div>
           </div>
@@ -527,7 +527,7 @@ export function Builder({
                 <Text key={i} label={l.label || `Link ${i + 1}`} value={l.url} onChange={(v) => set("contact", { ...doc.contact, links: doc.contact.links.map((x, j) => (j === i ? { ...x, url: v } : x)) })} placeholder={l.label === "GitHub" ? "github.com/you" : l.label === "LinkedIn" ? "linkedin.com/in/you" : "yoursite.dev"} />
               ))}
               {doc.contact.links.length < 4 && (
-                <button type="button" onClick={() => set("contact", { ...doc.contact, links: [...doc.contact.links, { label: "Website", url: "" }] })} className="text-left text-sm font-medium text-accent hover:underline">
+                <button type="button" onClick={() => set("contact", { ...doc.contact, links: [...doc.contact.links, { label: "Website", url: "" }] })} className="text-left text-sm link">
                   Add a link
                 </button>
               )}

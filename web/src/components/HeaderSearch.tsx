@@ -24,7 +24,7 @@ export function HeaderSearch() {
           maxLength={100}
           placeholder="Search jobs, companies, skills"
           autoComplete="off"
-          className="h-9 w-full rounded-lg border border-line bg-sunken pr-3 pl-9 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:bg-surface focus:outline-none"
+          className="field h-8 border-line bg-sunken/60 pl-9 text-sm focus:bg-surface"
         />
       </div>
     </form>

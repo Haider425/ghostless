@@ -52,7 +52,7 @@ export default async function JobPage({ params }: Props) {
   const others = more.items.filter((j) => j.id !== job.id).slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
       <nav aria-label="Breadcrumb" className="mb-6">
         <ol className="flex flex-wrap items-center gap-1 text-sm text-ink-soft">
           <li>
@@ -71,19 +71,19 @@ export default async function JobPage({ params }: Props) {
         </ol>
       </nav>
 
-      <div className="mb-8 rounded-2xl border border-line bg-surface p-5 sm:p-8">
+      <div className="mb-8 border-b border-line pb-8">
         <JobHeader job={job} />
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_24rem]">
-        <aside className="space-y-5 lg:order-2" aria-label="Posting record and disclosures">
-          <MatchPanel jobId={job.id} hasDescription={Boolean(job.description)} />
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-12">
+        {/* the record first: it's what Ghostless adds; the personal match follows */}
+        <aside className="space-y-4 lg:order-2" aria-label="Posting record and disclosures">
           <PostingRecord job={job} />
+          <MatchPanel jobId={job.id} hasDescription={Boolean(job.description)} />
           <PostingHistory job={job} />
           <Disclosures job={job} />
           <p className="px-1 text-sm text-ink-soft">
-            Something wrong with this posting?{" "}
-            <ReportDialog jobId={job.id} label="Report it" className="font-medium text-accent hover:underline" />
+            Something wrong with this posting? <ReportDialog jobId={job.id} label="Report it" className="link" />
           </p>
         </aside>
 
@@ -94,7 +94,7 @@ export default async function JobPage({ params }: Props) {
             <section className="border-t border-line pt-8">
               <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="text-xl font-semibold text-ink">More open roles at {job.company}</h2>
-                <Link href={`/companies/${job.company_slug}`} className="text-sm font-medium text-accent hover:underline">
+                <Link href={`/companies/${job.company_slug}`} className="link text-sm">
                   See {possessive(job.company)} hiring record
                 </Link>
               </div>

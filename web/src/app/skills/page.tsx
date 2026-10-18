@@ -37,7 +37,7 @@ export default async function SkillsPage({ searchParams }: Props) {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8 max-w-2xl space-y-2">
-        <h1 className="text-4xl font-semibold text-ink">Skills gap</h1>
+        <h1 className="text-3xl font-semibold text-ink">Skills gap</h1>
         <p className="text-ink-soft">
           See which skills open postings ask for most, and which of them you&apos;re missing. Counts come from the
           descriptions of postings that are open right now.
@@ -45,7 +45,7 @@ export default async function SkillsPage({ searchParams }: Props) {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[20rem_1fr]">
-        <form action="/skills" method="get" className="space-y-5 self-start rounded-2xl border border-line bg-surface p-5">
+        <form action="/skills" method="get" className="space-y-5 self-start panel p-5">
           <div className="space-y-1.5">
             <label htmlFor="have" className="text-sm font-semibold text-ink">
               Your skills
@@ -57,7 +57,7 @@ export default async function SkillsPage({ searchParams }: Props) {
               maxLength={500}
               defaultValue={have}
               placeholder="Python, SQL, React, C#"
-              className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+              className="field py-2"
             />
             <p className="text-xs text-ink-faint">Separate skills with commas.</p>
           </div>
@@ -85,13 +85,13 @@ export default async function SkillsPage({ searchParams }: Props) {
           </label>
           <button
             type="submit"
-            className="h-10 w-full rounded-lg bg-accent px-4 font-medium text-on-accent hover:bg-accent-hover"
+            className="btn btn-primary w-full"
           >
             {have ? "Update comparison" : "Compare my skills"}
           </button>
         </form>
 
-        <section aria-labelledby="skills-heading" className="min-w-0 rounded-2xl border border-line bg-surface p-5">
+        <section aria-labelledby="skills-heading" className="min-w-0 panel p-5">
           {gap ? (
             <div className="mb-5 space-y-2">
               <h2 id="skills-heading" className="text-xl font-semibold text-ink">

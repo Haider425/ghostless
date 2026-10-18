@@ -18,7 +18,7 @@ export default async function ResumePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <div className="mb-8 max-w-2xl">
-        <h1 className="text-4xl font-semibold text-ink">Your resume</h1>
+        <h1 className="text-3xl font-semibold text-ink">Your resume</h1>
         <p className="mt-2 text-lg text-ink-soft">
           See how strong it is, what to fix first, and how well you match every open tech job on Ghostless.
         </p>

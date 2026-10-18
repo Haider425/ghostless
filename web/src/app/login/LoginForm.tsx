@@ -15,7 +15,7 @@ export function LoginForm({ next, oauth, notice }: { next: string; oauth?: React
       footer={
         <>
           New to Ghostless?{" "}
-          <Link href={`/signup${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-medium text-accent hover:underline">
+          <Link href={`/signup${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`} className="link">
             Create a free account
           </Link>
         </>

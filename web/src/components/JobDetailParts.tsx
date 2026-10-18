@@ -33,30 +33,28 @@ export function JobHeader({ job, titleAs = "h1", showPageLink = false }: { job: 
       <div className="flex items-start gap-4">
         <CompanyLogo name={job.company} domain={job.company_domain} size="lg" />
         <div className="min-w-0 space-y-1">
-          <Link href={`/companies/${job.company_slug}`} className="font-medium text-ink-soft hover:text-accent hover:underline">
+          <Link href={`/companies/${job.company_slug}`} className="text-sm font-medium text-ink-soft hover:text-accent">
             {job.company}
           </Link>
           <Title
-            className={`font-semibold text-ink ${titleAs === "h1" ? "text-3xl sm:text-4xl" : "text-2xl"}`}
+            className={`leading-tight font-semibold text-ink ${titleAs === "h1" ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl"}`}
           >
             {job.title}
           </Title>
         </div>
       </div>
 
-      <ul className="flex flex-wrap gap-2 text-sm">
-        <li className="inline-flex items-center gap-1.5 rounded-full bg-sunken px-3 py-1 text-ink">
-          <PinIcon className="size-3.5 text-ink-faint" />
-          {places.length ? places.join(", ") : "Location not listed"}
+      <ul className="flex flex-wrap gap-1.5">
+        {job.salary && <li className="tag h-7 border-transparent bg-sunken px-2.5 text-[0.8125rem] text-ink">{formatSalary(job.salary)}</li>}
+        <li className="tag h-7 max-w-full px-2.5 text-[0.8125rem]">
+          <PinIcon className="size-3.5 shrink-0 text-ink-faint" />
+          <span className="truncate">{places.length ? places.join(", ") : "Location not listed"}</span>
         </li>
-        <li className="rounded-full bg-sunken px-3 py-1 text-ink">{LEVEL_LABELS[job.level]}</li>
-        {job.role_type !== "other" && <li className="rounded-full bg-sunken px-3 py-1 text-ink">{ROLE_LABELS[job.role_type]}</li>}
+        <li className="tag h-7 px-2.5 text-[0.8125rem]">{LEVEL_LABELS[job.level]}</li>
+        {job.role_type !== "other" && <li className="tag h-7 px-2.5 text-[0.8125rem]">{ROLE_LABELS[job.role_type]}</li>}
         {(job.terms ?? []).map((term) => (
-          <li key={term} className="rounded-full border border-line-strong px-3 py-1 text-ink">{term}</li>
+          <li key={term} className="tag h-7 px-2.5 text-[0.8125rem]">{term}</li>
         ))}
-        {job.salary && (
-          <li className="rounded-full bg-accent-tint px-3 py-1 font-medium text-accent">{formatSalary(job.salary)}</li>
-        )}
       </ul>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -65,14 +63,14 @@ export function JobHeader({ job, titleAs = "h1", showPageLink = false }: { job: 
             href={job.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-11 items-center gap-2 rounded-lg bg-accent px-5 font-medium text-on-accent transition-colors hover:bg-accent-hover"
+            className="btn btn-primary btn-lg"
           >
             Apply on {possessive(job.company)} site
             <ExternalIcon className="size-4" />
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
         ) : (
-          <p className="rounded-lg bg-sunken px-4 py-2.5 text-sm font-medium text-ink-soft">
+          <p className="inline-flex h-11 items-center rounded-lg bg-sunken px-4 text-sm font-medium text-ink-soft">
             This posting closed{job.closed_at ? ` on ${formatDate(job.closed_at)}` : ""}
           </p>
         )}
@@ -88,7 +86,7 @@ export function JobHeader({ job, titleAs = "h1", showPageLink = false }: { job: 
           }}
         />
         {showPageLink && (
-          <Link href={`/jobs/${job.id}`} className="text-sm font-medium text-accent hover:underline">
+          <Link href={`/jobs/${job.id}`} className="link text-sm">
             Open full page
           </Link>
         )}
@@ -123,10 +121,14 @@ function flagDetail(flag: string, job: JobDetail): ReactNode {
       );
     case "reposted": {
       const times = (signals.times_posted_before ?? 0) + 1;
+      // describe what the history below shows: earlier listings may have come down, or still be up
+      const earlierStillUp = job.posting_history.length > 0 && job.posting_history.every((p) => p.is_active);
       return (
         <p className="text-ink-soft">
           {times > 1
-            ? `Ghostless has seen this role posted ${pluralize(times, "time")}, taken down and put back up under a new listing.`
+            ? earlierStillUp
+              ? `Ghostless has seen this role posted ${pluralize(times, "time")} under separate listings, and the earlier one is still up.`
+              : `Ghostless has seen this role posted ${pluralize(times, "time")}, taken down and put back up under a new listing.`
             : FLAG_TEXT[flag]!.long}
         </p>
       );
@@ -158,16 +160,16 @@ export function PostingRecord({ job, headingAs = "h2" }: { job: JobDetail; headi
     job.source_posted_at && job.signals.age_known ? daysSince(job.first_seen) - daysSince(job.source_posted_at) : 0;
 
   return (
-    <section aria-label="Posting record" className="space-y-4 rounded-xl border border-line bg-surface p-5">
+    <section aria-label="Posting record" className="record-box space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <Heading className="font-sans text-base font-semibold text-ink">Posting record</Heading>
+        <Heading className="panel-title">Posting record</Heading>
         <RiskBadge risk={job.signals.risk} size="md" />
       </div>
       <AgeStrip signals={job.signals} company={job.company} isActive={job.is_active} />
       {job.listed_in && (
         <p className="text-sm text-ink-soft">
           Found in the{" "}
-          <a href={listUrl(job.listed_in)} target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:underline">
+          <a href={listUrl(job.listed_in)} target="_blank" rel="noopener noreferrer" className="link">
             {job.listed_in}
           </a>{" "}
           list on GitHub, which links to {possessive(job.company)} own application page. Ghostless doesn&apos;t read{" "}
@@ -212,14 +214,14 @@ export function PostingHistory({ job, headingAs = "h2" }: { job: JobDetail; head
   ].sort((a, b) => a.first_seen.localeCompare(b.first_seen));
   if (history.length < 2) return null;
   return (
-    <section className="rounded-xl border border-line bg-surface p-5">
-      <Heading className="mb-3 font-sans text-base font-semibold text-ink">Posted {pluralize(history.length, "time")}</Heading>
+    <section className="record-box">
+      <Heading className="panel-title mb-3">Posted {pluralize(history.length, "time")}</Heading>
       <ol className="space-y-3 border-l border-line-strong pl-4 text-sm">
         {history.map((entry) => (
           <li key={entry.id} className="relative">
             <span
               aria-hidden="true"
-              className={`absolute top-1.5 -left-[1.3rem] size-2 rounded-full ${entry.id === job.id ? "bg-accent" : "bg-line-strong"}`}
+              className={`absolute top-1.5 -left-[1.3rem] size-2 rounded-full ${entry.id === job.id ? "bg-accent-solid" : "bg-line-strong"}`}
             />
             <p className="font-medium text-ink">
               {formatDate(entry.first_seen)}
@@ -236,7 +238,7 @@ export function PostingHistory({ job, headingAs = "h2" }: { job: JobDetail; head
 function Row({ label, value, quote, note }: { label: string; value: string; quote?: string | null; note?: string }) {
   return (
     <div className="py-3 text-sm sm:grid sm:grid-cols-[7.5rem_1fr] sm:gap-3">
-      <dt className="text-ink-soft">{label}</dt>
+      <dt className="text-ink-faint">{label}</dt>
       <dd className="min-w-0">
         <span className="font-medium text-ink">{value}</span>
         {quote && <Evidence>{quote}</Evidence>}
@@ -252,8 +254,8 @@ export function Disclosures({ job, headingAs = "h2" }: { job: JobDetail; heading
   const Heading = headingAs;
   const hasText = Boolean(job.description);
   return (
-    <section className="rounded-xl border border-line bg-surface p-5">
-      <Heading className="font-sans text-base font-semibold text-ink">What the posting discloses</Heading>
+    <section className="record-box">
+      <Heading className="panel-title">What the posting discloses</Heading>
       <dl className="divide-y divide-line">
         <Row
           label="Pay"
@@ -344,12 +346,12 @@ export function JobDescription({ job, headingAs = "h2" }: { job: JobDetail; head
   const Sub = headingAs === "h2" ? "h3" : "h4";
   return (
     <section>
-      <Heading className="mb-3 font-sans text-base font-semibold text-ink">Job description</Heading>
+      <Heading className="panel-title mb-3">Job description</Heading>
       {job.description ? (
         <div className="max-w-[68ch] space-y-3 leading-relaxed text-ink-soft">
           {descriptionBlocks(job.description).map((block, i) =>
             block.kind === "heading" ? (
-              <Sub key={i} className="pt-2 font-sans text-base font-semibold text-ink">
+              <Sub key={i} className="pt-2 font-sans text-base font-semibold tracking-normal text-ink">
                 {block.text}
               </Sub>
             ) : block.kind === "list" ? (
@@ -364,7 +366,7 @@ export function JobDescription({ job, headingAs = "h2" }: { job: JobDetail; head
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-line-strong p-5 text-sm text-ink-soft">
+        <div className="rounded-xl border border-dashed border-line-strong p-5 text-sm text-ink-soft in-data-flat:p-4">
           <p>
             {job.listed_in
               ? "This posting comes from a public job list, which doesn't include descriptions. Read it on the employer's site."
@@ -374,7 +376,7 @@ export function JobDescription({ job, headingAs = "h2" }: { job: JobDetail; head
             href={job.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 font-medium text-accent hover:underline"
+            className="link mt-2 inline-flex items-center gap-1"
           >
             Read it on {possessive(job.company)} site
             <ExternalIcon className="size-3.5" />
@@ -391,13 +393,13 @@ export function SkillChips({ skills, headingAs = "h2" }: { skills: string[]; hea
   if (!skills.length) return null;
   return (
     <section>
-      <Heading className="mb-3 font-sans text-base font-semibold text-ink">Skills mentioned</Heading>
-      <ul className="flex flex-wrap gap-2">
+      <Heading className="panel-title mb-3">Skills mentioned</Heading>
+      <ul className="flex flex-wrap gap-1.5">
         {skills.map((skill) => (
           <li key={skill}>
             <Link
               href={`/jobs?skill=${encodeURIComponent(skill)}`}
-              className="inline-block rounded-lg border border-line bg-surface px-2.5 py-1 text-sm text-ink hover:border-accent hover:text-accent"
+              className="tag h-7 px-2.5 text-[0.8125rem] text-ink transition-colors hover:border-accent hover:text-accent"
             >
               {skill}
             </Link>

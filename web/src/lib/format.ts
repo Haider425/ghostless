@@ -129,8 +129,11 @@ export function allLocations(location: string | null | undefined): string[] {
   return (location ?? "").split(" | ").filter(Boolean);
 }
 
+/** A share as a whole percentage. A small but real share reads "<1%", never a misleading "0%". */
 export function percent(part: number, whole: number): string {
-  return whole ? `${Math.round((part / whole) * 100)}%` : "0%";
+  if (!whole || !part) return "0%";
+  const value = Math.round((part / whole) * 100);
+  return value === 0 ? "<1%" : `${value}%`;
 }
 
 /** Two letters for a company's fallback logo: "Granite Payments" -> "GP", "Stripe" -> "St". */

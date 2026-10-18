@@ -41,7 +41,7 @@ export function SavedList() {
                 href={job.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+                className="mt-2 inline-flex items-center gap-1 text-sm link"
               >
                 Apply on {possessive(job.company)} site
                 <ExternalIcon className="size-3.5" />

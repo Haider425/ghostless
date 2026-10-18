@@ -35,7 +35,7 @@ export default function HowItWorksPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <header className="mb-10 space-y-3">
-        <h1 className="text-4xl font-semibold text-ink">How Ghostless works</h1>
+        <h1 className="text-3xl font-semibold text-ink">How Ghostless works</h1>
         <p className="text-lg text-ink-soft">
           Job sites show a posting date that resets every time a role is reposted. Ghostless keeps its own record of
           every posting instead, and the signals come from that record.

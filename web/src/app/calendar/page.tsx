@@ -28,7 +28,7 @@ export default async function CalendarPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8 max-w-2xl space-y-2">
-        <h1 className="text-4xl font-semibold text-ink">Hiring calendar</h1>
+        <h1 className="text-3xl font-semibold text-ink">Hiring calendar</h1>
         <p className="text-ink-soft">
           When each employer first opened internship and new grad roles. Most employers open around the same time
           every year, so this year&apos;s dates are your best guide to next season.
@@ -52,7 +52,7 @@ export default async function CalendarPage() {
             <h2 id={`year-${year}`} className="mb-3 text-xl font-semibold text-ink">
               {year}
             </h2>
-            <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
+            <div className="overflow-x-auto panel">
               <table className="w-full min-w-[36rem] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-line bg-paper text-left text-ink-soft">

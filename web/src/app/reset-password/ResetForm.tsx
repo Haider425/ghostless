@@ -15,7 +15,7 @@ export function ResetForm({ token }: { token: string }) {
         <Field id="password" name="password" type="password" label="New password" autoComplete="new-password" required minLength={10} hint="At least 10 characters." />
         <FormMessage state={state} />
         {state.error?.includes("expired") && (
-          <Link href="/forgot-password" className="block text-sm font-medium text-accent hover:underline">Send a new reset link</Link>
+          <Link href="/forgot-password" className="block text-sm link">Send a new reset link</Link>
         )}
         <SubmitButton pending="Saving...">Save new password</SubmitButton>
       </form>
