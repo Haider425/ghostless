@@ -34,3 +34,22 @@ def test_cli_version(capsys):
         cli.main(["--version"])
     assert exit_info.value.code == 0
     assert "ghostless" in capsys.readouterr().out
+
+
+def test_the_pipeline_runs_without_the_api_extras():
+    """The daily workflow installs only the core package: ingest must not need argon2, FastAPI and so on."""
+    import subprocess
+    import sys
+
+    code = (
+        "import sys\n"
+        "class Block:\n"
+        "    def find_spec(self, name, path=None, target=None):\n"
+        "        if name.split('.')[0] in ('argon2', 'fastapi', 'uvicorn', 'pypdf', 'docx', 'multipart', 'psycopg_pool'):\n"
+        "            raise ImportError(name)\n"
+        "sys.meta_path.insert(0, Block())\n"
+        "import tracker.ingest, tracker.discovery.run, tracker.cli\n"
+        "print('ok')\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.stdout.strip() == "ok", result.stderr

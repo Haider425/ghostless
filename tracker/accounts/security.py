@@ -9,32 +9,43 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from functools import cache
 
-from argon2 import PasswordHasher
-from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+# argon2 comes with the API extras (pip install ".[api]"). It's loaded on first
+# use, so the daily ingest, which only needs the account tables' cleanup, runs
+# without it.
 
-_hasher = PasswordHasher()
-# compared against when the email doesn't exist, so a login takes the same
-# time either way and can't be used to discover which emails have accounts
-_DUMMY_HASH = _hasher.hash("not a real password")
+
+@cache
+def _argon2():
+    from argon2 import PasswordHasher
+    from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+
+    hasher = PasswordHasher()
+    # compared against when the email doesn't exist, so a login takes the same
+    # time either way and can't be used to discover which emails have accounts
+    dummy = hasher.hash("not a real password")
+    return hasher, dummy, (VerifyMismatchError, VerificationError, InvalidHashError)
+
 
 MIN_PASSWORD_LENGTH = 10
 MAX_PASSWORD_LENGTH = 256
 
 
 def hash_password(password: str) -> str:
-    return _hasher.hash(password)
+    return _argon2()[0].hash(password)
 
 
 def verify_password(password_hash: str | None, password: str) -> bool:
+    hasher, dummy, failures = _argon2()
     try:
-        return _hasher.verify(password_hash or _DUMMY_HASH, password) and password_hash is not None
-    except (VerifyMismatchError, VerificationError, InvalidHashError):
+        return hasher.verify(password_hash or dummy, password) and password_hash is not None
+    except failures:
         return False
 
 
 def needs_rehash(password_hash: str) -> bool:
-    return _hasher.check_needs_rehash(password_hash)
+    return _argon2()[0].check_needs_rehash(password_hash)
 
 
 def password_problem(password: str, email: str = "") -> str | None:
