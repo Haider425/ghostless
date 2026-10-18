@@ -2474,7 +2474,7 @@ export interface operations {
     list_jobs_jobs_get: {
         parameters: {
             query?: {
-                /** @description text in the title */
+                /** @description words to find in the title, company, location or skills */
                 q?: string | null;
                 /** @description repeatable */
                 level?: ("intern" | "new_grad" | "mid" | "senior")[] | null;

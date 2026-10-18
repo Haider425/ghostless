@@ -7,6 +7,7 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,6 +19,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # a normal run takes 2; anything longer is stuck
     strategy:
       matrix:
         python-version: ["3.10", "3.13"]
@@ -43,6 +45,7 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 25  # a normal run takes about 10
     services:
       postgres:
         image: postgres:16

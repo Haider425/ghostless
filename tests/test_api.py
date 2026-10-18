@@ -115,7 +115,7 @@ def test_health_does_not_need_a_database():
 def test_default_listing_is_active_jobs_newest_first(client):
     body = client.get("/jobs").json()
     assert body["total"] == 4
-    assert ids(client.get("/jobs"))[:2] == ["pool", "data-new"]  # same day: newest id first
+    assert set(ids(client.get("/jobs"))[:2]) == {"pool", "data-new"}  # the newest day first
     first = body["items"][0]
     assert set(first) >= {"company", "title", "url", "signals", "skills", "salary", "first_seen"}
 
@@ -144,11 +144,19 @@ def test_filters(client):
     assert sorted(ids(client.get("/jobs", params={"new_within_days": 7}))) == ["data-new", "pool"]
     assert ids(client.get("/jobs", params={"q": "intern"})) == ["intern"]
     assert ids(client.get("/jobs", params={"status": "closed"})) == ["data-old"]
-    # same first_seen, so the id tiebreaker decides: intern was inserted first
-    assert ids(client.get("/jobs", params={"level": ["intern", "senior"], "sort": "oldest"})) == [
-        "intern",
-        "senior",
-    ]
+    # same first_seen and no date from the site: a stable order mixed across companies
+    tied = ids(client.get("/jobs", params={"level": ["intern", "senior"], "sort": "oldest"}))
+    assert sorted(tied) == ["intern", "senior"]
+    assert ids(client.get("/jobs", params={"level": ["intern", "senior"], "sort": "oldest"})) == tied
+
+
+@needs_db
+def test_search_matches_company_place_and_skills_not_just_titles(client):
+    assert ids(client.get("/jobs", params={"q": "beta"})) == ["senior"]  # a company name
+    assert ids(client.get("/jobs", params={"q": "jobs at Beta"})) == ["senior"]  # filler words ignored
+    assert ids(client.get("/jobs", params={"q": "airflow"})) == ["data-new"]  # a skill
+    assert ids(client.get("/jobs", params={"q": "acme intern"})) == ["intern"]  # every word must match
+    assert ids(client.get("/jobs", params={"q": "beta intern"})) == []
 
 
 @needs_db

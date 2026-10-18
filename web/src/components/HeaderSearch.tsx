@@ -12,7 +12,7 @@ export function HeaderSearch() {
   return (
     <form action="/jobs" method="get" role="search" className="hidden min-w-0 flex-1 md:block md:max-w-xs">
       <label htmlFor="header-q" className="sr-only">
-        Search job titles
+        Search jobs
       </label>
       <div className="relative">
         <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-faint" />
@@ -22,7 +22,7 @@ export function HeaderSearch() {
           name="q"
           defaultValue={params.get("q") ?? ""}
           maxLength={100}
-          placeholder="Search job titles"
+          placeholder="Search jobs, companies, skills"
           autoComplete="off"
           className="h-9 w-full rounded-lg border border-line bg-sunken pr-3 pl-9 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:bg-surface focus:outline-none"
         />

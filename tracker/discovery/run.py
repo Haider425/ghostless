@@ -26,7 +26,7 @@ import psycopg
 from tracker import db
 from tracker.classify import enrich
 from tracker.discovery.boards import board_from_url, company_key
-from tracker.discovery.lists import JobList, ListedJob, fetch_list
+from tracker.discovery.lists import JobList, ListedJob, clean_url, fetch_list
 from tracker.models import Company, Job
 from tracker.skills import extract_skills
 from tracker.sources import FetchError
@@ -234,7 +234,12 @@ def save_list_jobs(
         }
         groups: dict[str, list[ListedJob]] = defaultdict(list)
         names: dict[str, str] = {}
+        seen_urls: set[str] = set()
         for item in items:
+            link = clean_url(item.url)
+            if link in seen_urls:
+                continue  # the same posting in another list (lists are read in order, so the first one keeps it)
+            seen_urls.add(link)
             key = company_key(item.company)
             if key in covered:
                 continue  # the company's own board is tracked: no duplicates from the list
@@ -244,11 +249,11 @@ def save_list_jobs(
         seen_slugs = set()
         new_total = closed_total = 0
         for key, group in groups.items():
-            jobs, urls = [], set()
+            jobs, ids = [], set()
             for item in group:
-                if item.url in urls:
-                    continue  # the same posting in two lists
-                urls.add(item.url)
+                if item.id in ids:
+                    continue
+                ids.add(item.id)
                 jobs.append(classify_listed(enrich(to_job(item), extract_skills(item.title)), item))
             company = Company(name=names[key], platform="list", board_slug=f"list:{key}", origin="list")
             company_id = db.upsert_company(conn, company)

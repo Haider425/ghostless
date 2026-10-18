@@ -20,7 +20,11 @@ test.beforeEach(async ({ page }) => {
 /** Open a page and wait until its scripts are running, so clicks reach React. */
 async function go(page: Page, url: string) {
   await page.goto(url);
-  await page.waitForLoadState("networkidle");
+  // Usually the network goes quiet within a second once React is running. A
+  // page that keeps a request open (scoring, autosave) never goes fully quiet
+  // on a slow CI machine, so wait a few seconds at most; every check after
+  // this waits for its own element anyway.
+  await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => undefined);
 }
 
 function uniqueEmail(label: string) {

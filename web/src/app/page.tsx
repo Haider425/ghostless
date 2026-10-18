@@ -72,7 +72,7 @@ export default async function HomePage() {
             </p>
             <form action="/jobs" method="get" role="search" className="flex max-w-xl gap-2">
               <label htmlFor="home-q" className="sr-only">
-                Search job titles
+                Search jobs
               </label>
               <div className="relative min-w-0 flex-1">
                 <SearchIcon className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-faint" />
@@ -81,7 +81,7 @@ export default async function HomePage() {
                   type="search"
                   name="q"
                   maxLength={100}
-                  placeholder="Software engineer, data, intern..."
+                  placeholder="Software intern, Shopify, Python..."
                   autoComplete="off"
                   className="h-13 w-full rounded-xl border border-line-strong bg-surface pr-3 pl-12 text-lg text-ink placeholder:text-ink-faint focus:ring-2 focus:ring-accent/30 focus:outline-none"
                 />

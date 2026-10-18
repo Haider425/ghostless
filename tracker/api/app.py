@@ -144,7 +144,10 @@ def register_routes(app: FastAPI) -> None:
     @app.get("/jobs", response_model=JobPage, tags=["jobs"], summary="Search postings")
     def list_jobs(
         conn: Conn,
-        q: Annotated[str | None, Query(max_length=100, description="text in the title")] = None,
+        q: Annotated[
+            str | None,
+            Query(max_length=100, description="words to find in the title, company, location or skills"),
+        ] = None,
         level: Annotated[list[Level] | None, Query(description="repeatable")] = None,
         role: Annotated[list[RoleType] | None, Query(description="repeatable")] = None,
         company: Annotated[list[str] | None, Query(description="repeatable, case-insensitive")] = None,

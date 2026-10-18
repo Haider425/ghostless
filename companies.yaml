@@ -104,10 +104,15 @@ companies:
 
 # Public job lists on GitHub, read every day. Their links also reveal new
 # employers' job boards, which are then tracked automatically (see README,
-# "Finding jobs beyond this file"). Any list using SimplifyJobs' format works.
+# "Finding jobs beyond this file"). `format` is simplify (the default, SimplifyJobs'
+# listings.json), markdown (a README table) or jobs-json. Lists are read in
+# order: a posting in two lists is kept from the first.
 # `level` applies to entries whose title doesn't say (a new grad list's
 # "Software Developer"). Remove this section to use the defaults, or set
 # `lists: []` to turn it off.
 lists:
   - { repo: SimplifyJobs/Summer2027-Internships, label: SimplifyJobs internships, level: intern }
   - { repo: SimplifyJobs/New-Grad-Positions, label: SimplifyJobs new grad roles, level: new_grad }
+  - { repo: vanshb03/Summer2027-Internships, label: vanshb03 internships, level: intern }
+  - { repo: negarprh/Canadian-Tech-Internships-2027, branch: main, path: README.md, format: markdown, label: Canadian Tech Internships 2027, level: intern }
+  - { repo: Bobwillrule/Canadian-Internship-List, branch: main, path: docs/data/jobs.json, format: jobs-json, label: Canadian Internship List, level: intern }

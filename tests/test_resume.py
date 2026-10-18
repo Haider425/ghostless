@@ -108,6 +108,9 @@ def test_reads_docx():
         (b"x" * (6 * 1024 * 1024), "r.pdf", "5 MB"),
         (b"old word file contents" * 20, "r.doc", ".docx"),
     ],
+    # short names: pytest otherwise names a case after its data, and printing a
+    # 6 MB name stalls the CI log
+    ids=["empty", "wrong-type", "too-short", "too-big", "old-word-format"],
 )
 def test_unreadable_files_get_a_clear_reason(data, name, message):
     with pytest.raises(UnreadableResume, match=message):

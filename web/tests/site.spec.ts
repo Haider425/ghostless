@@ -22,7 +22,7 @@ test("home shows a live example, stats and fresh student roles", async ({ page }
 
 test("searching from the home page lands on filtered results", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("searchbox", { name: "Search job titles" }).fill("intern");
+  await page.getByRole("searchbox", { name: "Search jobs" }).fill("intern");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page).toHaveURL(/\/jobs\?q=intern/);
   await expect(page.getByRole("heading", { name: /jobs? matching/ })).toBeVisible();
@@ -179,4 +179,11 @@ test("the menu opens on phones @mobile", async ({ page }) => {
   await page.locator("summary", { hasText: "Menu" }).click();
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Companies" }).click();
   await expect(page).toHaveURL(/\/companies$/);
+});
+
+test("search finds jobs by company name, not only by title", async ({ page }) => {
+  await page.goto("/jobs?q=northwind");
+  const results = page.getByRole("region", { name: /jobs/ }).or(page.locator("section[aria-labelledby=results-heading]"));
+  await expect(page.locator("#results-heading")).not.toHaveText(/^0 /);
+  await expect(results.getByText("Northwind Systems").first()).toBeVisible();
 });

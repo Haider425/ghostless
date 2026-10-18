@@ -31,11 +31,25 @@ LOCATIONS = {
     "canada_or_remote": "(j.is_canada OR j.is_remote)",
 }
 STATUSES = {"active": "j.is_active", "closed": "NOT j.is_active", "all": None}
+# When a posting went up, as best known. A posting Ghostless saw appear has its
+# first_seen; one already open when tracking began (every posting from a
+# company's first run shares that run's time) is dated by its own site, when
+# the site says, and never later than first seen.
+# By day: postings from the same day are mixed across companies in a stable
+# order, so a page isn't one employer's whole board in a row.
+LISTED = "date_trunc('day', least(j.first_seen, coalesce(j.posted_at, j.first_seen)), 'UTC')"
+MIX = "hashtext(j.id::text), j.id"
+# An employer that posts many roles in one day would fill whole pages: each
+# extra posting it made that day is placed half a day further back.
+SPREAD = (
+    f"({LISTED} - (row_number() OVER (PARTITION BY j.company_id, {LISTED} ORDER BY {MIX}) - 1)"
+    " * interval '12 hours')"
+)
 SORTS = {
-    "newest": "j.first_seen DESC, j.id DESC",
-    "oldest": "j.first_seen ASC, j.id ASC",
-    "salary": "j.salary_max DESC NULLS LAST, j.first_seen DESC, j.id DESC",
-    "company": "c.name ASC, j.first_seen DESC, j.id DESC",
+    "newest": f"{SPREAD} DESC, {MIX}",
+    "oldest": f"{LISTED} ASC, {MIX}",
+    "salary": f"j.salary_max DESC NULLS LAST, {LISTED} DESC, {MIX}",
+    "company": f"c.name ASC, {LISTED} DESC, j.id DESC",
 }
 
 # Postings first seen on a company's very first run were already open, so
@@ -61,6 +75,13 @@ JOB_FROM = """
 """
 
 
+def search_words(q: str) -> list[str]:
+    """The words of a search, without filler: "jobs at amazon in toronto" is amazon and toronto."""
+    filler = {"at", "in", "for", "the", "a", "an", "of", "and", "jobs", "job", "roles", "role", "positions"}
+    words = [w.strip(",.;:!?\"'()") for w in q.split()]
+    return [w for w in words if w and w.lower() not in filler][:6]
+
+
 @dataclass
 class JobFilters:
     q: str | None = None
@@ -83,9 +104,18 @@ class JobFilters:
         if LOCATIONS[self.location]:
             clauses.append(LOCATIONS[self.location])
         if self.q:
-            clauses.append("j.title ILIKE %(q)s")
-            escaped = self.q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            params["q"] = f"%{escaped}%"
+            # every word has to match the title, company, place, department or a skill
+            for i, word in enumerate(search_words(self.q)):
+                key = f"q{i}"
+                clauses.append(
+                    f"""(j.title ILIKE %({key})s OR c.name ILIKE %({key})s OR j.location ILIKE %({key})s
+                         OR j.department ILIKE %({key})s
+                         OR EXISTS (SELECT 1 FROM job_skills qs JOIN skills qk ON qk.id = qs.skill_id
+                                    WHERE qs.job_id = j.id AND lower(qk.name) = %({key}_exact)s))"""
+                )
+                escaped = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                params[key] = f"%{escaped}%"
+                params[f"{key}_exact"] = word.lower()
         if self.levels:
             clauses.append("j.level = ANY(%(levels)s)")
             params["levels"] = self.levels

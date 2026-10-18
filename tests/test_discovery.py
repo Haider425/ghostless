@@ -190,3 +190,60 @@ def test_a_failed_list_closes_nothing(conn, monkeypatch):
     monkeypatch.setattr(discovery, "fetch_list", down)
     discovery.run(DSN, [], [JobList("owner/list")], now + timedelta(days=1), stats)
     assert conn.execute("SELECT count(*) FROM jobs WHERE is_active").fetchone()[0] == 1
+
+
+MARKDOWN = """# Canadian Tech Internships
+
+| Company | Role | Location | Apply | Date Posted |
+|--------|------|----------|:-----:|--------------|
+| D2L | Software Developer Co-op (Winter 2027) | Kitchener, ON | [![Apply](https://img.shields.io/badge/-Apply-blue)](https://www.d2l.com/careers/jobs/?job_id=1&utm_source=list) | Oct 16, 2026 |
+| ↳ | Data Analyst Co-op | Waterloo, ON / Remote, Canada | [Apply](https://www.d2l.com/careers/jobs/?job_id=2) | Oct 15, 2026 |
+| Motorola | Embedded Co-op | Vancouver, BC | Closed🔒 | Oct 7, 2026 |
+| **Shopify** | Dev Intern | Toronto, ON | <a href="x"><img src="badge.png"></a> https://www.shopify.com/careers/1 | Sep 30, 2026 |
+
+Some other text.
+"""
+
+
+def test_a_markdown_table_list():
+    from tracker.discovery.lists import parse_markdown
+
+    jobs = parse_markdown(MARKDOWN, "owner/list", level="intern")
+    assert [(j.company, j.title) for j in jobs] == [
+        ("D2L", "Software Developer Co-op (Winter 2027)"),
+        ("D2L", "Data Analyst Co-op"),  # ↳ repeats the company
+        ("Shopify", "Dev Intern"),
+    ]  # the closed row is skipped
+    assert jobs[0].url == "https://www.d2l.com/careers/jobs/?job_id=1&utm_source=list"
+    assert jobs[1].locations == ["Waterloo, ON", "Remote, Canada"]
+    assert jobs[0].posted_at.date().isoformat() == "2026-10-16"
+    assert jobs[2].url == "https://www.shopify.com/careers/1"
+    assert all(j.level == "intern" and j.id.startswith("url:") for j in jobs)
+
+
+def test_a_jobs_json_list_and_clean_urls():
+    from tracker.discovery.lists import clean_url, parse_jobs_json
+
+    data = {
+        "jobs": [
+            {
+                "company": "Waabi",
+                "title": "Safety Intern",
+                "locationText": "Toronto, ON, Canada",
+                "applyUrl": "https://jobs.lever.co/waabi/480d/apply?utm_source=Simplify&ref=Simplify",
+                "postedAt": "2026-10-17T01:22:13.113Z",
+                "hidden": False,
+            },
+            {"company": "Hidden", "title": "X", "applyUrl": "https://x.example/1", "hidden": True},
+            {"company": "", "title": "No company", "applyUrl": "https://x.example/2"},
+        ]
+    }
+    [job] = parse_jobs_json(data, "owner/list")
+    assert (job.company, job.locations) == ("Waabi", ["Toronto, ON, Canada"])
+    assert job.posted_at.year == 2026
+    assert (
+        clean_url(job.url)
+        == clean_url("https://jobs.lever.co/waabi/480d")
+        == "https://jobs.lever.co/waabi/480d"
+    )
+    assert clean_url("https://a.example/j?id=3&utm_medium=x") == "https://a.example/j?id=3"

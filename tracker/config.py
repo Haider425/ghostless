@@ -76,7 +76,7 @@ def load_lists(path: Path | None = None) -> list:
     Without the section, the default SimplifyJobs lists are read; `lists: []`
     turns list reading off.
     """
-    from tracker.discovery.lists import DEFAULT_LISTS, JobList
+    from tracker.discovery.lists import DEFAULT_LISTS, FORMATS, JobList
 
     path = path or companies_path()
     data = (yaml.safe_load(path.read_text()) or {}) if path.is_file() else {}
@@ -86,6 +86,8 @@ def load_lists(path: Path | None = None) -> list:
     for number, entry in enumerate(data.get("lists") or [], start=1):
         if not isinstance(entry, dict) or not entry.get("repo") or "/" not in str(entry["repo"]):
             raise SystemExit(f"{path}: list #{number} needs repo: owner/name")
+        if entry.get("format", "simplify") not in FORMATS:
+            raise SystemExit(f"{path}: list #{number}: format must be one of {', '.join(FORMATS)}")
         out.append(
             JobList(
                 repo=str(entry["repo"]),
@@ -93,6 +95,7 @@ def load_lists(path: Path | None = None) -> list:
                 path=str(entry.get("path", ".github/scripts/listings.json")),
                 label=str(entry.get("label", "")),
                 level=entry.get("level") if entry.get("level") in ("intern", "new_grad") else None,
+                format=str(entry.get("format", "simplify")),
             )
         )
     return out

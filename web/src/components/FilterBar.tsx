@@ -89,7 +89,7 @@ export function FilterBar({ filters, seasons = [] }: { filters: JobFilters; seas
     <form id={FILTER_FORM_ID} action="/jobs" method="get" role="search" className="space-y-3">
       <div className="flex gap-2">
         <label htmlFor="jobs-q" className="sr-only">
-          Search job titles
+          Search jobs
         </label>
         <div className="relative min-w-0 flex-1">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-ink-faint" />
@@ -100,7 +100,7 @@ export function FilterBar({ filters, seasons = [] }: { filters: JobFilters; seas
             name="q"
             defaultValue={filters.q}
             maxLength={100}
-            placeholder="Search job titles: software, data, intern..."
+            placeholder="Title, company, skill or city: amazon, python, toronto..."
             autoComplete="off"
             className="h-11 w-full rounded-xl border border-line-strong bg-surface pr-3 pl-10 text-ink placeholder:text-ink-faint focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
           />
