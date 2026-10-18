@@ -71,6 +71,11 @@ CREATE TABLE IF NOT EXISTS discovered_boards (
     jobs_last     INTEGER,
     PRIMARY KEY (platform, board_slug)
 );
+-- adaptive revisits: boards that change are read daily, quiet ones less often
+ALTER TABLE discovered_boards ADD COLUMN IF NOT EXISTS last_changed TIMESTAMPTZ;
+ALTER TABLE discovered_boards ADD COLUMN IF NOT EXISTS quiet_visits INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE discovered_boards ADD COLUMN IF NOT EXISTS next_due TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS discovered_boards_due ON discovered_boards (next_due NULLS FIRST);
 
 CREATE INDEX IF NOT EXISTS idx_jobs_active_filters
     ON jobs (is_active, level, role_type) WHERE is_active;

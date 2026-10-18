@@ -73,7 +73,9 @@ An AI review is available as an extra for one job at a time: it rewrites suggest
 |---|---|
 | `ghostless verify` | Checks every source and prints OK (with a job count), WARN (0 jobs), or FAIL (with the reason). Fast: skips per-job detail requests. |
 | `ghostless ingest` | Runs the full pipeline into PostgreSQL. |
-| `ghostless discover [--boards N]` | Reads the job lists, registers new job boards they link to, crawls `N` of the discovered boards (default 120, oldest first) and stores list-only postings. `ghostless ingest` does this after the configured companies; run it alone to grow coverage without a full ingest. |
+| `ghostless discover [--boards N]` | Reads the job lists, registers new job boards they link to, crawls the discovered boards that are due (at most `N`) and stores list-only postings. `ghostless ingest` does this after the configured companies; run it alone to grow coverage without a full ingest. |
+| `ghostless ingest --shard K/N` | Collects only part `K` of `N`: one of several machines running at once (the daily workflow uses 4). Every site belongs to exactly one part. |
+| `ghostless finish` | After every part of a sharded ingest: reads the job lists, refreshes the ghost signals and cleans up. Takes seconds. |
 | `ghostless gap --have "..."` | Ranks the skills that active postings ask for and marks which ones you have. Defaults to intern and new grad software roles in Canada or remote; change with `--role`, `--level` (both repeatable) and `--anywhere`. |
 | `ghostless reprocess` | Re-derives pay, disclosures, fingerprints and repost links for every stored posting, and syncs company names and domains from `companies.yaml`. Fetches nothing. Run it once after upgrading so improved parsing applies to existing data. |
 | `ghostless admin add <email>` | Makes an existing account an admin (also `remove` and `list`). |
@@ -91,8 +93,8 @@ An AI review is available as an extra for one job at a time: it rewrites suggest
 | `GHOSTLESS_COMPANIES` | `.env` | Optional path to a different companies file |
 | `GHOSTLESS_CORS_ORIGINS` | API host | Comma-separated origins allowed to call the API (default `*`) |
 | `GHOSTLESS_API_POOL_SIZE` | API host | Maximum database connections the API opens (default 4) |
-| `GHOSTLESS_WORKERS` | `.env` or workflow | Sites collected at the same time (default 8). Each site still gets one request at a time, with the same pacing. |
-| `GHOSTLESS_DISCOVERED_PER_RUN` | `.env` or workflow | Discovered boards crawled per run (default 120) |
+| `GHOSTLESS_WORKERS` | `.env` or workflow | Threads collecting at once (default 16). The real limits are per site, below. |
+| `GHOSTLESS_DISCOVERED_PER_RUN` | `.env` or workflow | A cap on discovered boards crawled per run (default 5000, so every board that's due) |
 | `companies.yaml` | repo root | Which employers to track, and which public job lists to read (`lists:`; `lists: []` turns discovery off) |
 
 To track a new employer, add it to `companies.yaml`; [CONTRIBUTING.md](CONTRIBUTING.md) shows how to find its platform and slug in under a minute.
@@ -112,17 +114,28 @@ To track a new employer, add it to `companies.yaml`; [CONTRIBUTING.md](CONTRIBUT
 | `sitemap` | Shopify | Careers XML sitemap | None |
 | `rss` | Scotiabank | SAP SuccessFactors RSS feed | Full |
 
-"Relevant roles" means descriptions are fetched only for tech roles in Canada, remote, or with an unknown location, which keeps request volume low on employers with thousands of postings.
+"Relevant roles" means descriptions are fetched for tech roles in Canada, remote, or with an unknown location first, up to 250 per company per run, and each only once: later runs reuse it.
 
 ### Finding jobs beyond companies.yaml
 
 `companies.yaml` is a starting set, not the limit. Every run also reads public job lists that students maintain on GitHub, from raw.githubusercontent.com: the [SimplifyJobs internship](https://github.com/SimplifyJobs/Summer2027-Internships) and [new grad](https://github.com/SimplifyJobs/New-Grad-Positions) lists, [vanshb03's internships](https://github.com/vanshb03/Summer2027-Internships), and the Canadian lists [Canadian Tech Internships 2027](https://github.com/negarprh/Canadian-Tech-Internships-2027) and [Canadian Internship List](https://github.com/Bobwillrule/Canadian-Internship-List). Three formats are understood (SimplifyJobs' `listings.json`, a README table, and a `jobs` JSON file), so most lists can be added to `companies.yaml` without code. A posting in several lists is kept once.
 
 1. **Boards register themselves.** When a list entry links to a Greenhouse, Lever, Ashby or Workday board that isn't configured, it goes into the `discovered_boards` table. No one edits a file.
-2. **A rotation crawls them.** Each run reads the boards visited longest ago (`GHOSTLESS_DISCOVERED_PER_RUN`, default 120), so with about 1,200 boards every one is revisited about every ten days, and new ones are read the day they're found. Greenhouse, Lever and Ashby boards are read in full. Workday boards are searched for "intern", "co-op" and "new grad", since a full crawl of hundreds of large employers would take hours; closures there apply only to intern and new grad postings. A board that fails five runs in a row is retried monthly.
+2. **Each board is revisited by how often it changes.** A board whose postings changed is read again the next day. One that keeps not changing is read every few days, up to weekly, the revisit policy search engines use to spend visits where things change. Boards with open internships or new grad roles are never left more than two days. A board that fails waits 1, 2, 4, 8 ... days, up to a month. Greenhouse, Lever and Ashby boards are read in full. Workday boards are searched for "intern", "co-op" and "new grad", since a full crawl of hundreds of large employers would take hours; closures there apply only to intern and new grad postings.
 3. **Everything else comes from the list.** Companies on other systems (iCIMS, SmartRecruiters, custom sites) are stored from the list entry itself: title, link, places and season (`platform = 'list'`). They close when they leave the list, or once the company's own board is tracked, so a posting never shows twice.
 
 Season ("Summer 2027") is read from the list or the title and is filterable on the website and with `/jobs?term=`.
+
+### How a run stays fast and polite
+
+Thousands of companies don't mean thousands of slow requests, because each site is limited on its own terms:
+
+- **Requests in flight per site.** Most sites get one at a time. The public job-board APIs that Greenhouse, Lever and Ashby publish for exactly this get a few at once (4, 4 and 2), with a minimum gap between requests. Each Workday employer gets one at a time, and every Workday server cluster (the `wd1`, `wd3`, `wd5` in the address) gets at most 4 from one machine.
+- **Backing off.** A "too many requests" answer doubles that site's gap and halves its requests at once for the rest of the run, and the site's `Retry-After` is honoured.
+- **Several machines.** The daily workflow runs `ghostless ingest --shard K/4` on four GitHub machines at once, then `ghostless finish`. A site is never split between machines.
+- **Visiting by change rate.** Quiet discovered boards are read every few days instead of daily (above).
+
+In a simulated day of about 1,300 boards, this takes a run from about 30 minutes to about 4. The floor is the largest single employer, which still gets one request at a time.
 
 **Not included: LinkedIn.** Its user agreement and robots.txt prohibit automated collection, and its postings for tech roles are mostly copies of postings on employers' own career sites, which Ghostless reads directly.
 

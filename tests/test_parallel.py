@@ -88,9 +88,119 @@ def test_one_host_never_gets_two_requests_at_once(monkeypatch):
     assert elapsed < 0.3
 
 
-@pytest.mark.parametrize("value, expected", [("4", 4), ("0", 1), ("100", 32), ("x", 8)])
+@pytest.mark.parametrize("value, expected", [("4", 4), ("0", 1), ("100", 32), ("x", 16)])
 def test_worker_count_comes_from_the_environment(monkeypatch, value, expected):
     from tracker.parallel import workers
 
     monkeypatch.setenv("GHOSTLESS_WORKERS", value)
     assert workers() == expected
+
+
+def _count_in_flight(monkeypatch, urls, response_status=200):
+    """Send `urls` from 24 threads; return the most requests in flight per host and per Workday cluster."""
+    monkeypatch.setattr(http.robots, "allowed", lambda url: True)
+    monkeypatch.setattr(http, "throttle", http.Throttle(0.0, {}))
+    in_flight: dict[str, int] = {}
+    most: dict[str, int] = {}
+    lock = threading.Lock()
+
+    class Response:
+        status_code = response_status
+        headers: dict = {}
+        text = "{}"
+
+        def json(self):
+            return {}
+
+    def bump(key, by):
+        with lock:
+            in_flight[key] = in_flight.get(key, 0) + by
+            most[key] = max(most.get(key, 0), in_flight[key])
+
+    def fake_request(method, url, **kwargs):
+        host = url.split("/")[2]
+        cluster = http.cluster_of(host)
+        bump(host, 1)
+        if cluster:
+            bump(cluster, 1)
+        time.sleep(0.02)
+        bump(host, -1)
+        if cluster:
+            bump(cluster, -1)
+        return Response()
+
+    monkeypatch.setattr(http.requests, "request", fake_request)
+    with ThreadPoolExecutor(max_workers=24) as pool:
+        list(pool.map(lambda u: http.get_json(u), urls))
+    return most
+
+
+def test_job_board_apis_get_a_few_requests_at_once_and_other_sites_one(monkeypatch):
+    urls = [f"https://boards-api.greenhouse.io/v1/boards/b{i}/jobs" for i in range(20)]
+    urls += [f"https://careers.example.com/jobs/{i}" for i in range(8)]
+    most = _count_in_flight(monkeypatch, urls)
+    assert most["boards-api.greenhouse.io"] == http.HOST_CONCURRENCY["boards-api.greenhouse.io"]
+    assert most["careers.example.com"] == 1
+
+
+def test_workday_employers_on_one_cluster_share_a_limit(monkeypatch):
+    tenants = [f"bank{i}.wd3.myworkdayjobs.com" for i in range(10)]
+    urls = [f"https://{t}/wday/cxs/{t.split('.')[0]}/site/job/{j}" for t in tenants for j in range(3)]
+    most = _count_in_flight(monkeypatch, urls)
+    assert most["wd3.myworkdayjobs.com"] == http.WORKDAY_CLUSTER_CONCURRENCY
+    assert max(most[t] for t in tenants) == 1  # and still one at a time per employer
+
+
+def test_a_rate_limit_halves_requests_at_once():
+    throttle = http.Throttle(0.0, {}, sleep=lambda s: None)
+    gate = throttle.gates_for("boards-api.greenhouse.io")[-1]
+    assert gate.limit == 4
+    throttle.slow_down("boards-api.greenhouse.io")
+    assert gate.limit == 2
+    throttle.slow_down("boards-api.greenhouse.io")
+    throttle.slow_down("boards-api.greenhouse.io")
+    assert gate.limit == 1
+
+
+def test_shared_api_companies_run_in_lanes():
+    from tracker.parallel import lanes
+
+    assert lanes("greenhouse") == 4 and lanes("ashby") == 2 and lanes("td.wd3.myworkdayjobs.com") == 1
+    active = {"now": 0, "most": 0}
+    lock = threading.Lock()
+
+    def work(item):
+        with lock:
+            active["now"] += 1
+            active["most"] = max(active["most"], active["now"])
+        time.sleep(0.03)
+        with lock:
+            active["now"] -= 1
+        return item
+
+    boards = [Company(name=f"b{i}", platform="greenhouse", board_slug=f"b{i}") for i in range(12)]
+    results = list(run_by_site(boards, site_of, work, max_workers=16))
+    assert len(results) == 12
+    assert active["most"] == 4
+
+
+def test_shards_split_the_work_without_splitting_a_site():
+    from tracker.parallel import in_shard, parse_shard
+
+    assert parse_shard("2/4") == (2, 4) and parse_shard(None) is None
+    for bad in ("0/4", "5/4", "x", "1/100"):
+        with pytest.raises(SystemExit):
+            parse_shard(bad)
+
+    companies = [Company(f"gh{i}", "greenhouse", f"gh{i}") for i in range(200)]
+    companies += [Company(f"bank{i}", "workday", f"bank{i}.wd3.myworkdayjobs.com/Careers") for i in range(12)]
+    companies += [Company("Amazon", "amazon", "x"), Company("Google", "google", "y")]
+    parts = [[c for c in companies if in_shard(c, (k, 4))] for k in range(1, 5)]
+    assert sorted(c.name for part in parts for c in part) == sorted(c.name for c in companies)  # each once
+    # each Workday employer stays on one machine, and they're spread over machines
+    assert sum(any(c.platform == "workday" for c in part) for part in parts) > 1
+    for c in companies:
+        assert sum(in_shard(c, (k, 4)) for k in range(1, 5)) == 1
+    # Greenhouse boards are spread over every machine, roughly evenly
+    counts = [sum(c.platform == "greenhouse" for c in part) for part in parts]
+    assert min(counts) > 30

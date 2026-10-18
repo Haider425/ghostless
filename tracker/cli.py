@@ -57,7 +57,15 @@ def _parser() -> argparse.ArgumentParser:
     common.add_argument("-v", "--verbose", action="store_true", help="show detailed logs")
 
     commands.add_parser("verify", parents=[common], help="check that every source works")
-    commands.add_parser("ingest", parents=[common], help="fetch postings into the database")
+    ingest = commands.add_parser("ingest", parents=[common], help="fetch postings into the database")
+    ingest.add_argument(
+        "--shard",
+        metavar="K/N",
+        help="collect only part K of N (one of several machines); run `ghostless finish` after all parts",
+    )
+    commands.add_parser(
+        "finish", help="after a sharded ingest: read the job lists, refresh signals and clean up"
+    )
     discover = commands.add_parser(
         "discover", help="read the public job lists and crawl discovered job boards (part of ingest)"
     )
@@ -66,7 +74,7 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         metavar="N",
-        help="how many discovered boards to crawl (default 120)",
+        help="the most discovered boards to crawl (default: every board that's due)",
     )
 
     commands.add_parser("migrate", help="create or upgrade the database tables")
@@ -119,13 +127,20 @@ def main(argv: list[str] | None = None) -> None:
         _admin(args)
         return
 
-    level = logging.DEBUG if args.verbose else logging.INFO if args.command == "ingest" else logging.WARNING
-    fmt = "%(asctime)s %(levelname)-7s %(message)s" if args.command == "ingest" else "      ↳ %(message)s"
+    logs_progress = args.command in ("ingest", "finish")
+    level = (
+        logging.DEBUG
+        if getattr(args, "verbose", False)
+        else logging.INFO
+        if logs_progress
+        else logging.WARNING
+    )
+    fmt = "%(asctime)s %(levelname)-7s %(message)s" if logs_progress else "      ↳ %(message)s"
     logging.basicConfig(level=level, format=fmt, datefmt="%H:%M:%S", stream=sys.stdout)
 
     from tracker.sources import http
 
-    if args.dump:
+    if getattr(args, "dump", None):
         http.dump_dir = Path(args.dump)
         logging.getLogger("tracker.sources.http").setLevel(logging.INFO)
 
@@ -140,8 +155,13 @@ def main(argv: list[str] | None = None) -> None:
     else:
         from tracker import ingest
 
-        stats = ingest.run(args.only)
-        if stats["companies_ok"] == 0:
+        if args.command == "finish":
+            ingest.finish()
+            return
+        from tracker.parallel import parse_shard
+
+        stats = ingest.run(args.only, shard=parse_shard(args.shard))
+        if stats["companies_ok"] == 0 and stats.get("discovered_ok", 0) == 0:
             raise SystemExit(1)
 
 

@@ -106,3 +106,33 @@ def test_stored_descriptions_are_reused():
     assert (jobs[0].description, jobs[0].location) == ("stored", "Toronto | Montreal")
     assert jobs[1].description == "fresh"  # fetched this run: the new text wins
     assert jobs[2].description == ""
+
+
+@pytest.mark.skipif(not DSN, reason="TEST_DATABASE_URL not set")
+def test_a_sharded_run_collects_its_part_and_finish_does_the_rest(monkeypatch):
+    from tracker.discovery import run as discovery
+
+    companies = [Company(f"Co{i}", "greenhouse", f"co{i}") for i in range(12)]
+    monkeypatch.setattr(ingest, "load_companies", lambda: companies)
+    monkeypatch.setattr(ingest, "fetch_jobs", jobs_for)
+    monkeypatch.setenv("DATABASE_URL", DSN)
+    with db.connect(DSN) as c:
+        reset_database(c)
+        db.apply_schema(c)
+        c.commit()
+    calls = []
+    monkeypatch.setattr(discovery, "crawl_boards", lambda *a, **k: calls.append(("crawl", k.get("shard"))))
+    monkeypatch.setattr(discovery, "run", lambda *a, **k: calls.append(("lists", k.get("crawl"))))
+    refreshed = []
+    real_refresh = db.refresh_signals
+    monkeypatch.setattr(db, "refresh_signals", lambda conn: refreshed.append(1) or real_refresh(conn))
+
+    seen = [ingest.run(shard=(k, 3))["companies_ok"] for k in (1, 2, 3)]
+    assert sum(seen) == 12 and all(seen)  # every company once, spread over the parts
+    assert calls == [("crawl", (1, 3)), ("crawl", (2, 3)), ("crawl", (3, 3))]  # each part crawls its boards
+    assert refreshed == []  # signals wait for finish
+
+    ingest.finish()
+    assert calls[-1] == ("lists", False) and refreshed == [1]
+    with db.connect(DSN) as c:
+        assert c.execute("SELECT count(*) FROM jobs").fetchone()[0] == 12

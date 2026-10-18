@@ -14,6 +14,7 @@ implements the matching rules itself:
 from __future__ import annotations
 
 import re
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
@@ -88,9 +89,19 @@ class RobotsCache:
         self.agent = agent
         self.fetcher = fetcher
         self._cache: dict[str, Rules] = {}
+        self._locks: dict[str, threading.Lock] = {}
+        self._guard = threading.Lock()
 
     def _rules_for(self, scheme: str, host: str) -> Rules:
         key = f"{scheme}://{host}"
+        if key in self._cache:
+            return self._cache[key]
+        with self._guard:
+            lock = self._locks.setdefault(key, threading.Lock())
+        with lock:  # requests running at once fetch a host's robots.txt only once
+            return self._fetch(key)
+
+    def _fetch(self, key: str) -> Rules:
         if key not in self._cache:
             status, body = self.fetcher(f"{key}/robots.txt")
             if 200 <= status < 300:

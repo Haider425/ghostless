@@ -5,17 +5,57 @@ on:
     - cron: "17 10 * * *"   # every day around 6am Toronto time
   workflow_dispatch:        # run it by hand from the Actions tab
 
+# one run at a time: a manual run waits for a scheduled one to finish
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}  # your Neon / Supabase URL, as a repo secret
+  GHOSTLESS_CONTACT: https://github.com/${{ github.repository }}
+  SHARDS: 4
+
 jobs:
-  ingest:
+  # 1. create or upgrade the tables once, so the parts below don't race
+  prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 180  # sites are collected 8 at a time; a first run is the longest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install .
-      - run: ghostless ingest
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}  # your Neon / Supabase URL, as a repo secret
-          GHOSTLESS_CONTACT: https://github.com/${{ github.repository }}
+      - run: ghostless migrate
+
+  # 2. four machines at once, each with its own share of the sites. A site is
+  #    never split between machines, so each site's own limits still hold.
+  collect:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false        # one part failing doesn't stop the others
+      matrix:
+        shard: [1, 2, 3, 4]   # keep in step with SHARDS above
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install .
+      - run: ghostless ingest --shard ${{ matrix.shard }}/${{ env.SHARDS }}
+
+  # 3. the job lists, ghost signals and clean-up, once every part is done
+  finish:
+    needs: collect
+    if: ${{ !cancelled() }}   # still runs if a part failed, so the rest is saved
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install .
+      - run: ghostless finish

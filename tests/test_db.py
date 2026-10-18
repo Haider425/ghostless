@@ -70,3 +70,36 @@ def test_partial_listings_never_close_jobs(conn):
     )
     assert (new, closed) == (0, 0)
     assert conn.execute("SELECT count(*) FROM jobs WHERE is_active").fetchone()[0] == 2
+
+
+def test_a_site_that_suddenly_returns_nothing_closes_nothing(conn, caplog):
+    company_id = db.upsert_company(conn, Company("Apple", "apple", "en-ca/search"))
+    day1 = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    db.save_company_jobs(conn, company_id, [_job(str(i)) for i in range(36)], day1)
+
+    # the page changed or came back empty: keep the jobs open, and say so
+    assert db.save_company_jobs(conn, company_id, [], day1 + timedelta(days=1)) == (0, 0)
+    assert conn.execute("SELECT count(*) FROM jobs WHERE is_active").fetchone()[0] == 36
+    assert "nothing was closed" in caplog.text
+
+    # a third of the listings at once is suspicious too
+    assert (
+        db.save_company_jobs(conn, company_id, [_job(str(i)) for i in range(5)], day1 + timedelta(days=2))[1]
+        == 0
+    )
+
+    # an ordinary drop still closes jobs
+    kept = [_job(str(i)) for i in range(30)]
+    assert db.save_company_jobs(conn, company_id, kept, day1 + timedelta(days=3))[1] == 6
+
+
+def test_a_small_company_can_close_everything(conn):
+    company_id = db.upsert_company(conn, Company("Tiny", "lever", "tiny"))
+    day1 = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    db.save_company_jobs(conn, company_id, [_job("1"), _job("2")], day1)
+    assert db.save_company_jobs(conn, company_id, [], day1 + timedelta(days=1)) == (0, 2)
+
+
+def test_suspicious_drop():
+    assert db.suspicious_drop(36, 0) and db.suspicious_drop(30, 9)
+    assert not db.suspicious_drop(2, 0) and not db.suspicious_drop(30, 10) and not db.suspicious_drop(10, 2)

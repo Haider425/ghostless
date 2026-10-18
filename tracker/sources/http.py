@@ -4,7 +4,9 @@ Every request goes through `_send`, so every adapter automatically gets:
 
   * a robots.txt check: requests a site disallows are never sent
   * per-host throttling: a minimum gap between requests to the same host,
-    and one request at a time per host even when companies run in parallel
+    and a cap on requests in flight at once: one for most sites, a few for
+    the public job-board APIs built for this (Greenhouse, Lever, Ashby), and a
+    shared cap for Workday employers on the same Workday server cluster
   * rate-limit handling: on HTTP 429 the host's gap doubles, and the
     server's Retry-After header is honoured when present
   * retries with exponential backoff and jitter on network errors and 5xx
@@ -45,7 +47,23 @@ HOST_INTERVALS = {  # slower hosts, set from observed rate limits
     "apply.careers.microsoft.com": 2.0,
     "jobs.apple.com": 1.0,
     "www.google.com": 1.0,
+    # public job-board APIs: several requests at once, each answer can take seconds
+    "boards-api.greenhouse.io": 0.25,
+    "api.lever.co": 0.25,
+    "api.ashbyhq.com": 0.5,
 }
+# Requests in flight at once per host (default 1). These are the public APIs
+# ATS vendors publish for job boards; aggregators covering 20,000+ companies
+# run tens of requests at once against them. A few is still very gentle.
+HOST_CONCURRENCY = {
+    "boards-api.greenhouse.io": 4,
+    "api.lever.co": 4,
+    "api.ashbyhq.com": 2,
+}
+# Each Workday employer has its own host, but they share a few server clusters
+# (the wd1, wd3, wd5 ... in the address). Cap what's in flight per cluster too.
+_WORKDAY_CLUSTER = re.compile(r"^[^.]+\.(wd\d+\.myworkdayjobs\.com)$", re.I)
+WORKDAY_CLUSTER_CONCURRENCY = 4
 
 DEFAULT_CONTACT = "https://github.com/Haider425/ghostless"
 
@@ -68,6 +86,35 @@ USER_AGENT = _build_user_agent()
 
 
 RECOVER_AFTER_SUCCESSES = 10
+
+
+class Gate:
+    """A counting semaphore whose limit can shrink (after rate limits)."""
+
+    def __init__(self, limit: int):
+        self.limit = max(1, limit)
+        self.in_use = 0
+        self._cond = threading.Condition()
+
+    def acquire(self) -> None:
+        with self._cond:
+            while self.in_use >= self.limit:
+                self._cond.wait()
+            self.in_use += 1
+
+    def release(self) -> None:
+        with self._cond:
+            self.in_use -= 1
+            self._cond.notify_all()
+
+    def shrink(self) -> None:
+        with self._cond:
+            self.limit = max(1, self.limit // 2)
+
+
+def cluster_of(host: str) -> str | None:
+    match = _WORKDAY_CLUSTER.match(host)
+    return match.group(1).lower() if match else None
 
 
 class Throttle:
@@ -94,30 +141,46 @@ class Throttle:
         self.sleep = sleep
         self._last: dict[str, float] = {}
         self._successes: dict[str, int] = {}
-        self._locks: dict[str, threading.Lock] = {}
+        self._gates: dict[str, Gate] = {}
         self._guard = threading.Lock()
 
-    def lock(self, host: str) -> threading.Lock:
-        """Held for a whole request to `host`, so a host never gets two at once."""
+    def gate(self, key: str, limit: int) -> Gate:
         with self._guard:
-            return self._locks.setdefault(host, threading.Lock())
+            gate = self._gates.get(key)
+            if gate is None:
+                gate = self._gates[key] = Gate(limit)
+            return gate
+
+    def gates_for(self, host: str) -> list[Gate]:
+        """The gates a request to `host` must pass, always in the same order (no deadlocks)."""
+        gates = []
+        cluster = cluster_of(host)
+        if cluster:
+            gates.append(self.gate(f"cluster:{cluster}", WORKDAY_CLUSTER_CONCURRENCY))
+        gates.append(self.gate(f"host:{host}", HOST_CONCURRENCY.get(host, 1)))
+        return gates
 
     def interval(self, host: str) -> float:
         return self.intervals.get(host, self.default)
 
     def wait(self, host: str) -> None:
-        last = self._last.get(host)
-        if last is not None:
-            remaining = self.interval(host) - (self.clock() - last)
-            if remaining > 0:
-                self.sleep(remaining)
-        self._last[host] = self.clock()
+        """Wait for this host's next start slot. Slots are handed out under a
+        lock, so requests running at once still keep the minimum gap."""
+        with self._guard:
+            now = self.clock()
+            last = self._last.get(host)
+            start = now if last is None else max(now, last + self.interval(host))
+            self._last[host] = start
+        if start > now:
+            self.sleep(start - now)
 
     def slow_down(self, host: str) -> float:
         """Double the host's interval after a rate limit, and return it."""
         new = min(max(self.interval(host) * 2, 1.0), MAX_INTERVAL_SECONDS)
         self.intervals[host] = new
         self._successes[host] = 0
+        for gate in self.gates_for(host):  # and fewer requests at once, for the rest of the run
+            gate.shrink()
         return new
 
     def recover(self, host: str) -> None:
@@ -188,8 +251,14 @@ def _dump(url: str, resp: requests.Response) -> None:
 
 def _send(method: str, url: str, payload: dict | None, accept: str) -> requests.Response:
     host = urlsplit(url).netloc
-    with throttle.lock(host):  # one request at a time per host, across threads
+    gates = throttle.gates_for(host)
+    for gate in gates:
+        gate.acquire()
+    try:
         return _send_locked(method, url, payload, accept, host)
+    finally:
+        for gate in reversed(gates):
+            gate.release()
 
 
 def _send_locked(method: str, url: str, payload: dict | None, accept: str, host: str) -> requests.Response:

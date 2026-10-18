@@ -160,6 +160,12 @@ def test_lists_boards_and_dedupe(conn, monkeypatch):
         Job(external_id="a1", title="Software Developer, New Grad", url="https://jobs.lever.co/acme/1")
     ]
     fake_sources(monkeypatch, items[:2] + items[3:], boards={"acme": acme_jobs})
+    due = conn.execute("SELECT next_due - now() FROM discovered_boards WHERE board_slug = 'acme'").fetchone()[
+        0
+    ]
+    assert timedelta(hours=23) < due <= timedelta(days=1)  # a failed board is retried the next day
+    conn.execute("UPDATE discovered_boards SET next_due = now() - interval '1 minute'")  # a day passes
+    conn.commit()
     discovery.run(DSN, configured, lists, now + timedelta(days=1), stats)
 
     active = conn.execute(
@@ -247,3 +253,15 @@ def test_a_jobs_json_list_and_clean_urls():
         == "https://jobs.lever.co/waabi/480d"
     )
     assert clean_url("https://a.example/j?id=3&utm_medium=x") == "https://a.example/j?id=3"
+
+
+def test_boards_are_revisited_by_how_often_they_change():
+    from tracker.discovery.run import next_visit_days
+
+    assert next_visit_days(changed=True, quiet_visits=0, student_roles=0, failures=0) == 1
+    # quiet boards back off: a day longer for every two quiet visits, up to a week
+    assert [next_visit_days(False, q, 0, 0) for q in (1, 2, 4, 6, 20)] == [1, 2, 3, 4, 7]
+    assert (
+        next_visit_days(False, 20, student_roles=3, failures=0) == 2
+    )  # open student roles: two days at most
+    assert [next_visit_days(False, 0, 0, f) for f in (1, 2, 3, 6, 10)] == [1, 2, 4, 30, 30]

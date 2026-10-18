@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
 import psycopg
 
 from tracker.models import Company, Job
+
+log = logging.getLogger("tracker.db")
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
@@ -64,6 +67,14 @@ def _skill_ids(conn: psycopg.Connection, names: set[str]) -> dict[str, int]:
     return dict(rows)
 
 
+def suspicious_drop(open_before: int, found: int) -> bool:
+    """True when a fetch found far fewer postings than were open: all of them
+    gone (with 3 or more open), or under a third (with 20 or more open)."""
+    if open_before >= 3 and found == 0:
+        return True
+    return open_before >= 20 and found < open_before / 3
+
+
 def save_company_jobs(
     conn: psycopg.Connection,
     company_id: int,
@@ -71,6 +82,7 @@ def save_company_jobs(
     run_started: datetime,
     close_missing: bool = True,
     close_levels: tuple[str, ...] | None = None,
+    guard: bool = True,
 ) -> tuple[int, int]:
     """Upsert one company's postings and close the ones that disappeared.
 
@@ -80,6 +92,11 @@ def save_company_jobs(
     listings (e.g. Google), where a missing job is not necessarily closed.
     close_levels limits closing to jobs at those levels, for fetches that are
     complete for a scope only (a search for internships and new grad roles).
+
+    guard: a site that suddenly returns nothing, or a small fraction of what
+    it had, has more likely changed or failed to load than closed its jobs,
+    so nothing is closed (see `suspicious_drop`). Off for job lists, whose
+    companies really can leave the list.
 
     Returns (new_jobs, closed_jobs).
     """
@@ -160,6 +177,24 @@ def save_company_jobs(
             )
 
     closed = 0
+    if close_missing and guard:
+        levels = list(close_levels) if close_levels else None
+        open_before = conn.execute(
+            """SELECT count(*) FROM jobs WHERE company_id = %s AND is_active AND last_seen < %s
+                 AND (%s::text[] IS NULL OR level = ANY(%s::text[]))""",
+            (company_id, run_started, levels, levels),
+        ).fetchone()[0]
+        still_open = sum(1 for job in jobs if not close_levels or job.level in close_levels)
+        if suspicious_drop(open_before + still_open, still_open):
+            name = conn.execute("SELECT name FROM companies WHERE id = %s", (company_id,)).fetchone()
+            log.warning(
+                "%s: the site returned %d postings but %d were open, so nothing was closed "
+                "(the site may have changed or failed to load; closures resume on a normal fetch)",
+                name[0] if name else company_id,
+                still_open,
+                open_before + still_open,
+            )
+            close_missing = False
     if close_missing:
         closed = conn.execute(
             """
