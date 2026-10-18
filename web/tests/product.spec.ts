@@ -151,19 +151,23 @@ test("deleting an account signs you out for good", async ({ page }) => {
 });
 
 test.describe("Google and GitHub sign-in", () => {
-  // The providers themselves are never contacted: requests to them are intercepted.
+  // Google itself is never contacted. The sign-in button's link is requested
+  // without following its redirect: the response must set the state cookie (in
+  // this browser's cookie jar, which page.request shares) and point at Google.
+  // (Playwright can't reliably intercept the redirect's target, so a click
+  // would reach the real Google in CI.)
   async function startGoogle(page: Page): Promise<URL> {
-    let target: URL | null = null;
-    await page.route("https://accounts.google.com/**", (route) => {
-      target = new URL(route.request().url());
-      return route.fulfill({ status: 200, contentType: "text/html", body: "<p>Google sign-in (test)</p>" });
-    });
     await go(page, "/login");
     const button = page.getByRole("link", { name: "Continue with Google" });
     test.skip((await button.count()) === 0, "Google sign-in isn't configured on this API");
-    await button.click();
-    await expect(page.getByText("Google sign-in (test)")).toBeVisible();
-    return target!;
+    const href = await button.getAttribute("href");
+    expect(href).toMatch(/^\/api\/auth\/oauth\/google\/start/);
+    const response = await page.request.get(href!, { maxRedirects: 0 });
+    expect([302, 303, 307, 308]).toContain(response.status());
+    const target = new URL(response.headers()["location"] ?? "");
+    expect(target.host).toBe("accounts.google.com");
+    expect(response.headers()["set-cookie"]).toContain("gl_oauth=");
+    return target;
   }
 
   test("the button sends you to Google with state, PKCE and this site's callback", async ({ page }) => {
@@ -227,7 +231,9 @@ test("a guest resume moves into the account, and never shows for anyone else", a
 });
 
 test("the builder reads in a resume file, coaches bullets and tailors to a job", async ({ page }) => {
-  await go(page, "/resume/builder?new=1");
+  await page.goto("/resume/builder?new=1");
+  // the builder renders in the browser only, so wait for it rather than for the network
+  await expect(page.getByRole("button", { name: "Import a file" })).toBeEnabled({ timeout: 20_000 });
   await page.getByLabel("Resume file to import").setInputFiles(RESUME);
   await expect(page.getByLabel("Full name")).toHaveValue("Jordan Lee");
   await expect(page.getByLabel("Company").first()).toHaveValue("Maple Ledger Bank");
