@@ -56,19 +56,26 @@ I am a hardworking team player and passionate about technology.
 # ---------- files ----------
 
 
-def _pdf(lines: list[str]) -> bytes:
-    """A minimal one-page PDF with text, built by hand."""
+def _pdf(lines: list[str], links: tuple[tuple[str, int], ...] = ()) -> bytes:
+    """A minimal one-page PDF with text, built by hand. `links` are
+    (address, height on the page) pairs, added as clickable link annotations."""
     content = (
         "BT /F1 11 Tf 50 750 Td 14 TL "
         + " ".join(f"({line.replace('(', '').replace(')', '')}) Tj T*" for line in lines)
         + " ET"
     )
+    annots = " ".join(f"{6 + i} 0 R" for i in range(len(links)))
     objects = [
         "<< /Type /Catalog /Pages 2 0 R >>",
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
+        f"/Resources << /Font << /F1 5 0 R >> >> /Annots [{annots}] >>",
         f"<< /Length {len(content)} >>\nstream\n{content}\nendstream",
         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        *(
+            f"<< /Type /Annot /Subtype /Link /Rect [50 {y} 120 {y + 12}] /A << /S /URI /URI ({uri}) >> >>"
+            for uri, y in links
+        ),
     ]
     out = io.BytesIO()
     out.write(b"%PDF-1.4\n")
@@ -87,6 +94,118 @@ def _pdf(lines: list[str]) -> bytes:
 def test_reads_pdf():
     text = extract_text(_pdf([line.replace("•", "-") for line in STRONG.splitlines()[:20]]), "resume.pdf")
     assert "Jordan Lee" in text and "Databricks" in text
+
+
+LABELLED_HEADER = [
+    "Haider Saleem",
+    "haider@example.com - 647-555-0140 - GitHub - LinkedIn - Portfolio",
+    "EDUCATION",
+    "Ontario Tech University | Bachelor of Science in Computer Science | Graduating December 2027",
+    "EXPERIENCE",
+    "Software Developer Co-op | Ontario Power Generation | September 2026 - April 2027",
+    "- Developed a scheduling web app with Angular and ASP.NET Core used by 20+ staff",
+    "- Combined data from 4 databases with SQL to narrow 1 million records in under 4 seconds",
+    "PROJECTS",
+    "Job tracker | Python, PostgreSQL",
+    "- Scraped 50,000 postings a day and served them through a FastAPI service",
+]
+
+
+def test_pdf_header_links_are_read_from_the_links_behind_the_words():
+    pdf = _pdf(
+        LABELLED_HEADER,
+        links=(
+            ("https://github.com/haider", 734),
+            ("https://www.linkedin.com/in/haider", 734),
+            ("https://haider.dev", 734),
+            ("mailto:haider@example.com", 734),  # an email link is not a web link
+            ("https://github.com/haider/job-tracker", 150),  # a project link, far below the header
+        ),
+    )
+    lines = extract_text(pdf, "resume.pdf").splitlines()
+    # right after the line that names them, so the builder reads them as contact links
+    assert lines[1].endswith("GitHub - LinkedIn - Portfolio")
+    assert lines[2] == "https://github.com/haider | https://www.linkedin.com/in/haider | https://haider.dev"
+    assert not any("job-tracker" in line for line in lines)
+
+
+def test_the_builder_gets_the_header_links_of_an_uploaded_pdf():
+    from tracker.resume.to_document import text_to_document
+
+    links = (
+        ("https://github.com/haider", 734),
+        ("https://www.linkedin.com/in/haider", 734),
+        ("https://haider.dev", 734),
+    )
+    contact = text_to_document(extract_text(_pdf(LABELLED_HEADER, links=links), "resume.pdf")).contact
+    assert [(link.label, link.url) for link in contact.links] == [
+        ("GitHub", "https://github.com/haider"),
+        ("LinkedIn", "https://www.linkedin.com/in/haider"),
+        ("Website", "https://haider.dev"),
+    ]
+
+
+def test_links_with_their_address_already_written_are_not_repeated():
+    lines = ["Jordan Lee", "jordan@example.com | linkedin.com/in/jordanlee", *LABELLED_HEADER[2:]]
+    text = extract_text(_pdf(lines, links=(("https://linkedin.com/in/jordanlee", 734),)), "resume.pdf")
+    assert text.count("linkedin.com/in/jordanlee") == 1
+
+
+def test_a_resume_with_link_words_in_its_header_is_not_asked_for_links():
+    text = extract_text(
+        _pdf(
+            LABELLED_HEADER,
+            links=(("https://github.com/haider", 734), ("https://linkedin.com/in/haider", 734)),
+        ),
+        "r.pdf",
+    )
+    profile = build_profile(text, TODAY)
+    assert profile.contact["linkedin"] and profile.contact["github"]
+    checks, _ = check_resume(text, profile)
+    codes = {check.id for check in checks}
+    assert "no_linkedin" not in codes and "no_portfolio" not in codes
+    # even pasted text that lost the addresses: the header still names them
+    pasted = "\n".join(LABELLED_HEADER)
+    assert build_profile(pasted, TODAY).contact["linkedin"]
+
+
+def test_link_words_outside_the_header_do_not_count():
+    text = "\n".join(
+        LABELLED_HEADER[:1]
+        + ["haider@example.com"]
+        + LABELLED_HEADER[2:]
+        + ["SKILLS", "GitHub Actions, LinkedIn Learning"]
+    )
+    contact = build_profile(text, TODAY).contact
+    assert not contact["linkedin"] and not contact["github"]
+
+
+def test_docx_hyperlink_addresses_are_kept():
+    docx = pytest.importorskip("docx")
+    from docx.opc.constants import RELATIONSHIP_TYPE
+    from docx.oxml.ns import qn
+    from docx.oxml.shared import OxmlElement
+
+    document = docx.Document()
+    document.add_paragraph("Haider Saleem")
+    contact = document.add_paragraph("haider@example.com | ")
+    rel = contact.part.relate_to(
+        "https://www.linkedin.com/in/haider", RELATIONSHIP_TYPE.HYPERLINK, is_external=True
+    )
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("r:id"), rel)
+    run = OxmlElement("w:r")
+    words = OxmlElement("w:t")
+    words.text = "LinkedIn"
+    run.append(words)
+    link.append(run)
+    contact._p.append(link)
+    for line in LABELLED_HEADER[2:]:
+        document.add_paragraph(line)
+    buffer = io.BytesIO()
+    document.save(buffer)
+    lines = extract_text(buffer.getvalue(), "resume.docx").splitlines()
+    assert lines[1] == "haider@example.com | LinkedIn | https://www.linkedin.com/in/haider"
 
 
 def test_reads_docx():

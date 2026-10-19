@@ -47,6 +47,34 @@ _SPLIT = re.compile(r"\s*(?:\||•|·|\t|\s{3,}|\s[–—-]\s)\s*")
 
 
 _PROVINCE_ONLY = re.compile(rf"^{_PROVINCES}$")
+# PDFs often lose the gap between left- and right-aligned text, so a place
+# arrives glued to the end of a title or school: "Software Developer Co-op
+# Darlington, Ontario", "Ontario Tech University Oshawa, Ontario".
+_TRAILING_PLACE = re.compile(
+    rf"^(?P<left>.*\S)\s+(?P<place>(?:(?P<first>[A-Z][\w.'-]+) )?[A-Z][\w.'-]+, {_PROVINCES}|Remote|Hybrid)$"
+)
+_CITY_PREFIXES = {
+    "New", "San", "Santa", "Los", "Las", "Saint", "St.", "St", "North", "South", "East", "West", "Fort", "Port",
+    "Grand", "Niagara", "Thunder", "Prince", "Red", "Sault", "Salt", "Palo", "Mountain", "Kansas", "Little", "Ann",
+    "Quebec", "Rio", "Hong", "Tel", "Kuala", "Buenos", "Mexico",
+}  # fmt: skip
+
+
+def _split_place(piece: str) -> list[str]:
+    """["Software Developer Co-op", "Darlington, Ontario"] from the glued piece; the piece itself otherwise."""
+    m = _TRAILING_PLACE.match(piece)
+    if not m:
+        return [piece]
+    left, place = m["left"], m["place"]
+    if m["first"] and m["first"] not in _CITY_PREFIXES:
+        # "Co-op Toronto, Ontario" is a title word and a one-word city
+        place = place[len(m["first"]) + 1 :]
+        left = f"{left} {m['first']}"
+    elif not m["first"] and " " in left and left.rsplit(" ", 1)[1] in _CITY_PREFIXES:
+        # "Engineer New York, NY": the city has two words
+        left, prefix = left.rsplit(" ", 1)
+        place = f"{prefix} {place}"
+    return [left, place]
 
 
 def _parts(line: str) -> list[str]:
@@ -99,6 +127,18 @@ def _is_bullet_text(line: str) -> bool:
     )
 
 
+def _continues(bullet: str, line: str) -> bool:
+    """Whether a line with no bullet is the rest of the bullet before it, wrapped
+    by the PDF: it starts in lower case ("are in office, used by 20+ staff"), or
+    with a number when the bullet stopped mid-sentence ("processing" / "100+
+    listings per hour"). An entry's first line has neither, and carries dates."""
+    if not line or _RANGE.search(line):
+        return False
+    if line[0].islower():
+        return True
+    return line[0].isdigit() and not bullet.rstrip().endswith((".", "!", "?", ";", ":")) and len(line) <= 90
+
+
 def _blocks(text: str) -> list[tuple[list[str], list[str]]]:
     """[(header lines, bullets)] for a section of entries."""
     blocks: list[tuple[list[str], list[str]]] = []
@@ -114,6 +154,9 @@ def _blocks(text: str) -> list[tuple[list[str], list[str]]]:
                 points[-1] += " " + text_  # a bullet wrapped onto a second line
             else:
                 points.append(text_)
+            continue
+        if points and _continues(points[-1], line):
+            points[-1] += " " + line  # the wrapped end of the last bullet, not a new entry
             continue
         if points:  # a header line after bullets starts the next entry
             blocks.append((head, points))
@@ -140,7 +183,7 @@ def _experience(head: list[str], points: list[str]) -> Experience:
         rest, s, e = _take_dates(line)
         if e and not end:
             start, end = s, e
-        pieces += _parts(rest)
+        pieces += [x for part in _parts(rest) for x in _split_place(part)]
     location = next((p for p in pieces if _PLACE.match(p)), "")
     pieces = [p for p in pieces if p != location]
     title = company = ""
@@ -153,6 +196,9 @@ def _experience(head: list[str], points: list[str]) -> Experience:
     extra = [p for p in pieces if p]
     if extra and not location:
         location = extra.pop(0)
+    # a short leftover from the header belongs to the employer: "Ontario Public Service – MPBSDP"
+    while company and extra and len(extra[0].split()) <= 4 and not _is_bullet_text(extra[0]):
+        company = f"{company} – {extra.pop(0)}"
     return Experience(
         title=_clip(title),
         company=_clip(company),
@@ -170,10 +216,10 @@ def _education(head: list[str], points: list[str]) -> Education:
         rest, s, e = _take_dates(line)
         if e and not end:
             start, end = s, e
-        pieces += _parts(rest)
+        pieces += [x for part in _parts(rest) for x in _split_place(part)]
     school = next((p for p in pieces if _SCHOOL.search(p)), "")
     degree = next((p for p in pieces if p != school and _DEGREE.search(p)), "")
-    location = next((p for p in pieces if _PLACE.match(p)), "")
+    location = next((p for p in pieces if p != school and _PLACE.match(p)), "")
     rest = [p for p in pieces if p not in (school, degree, location)]
     if not school and rest:
         school = rest.pop(0)

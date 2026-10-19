@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
 
 from tracker import insights
+from tracker.classify import is_upcoming, term_start
 from tracker.disclosures import ai_screening_evidence, parse_salary, vacancy_evidence
 
 TECH_ROLES = ["sde", "data_eng", "data", "ml", "hardware", "security"]
@@ -481,12 +483,17 @@ def hiring_calendar(
         ).fetchall()
 
 
-def term_counts(conn: psycopg.Connection) -> list[dict]:
-    """Seasons named by open tech postings, soonest first."""
+def term_counts(conn: psycopg.Connection, today: date | None = None) -> list[dict]:
+    """Seasons named by open tech postings that haven't started yet, soonest
+    first. A season already under way (Fall 2026 in October 2026) can't be
+    applied for any more, and stale job-list labels ("Spring 2016") never
+    crowd out the seasons people are looking for."""
+    if today is None:  # Toronto's date, from the database like the rest of the site
+        today = conn.execute("SELECT (now() AT TIME ZONE 'America/Toronto')::date").fetchone()[0]
     rows = conn.execute(
         """SELECT term, count(*)::int FROM jobs, unnest(terms) AS term
            WHERE is_active AND role_type <> 'other' GROUP BY term"""
     ).fetchall()
-    order = {"Winter": 0, "Spring": 1, "Summer": 2, "Fall": 3}
-    rows.sort(key=lambda r: (r[0][-4:], order.get(r[0].split()[0], 9)))
-    return [{"term": term, "jobs": jobs} for term, jobs in rows]
+    upcoming = [(term, jobs) for term, jobs in rows if is_upcoming(term, today)]
+    upcoming.sort(key=lambda r: term_start(r[0]))
+    return [{"term": term, "jobs": jobs} for term, jobs in upcoming]

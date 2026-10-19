@@ -5,6 +5,7 @@ misclassifications are fixed by adding a rule plus a test case.
 """
 
 import re
+from datetime import date, datetime, timezone
 
 from tracker.disclosures import fingerprint, parse_ai_screening, parse_salary, parse_vacancy
 from tracker.models import Job
@@ -153,17 +154,128 @@ def is_remote(location: str, source_remote: bool = False) -> bool:
     return source_remote or bool(location and _REMOTE.search(location))
 
 
-_TERM = re.compile(r"\b(summer|fall|autumn|winter|spring)\s*(?:term\s*)?[-,/]?\s*'?(20\d\d|\d\d)\b", re.I)
+# ---------- Seasons (work terms) ----------
+#
+# A season is when the work happens: "Summer 2027". Titles name it in many
+# ways: "(Summer 2027)", "Co-op, Winter-27", "2027 Summer Internship",
+# "Spring/Summer 2027", "Fall/Winter 2026". Many postings only say it in the
+# description ("work term beginning January 2027"), so intern and new grad
+# descriptions are read too, but only next to start or term wording, so
+# "founded in Spring 2016" never counts. A graduation date ("Graduating
+# Winter 2026") is about the applicant, not the job, and never counts.
+# Months map to the Canadian co-op terms: January-April Winter, May-August
+# Summer, September-December Fall.
+
+_SEASON = r"summer|fall|autumn|winter|spring"
+_SEASONS = rf"(?:{_SEASON})(?:\s*(?:/|&|,|\+|\band\b|\bor\b)\s*(?:{_SEASON}))*"
+_TERM = re.compile(rf"\b({_SEASONS})\s*(?:term\s*)?[-,/]?\s*'?(20\d\d|\d\d)\b", re.I)
+_TERM_YEAR_FIRST = re.compile(rf"\b(20\d\d)\s*[-/]?\s*({_SEASONS})\b", re.I)
+# "Graduation Date Winter 2026", "graduating in May 2028", "graduated in Winter 2026";
+# not "Graduate Internship - Winter 2027", which names a program
+_GRADUATION = re.compile(
+    r"\bgraduat(?:ion|ing|ed|es)\b|\bgraduate\s+(?:date|in|by|between|before|after|from|no\s+later)\b"
+    r"|\bconvocat\w*|\bdegree\s+(?:completion|conferr)\w*",
+    re.I,
+)
+_START_WORDS = (
+    r"start(?:s|ing)?|begin(?:s|ning)?|commenc\w*|work[\s-]?terms?|terms?|internships?|co-?ops?|placements?"
+    r"|programs?|cohorts?|intakes?|available|from|duration|session"
+)
+_START_CONTEXT = re.compile(rf"\b(?:{_START_WORDS})\b", re.I)
+_MONTHS = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}  # fmt: skip
+_MONTH_START = re.compile(
+    r"\b(?:start(?:s|ing)?|begin(?:s|ning)?|commenc\w*)\b(?:\s+(?:date|on|in|of|from|around|early|mid|late|-|:))*\s+"
+    r"(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?\s+(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?(20\d\d)\b",
+    re.I,
+)
+_HIRING_STEPS = re.compile(
+    r"\b(?:applications?|apply|interviews?|reviewing|deadline|recruiting|closes?)\b", re.I
+)
+_MORE_MONTHS = re.compile(
+    r"\s*(?:,|/|\bor\b|\band\b)\s*(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?\s+(20\d\d)\b",
+    re.I,
+)
+_DESCRIPTION_CHARS = 20_000  # seasons are stated near the top; the rest is boilerplate
 
 
-def parse_terms(title: str) -> list[str]:
-    """Seasons named in a title: "SWE Intern (Summer 2027)" -> ["Summer 2027"]."""
-    out = []
-    for season, year in _TERM.findall(title):
-        season = "Fall" if season.lower() == "autumn" else season.capitalize()
-        year = year if len(year) == 4 else f"20{year}"
-        out.append(f"{season} {year}")
+def _season_name(season: str) -> str:
+    return "Fall" if season.lower() == "autumn" else season.capitalize()
+
+
+def _month_season(month: int) -> str:
+    return "Winter" if month <= 4 else "Summer" if month <= 8 else "Fall"
+
+
+def _about_graduation(text: str, start: int) -> bool:
+    return bool(_GRADUATION.search(text[max(0, start - 40) : start]))
+
+
+def _named_seasons(text: str) -> list[tuple[int, str, str]]:
+    """(position, season, year) for every season and year written together."""
+    found = []
+    for m in _TERM.finditer(text):
+        year = m[2] if len(m[2]) == 4 else f"20{m[2]}"
+        found += [(m.start(), _season_name(s), year) for s in re.findall(_SEASON, m[1], re.I)]
+    for m in _TERM_YEAR_FIRST.finditer(text):
+        found += [(m.start(), _season_name(s), m[1]) for s in re.findall(_SEASON, m[2], re.I)]
+    return sorted(found, key=lambda f: f[0])  # stable: "Winter/Spring" keeps its written order
+
+
+def parse_terms(
+    title: str, description: str = "", level: str | None = None, year: int | None = None
+) -> list[str]:
+    """Seasons a posting is for: from its title, and for intern and new grad
+    roles from start dates in its description. `year` is when the posting
+    was first seen: description seasons must fall in that year or the next
+    two, so an old cohort or a company history never counts. A season in the
+    title is authoritative: the description is only read when it names none."""
+    out = [f"{season} {y}" for at, season, y in _named_seasons(title) if not _about_graduation(title, at)]
+    if description and level in ("intern", "new_grad") and not out:
+        text = description[:_DESCRIPTION_CHARS]
+        recent = range(year, year + 3) if year else None
+        for at, season, y in _named_seasons(text):
+            nearby = text[max(0, at - 60) : at + 40]
+            if (
+                (recent is None or int(y) in recent)
+                and _START_CONTEXT.search(nearby)
+                and not _about_graduation(text, at)
+            ):
+                out.append(f"{season} {y}")
+        for m in _MONTH_START.finditer(text):
+            if _about_graduation(text, m.start()) or _HIRING_STEPS.search(
+                text[max(0, m.start() - 60) : m.start()]
+            ):
+                continue  # "begin reviewing applications starting August 2026" is not the work term
+            # "starts in January 2027 or June 2027": every start date offered
+            dates, at = [(m[1], m[2])], m.end()
+            while more := _MORE_MONTHS.match(text, at):  # matches right where the last date ended
+                dates.append((more[1], more[2]))
+                at = more.end()
+            for month, y in dates:
+                if recent is None or int(y) in recent:
+                    out.append(f"{_month_season(_MONTHS[month[:3].lower()])} {y}")
     return list(dict.fromkeys(out))
+
+
+_SEASON_START_MONTH = {"Winter": 1, "Spring": 3, "Summer": 5, "Fall": 9}
+
+
+def term_start(term: str) -> tuple[int, int]:
+    """(year, month) a season starts: "Fall 2026" -> (2026, 9). Sorts terms in time order."""
+    season, _, year = term.partition(" ")
+    return int(year), _SEASON_START_MONTH.get(season, 13)
+
+
+def is_upcoming(term: str, today: date) -> bool:
+    """A season that has not started yet: in October 2026, Winter 2027 is and
+    Fall 2026 is not. A season is under way from its first month (Fall from 1 September)."""
+    try:
+        return term_start(term) > (today.year, today.month)
+    except ValueError:
+        return False
 
 
 def enrich(job: Job, skills: list[str]) -> Job:
@@ -173,8 +285,9 @@ def enrich(job: Job, skills: list[str]) -> Job:
     job.is_canada = is_canada(job.location)
     job.is_remote = is_remote(job.location, job.source_remote)
     job.skills = skills
+    # a job list's own season labels win; otherwise read the title and description
     if not job.terms:
-        job.terms = parse_terms(job.title)
+        job.terms = parse_terms(job.title, job.description, job.level, datetime.now(timezone.utc).year)
 
     salary = parse_salary(job.description)
     if salary:

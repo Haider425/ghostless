@@ -15,6 +15,7 @@ import {
 } from "@/lib/format";
 
 import { AgeStrip } from "./AgeStrip";
+import { ApplyLink } from "./ApplyLink";
 import { CompanyLogo } from "./CompanyLogo";
 import { ExternalIcon, PinIcon, QuoteIcon } from "./Icons";
 import { RiskBadge } from "./RiskBadge";
@@ -59,16 +60,21 @@ export function JobHeader({ job, titleAs = "h1", showPageLink = false }: { job: 
 
       <div className="flex flex-wrap items-center gap-3">
         {job.is_active ? (
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
+          <ApplyLink
+            job={{
+              id: job.id,
+              title: job.title,
+              company: job.company,
+              companyDomain: job.company_domain ?? null,
+              location: job.location,
+              url: job.url,
+            }}
             className="btn btn-primary btn-lg"
           >
             Apply on {possessive(job.company)} site
             <ExternalIcon className="size-4" />
             <span className="sr-only"> (opens in a new tab)</span>
-          </a>
+          </ApplyLink>
         ) : (
           <p className="inline-flex h-11 items-center rounded-lg bg-sunken px-4 text-sm font-medium text-ink-soft">
             This posting closed{job.closed_at ? ` on ${formatDate(job.closed_at)}` : ""}

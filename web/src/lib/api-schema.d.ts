@@ -514,8 +514,25 @@ export interface paths {
         delete: operations["unsave_me_saved__job_id__delete"];
         options?: never;
         head?: never;
-        /** Update an application's status or notes */
+        /** Update an application's status, notes or applied date */
         patch: operations["update_saved_me_saved__job_id__patch"];
+        trace?: never;
+    };
+    "/me/applications/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record that you applied (saves the job if needed; safe to repeat) */
+        post: operations["record_application_me_applications__job_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/resume/analyze": {
@@ -993,6 +1010,33 @@ export interface components {
              * @description set when the resume was saved to the account
              */
             resume_id?: number | null;
+        };
+        /** Application */
+        Application: {
+            /** Job Id */
+            job_id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "saved" | "applied" | "interviewing" | "offer" | "rejected";
+            /** Applied At */
+            applied_at: string | null;
+            /**
+             * Changed
+             * @description false when it was already recorded (or further along)
+             */
+            changed: boolean;
+        };
+        /** ApplicationIn */
+        ApplicationIn: {
+            /**
+             * Source
+             * @description apply_prompt: answered on returning from the employer's site
+             * @default apply_prompt
+             * @enum {string}
+             */
+            source: "apply_prompt" | "tracker";
         };
         /** AuthorizeOut */
         AuthorizeOut: {
@@ -2130,7 +2174,7 @@ export interface components {
             period: "year" | "hour";
             /**
              * Currency
-             * @description CAD or USD; null when the posting does not say
+             * @description CAD, USD, GBP, EUR or AUD; null when the posting does not say
              */
             currency?: string | null;
         };
@@ -2154,6 +2198,11 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /**
+             * Applied At
+             * @description when you said you applied; null when not recorded
+             */
+            applied_at?: string | null;
         };
         /** SavedJobsIn */
         SavedJobsIn: {
@@ -2169,6 +2218,11 @@ export interface components {
              * @description private notes; empty string clears them
              */
             notes?: string | null;
+            /**
+             * Applied At
+             * @description when you applied; null clears it, leaving it out keeps it. Moving to applied sets it to now
+             */
+            applied_at?: string | null;
         };
         /** Session */
         Session: {
@@ -3400,6 +3454,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Message"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_application_me_applications__job_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Application"];
                 };
             };
             /** @description Validation Error */

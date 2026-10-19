@@ -9,7 +9,7 @@
 | amazon     | Amazon                                  | amazon.jobs search JSON          |
 | eightfold  | Microsoft                               | career site JSON API             |
 | google     | Google                                  | HTML, first results page only    |
-| apple      | Apple                                   | HTML result pages                |
+| apple      | Apple                                   | HTML result and job pages        |
 | sitemap    | Shopify                                 | careers XML sitemap              |
 | rss        | Scotiabank (SAP SuccessFactors)         | RSS job feed                     |
 
@@ -22,7 +22,7 @@ from collections.abc import Callable
 
 from tracker.models import Company, Job, JobList
 from tracker.sources.amazon import fetch_amazon, parse_amazon
-from tracker.sources.apple import fetch_apple, parse_apple_page
+from tracker.sources.apple import fetch_apple, is_full_description, parse_apple_detail, parse_apple_page
 from tracker.sources.boards import fetch_board, parse_ashby, parse_greenhouse, parse_lever
 from tracker.sources.eightfold import fetch_eightfold, parse_eightfold_position, parse_eightfold_slug
 from tracker.sources.feeds import fetch_rss, fetch_sitemap, parse_rss, parse_sitemap
@@ -63,7 +63,19 @@ def listing_is_complete(company: Company) -> bool:
 # Platforms that need one extra request per posting for its description.
 # They accept `known`: ids already stored with a description, which are not
 # fetched again.
-INCREMENTAL_DETAILS = {"workday", "eightfold"}
+INCREMENTAL_DETAILS = {"workday", "eightfold", "apple"}
+
+# Where a listing already carries part of the text (Apple's summary), a stored
+# description only counts as known once it is the full posting.
+_IS_FULL: dict[str, Callable[[str], bool]] = {"apple": is_full_description}
+
+
+def complete_descriptions(platform: str, stored: dict[str, tuple[str, str]]) -> frozenset[str]:
+    """Ids of stored postings whose description needs no further request."""
+    is_full = _IS_FULL.get(platform)
+    return frozenset(
+        key for key, (description, _) in stored.items() if is_full is None or is_full(description)
+    )
 
 
 def fetch_jobs(company: Company, details: bool = True, known: frozenset[str] = frozenset()) -> JobList:
@@ -97,6 +109,9 @@ def fetch_jobs(company: Company, details: bool = True, known: frozenset[str] = f
 
 __all__ = [
     "FetchError",
+    "complete_descriptions",
+    "is_full_description",
+    "parse_apple_detail",
     "fetch_jobs",
     "listing_is_complete",
     "PLATFORMS",

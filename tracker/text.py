@@ -1,6 +1,11 @@
 import html
 import re
 
+# content that is never visible text: page scripts, styles, comments
+_INVISIBLE = re.compile(
+    r"<(script|style|noscript|template|svg)\b[^>]*>.*?</\1\s*>|<!--.*?-->|<head\b[^>]*>.*?</head\s*>",
+    re.I | re.S,
+)
 _BLOCK_END = re.compile(r"</(?:p|div|h[1-6]|ul|ol|li|tr|table|section|blockquote)\s*>", re.I)
 _BREAK = re.compile(r"<br\s*/?>", re.I)
 _LIST_ITEM = re.compile(r"<li\b[^>]*>", re.I)
@@ -18,7 +23,11 @@ def html_to_text(raw: str | None) -> str:
     line starting with a bullet."""
     if not raw:
         return ""
-    text = html.unescape(raw)  # Greenhouse double-escapes content
+    # Scripts and styles are dropped both before and after unescaping: full pages
+    # (Google) carry them as markup, Greenhouse's double-escaped content as text.
+    text = _INVISIBLE.sub(" ", raw)
+    text = html.unescape(text)  # Greenhouse double-escapes content
+    text = _INVISIBLE.sub(" ", text)
     text = text.replace("\n", " ")  # source newlines are formatting, tags carry the structure
     text = _LIST_ITEM.sub("\n" + BULLET, text)
     text = _BLOCK_END.sub("\n\n", text)

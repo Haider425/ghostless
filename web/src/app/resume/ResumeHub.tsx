@@ -123,93 +123,100 @@ function Upload({ signedIn, onDone }: { signedIn: boolean; onDone: (title: strin
 
 function Report({ title, analysis }: { title: string; analysis: Analysis }) {
   const p = analysis.profile;
+  const skills = p.skills ?? [];
+  const graduation = typeof p.education?.graduation === "string" ? p.education.graduation : null;
   return (
-    <div className="grid gap-5 lg:grid-cols-[22rem_1fr]">
-      <section className="space-y-5 panel p-6">
+    <div className="space-y-5">
+      <section aria-label="Resume strength" className="panel flex flex-wrap items-center gap-x-8 gap-y-5 p-5 sm:p-6">
         <div className="flex items-center gap-4">
           <Ring score={analysis.strength} label={`Resume strength ${analysis.strength} out of 100`} />
           <div>
-            <h2 className="font-sans text-base font-semibold text-ink">Resume strength</h2>
+            <h2 className="panel-title">Resume strength</h2>
             <p className="text-sm text-ink-soft">{strengthLabel(analysis.strength)}</p>
           </div>
         </div>
-        <dl className="space-y-3 border-t border-line pt-4 text-sm">
+        <dl className="flex flex-1 flex-wrap gap-x-8 gap-y-3 text-sm sm:border-l sm:border-line sm:pl-8">
           <div>
-            <dt className="text-ink-soft">Reads as</dt>
+            <dt className="label">Reads as</dt>
             <dd className="font-medium text-ink">
               {STAGE[p.level] ?? p.level}, {ROLE[p.top_role] ?? "tech"} work
             </dd>
           </div>
           <div>
-            <dt className="text-ink-soft">Experience</dt>
+            <dt className="label">Experience</dt>
             <dd className="font-medium text-ink">{experience(p.months_experience)}</dd>
           </div>
-          {typeof p.education?.graduation === "string" && (
+          {graduation && (
             <div>
-              <dt className="text-ink-soft">{p.education?.still_studying ? "Graduating" : "Graduated"}</dt>
-              <dd className="font-medium text-ink">{formatDate(`${p.education.graduation}-15T12:00:00Z`).replace(/ \d+,/, "")}</dd>
+              <dt className="label">{p.education?.still_studying ? "Graduating" : "Graduated"}</dt>
+              <dd className="font-medium text-ink">{formatDate(`${graduation}-15T12:00:00Z`).replace(/ \d+,/, "")}</dd>
             </div>
           )}
-          <div>
-            <dt className="mb-1.5 text-ink-soft">Skills found ({(p.skills ?? []).length})</dt>
-            <dd className="flex flex-wrap gap-1.5">
-              {(p.skills ?? []).length ? (
-                (p.skills ?? []).map((s) => (
-                  <span key={s} className="rounded-md bg-sunken px-2 py-0.5 text-xs text-ink">
-                    {s}
-                  </span>
-                ))
-              ) : (
-                <span className="text-ink-faint">None recognized</span>
-              )}
-            </dd>
-          </div>
         </dl>
-        <p className="border-t border-line pt-4 text-xs text-ink-faint">From &ldquo;{title}&rdquo;. Missing a skill? Name it the way postings do, like &ldquo;PostgreSQL&rdquo; or &ldquo;React&rdquo;.</p>
+        <Link href="/resume/matches" className="btn btn-primary">
+          See jobs that fit you
+        </Link>
       </section>
 
-      <section className="space-y-5 panel p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-sans text-base font-semibold text-ink">What to improve</h2>
-            <p className="text-sm text-ink-soft">
-              {analysis.checks.length ? `${pluralize(analysis.checks.length, "suggestion")}, most important first.` : "Nothing major. Nice work."}
-            </p>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <section className="panel p-5 sm:p-6">
+          <h2 className="panel-title">What to improve</h2>
+          <p className="mt-0.5 text-sm text-ink-soft">
+            {analysis.checks.length ? `${pluralize(analysis.checks.length, "suggestion")}, most important first.` : "Nothing major. Nice work."}
+          </p>
+          <div className="mt-5 space-y-6">
+            {GROUPS.map(({ severity, title: groupTitle }) => {
+              const checks = analysis.checks.filter((c) => c.severity === severity);
+              if (!checks.length) return null;
+              return (
+                <div key={severity}>
+                  <h3 className="label mb-2.5 font-medium">{groupTitle}</h3>
+                  <ul className="space-y-4">
+                    {checks.map((c) => (
+                      <li
+                        key={c.id}
+                        className={`border-l-2 pl-3.5 ${severity === "high" ? "border-brick" : severity === "medium" ? "border-ochre" : "border-line-strong"}`}
+                      >
+                        <p className="font-medium text-ink">{c.title}</p>
+                        <p className="mt-0.5 text-sm text-ink-soft">{c.detail}</p>
+                        {(c.examples ?? []).length > 0 && (
+                          <ul className="mt-2 space-y-1.5">
+                            {(c.examples ?? []).map((e) => (
+                              <li key={e} className="rounded-lg bg-sunken px-3 py-2 text-sm text-ink">
+                                &ldquo;{e}&rdquo;
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
           </div>
-          <Link href="/resume/matches" className="btn btn-primary">
-            See jobs that fit you
-          </Link>
-        </div>
-        {GROUPS.map(({ severity, title: groupTitle }) => {
-          const checks = analysis.checks.filter((c) => c.severity === severity);
-          if (!checks.length) return null;
-          return (
-            <div key={severity}>
-              <h3 className="mb-2 font-sans text-sm font-semibold text-ink-soft">{groupTitle}</h3>
-              <ul className="space-y-3">
-                {checks.map((c) => (
-                  <li
-                    key={c.id}
-                    className={`border-l-2 pl-3 ${severity === "high" ? "border-brick" : severity === "medium" ? "border-ochre" : "border-line-strong"}`}
-                  >
-                    <p className="font-medium text-ink">{c.title}</p>
-                    <p className="text-sm text-ink-soft">{c.detail}</p>
-                    {(c.examples ?? []).length > 0 && (
-                      <ul className="mt-1.5 space-y-1">
-                        {(c.examples ?? []).map((e) => (
-                          <li key={e} className="rounded-md bg-sunken px-2.5 py-1.5 text-sm text-ink">
-                            &ldquo;{e}&rdquo;
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
-      </section>
+        </section>
+
+        <section className="panel p-5 sm:p-6">
+          <h2 className="panel-title">
+            Skills found <span className="font-normal text-ink-faint tabular-nums">{skills.length}</span>
+          </h2>
+          {skills.length ? (
+            <ul className="mt-3 flex flex-wrap gap-1.5">
+              {skills.map((s) => (
+                <li key={s} className="tag">
+                  {s}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-ink-faint">None recognized</p>
+          )}
+          <p className="mt-4 border-t border-line pt-3 text-xs text-ink-faint">
+            From &ldquo;{title}&rdquo;. Missing a skill? Name it the way postings do, like &ldquo;PostgreSQL&rdquo; or &ldquo;React&rdquo;.
+          </p>
+        </section>
+      </div>
     </div>
   );
 }
@@ -290,13 +297,13 @@ export function ResumeHub({ signedIn, resumes }: { signedIn: boolean; resumes: R
 
   const shown = fresh ?? (resume ? { title: resume.title, analysis: resume.analysis } : null);
 
-  if (!ready) return <div className="h-64 animate-pulse rounded-2xl border border-line bg-surface" aria-busy="true" />;
+  if (!ready) return <div className="panel h-64 animate-pulse" aria-busy="true" />;
 
   return (
     <div className="space-y-6">
       {shown && !replacing ? (
         <>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => setReplacing(true)} className="btn btn-secondary">
               Upload a new version
             </button>

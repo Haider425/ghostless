@@ -16,7 +16,9 @@ class Salary(BaseModel):
     min: float
     max: float
     period: Literal["year", "hour"]
-    currency: str | None = Field(None, description="CAD or USD; null when the posting does not say")
+    currency: str | None = Field(
+        None, description="CAD, USD, GBP, EUR or AUD; null when the posting does not say"
+    )
 
 
 class GhostSignals(BaseModel):
@@ -302,6 +304,10 @@ ApplicationStatus = Literal["saved", "applied", "interviewing", "offer", "reject
 class SavedUpdateIn(BaseModel):
     status: ApplicationStatus | None = None
     notes: str | None = Field(None, max_length=2000, description="private notes; empty string clears them")
+    applied_at: datetime | None = Field(
+        None,
+        description="when you applied; null clears it, leaving it out keeps it. Moving to applied sets it to now",
+    )
 
 
 class SavedJob(BaseModel):
@@ -310,6 +316,20 @@ class SavedJob(BaseModel):
     notes: str | None
     saved_at: datetime
     updated_at: datetime
+    applied_at: datetime | None = Field(None, description="when you said you applied; null when not recorded")
+
+
+class ApplicationIn(BaseModel):
+    source: Literal["apply_prompt", "tracker"] = Field(
+        "apply_prompt", description="apply_prompt: answered on returning from the employer's site"
+    )
+
+
+class Application(BaseModel):
+    job_id: int
+    status: ApplicationStatus
+    applied_at: datetime | None
+    changed: bool = Field(description="false when it was already recorded (or further along)")
 
 
 class Message(BaseModel):

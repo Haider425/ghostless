@@ -22,6 +22,62 @@ def _clean(text: str) -> str:
     return text.strip()
 
 
+# ---------- links ----------
+#
+# Resumes often show "GitHub • LinkedIn • Portfolio" with the address hidden
+# behind the words. Text extraction keeps only the words, so the addresses
+# are read from the file's links and written into the text next to them:
+# then the contact check and the builder see the same links a reader would.
+
+HEADER_SHARE = 0.25  # links in the top quarter of the first page are the contact links
+_LABEL_LINE = re.compile(r"linkedin|github|portfolio|website|blog|gitlab|behance|dribbble", re.I)
+
+
+def _web_links(uris: list[str], text: str) -> list[str]:
+    """http(s) addresses not already written in the text, in order, once each."""
+    seen = []
+    for uri in uris:
+        uri = uri.strip()
+        bare = re.sub(r"^https?://(www\.)?", "", uri).rstrip("/")
+        if not re.match(r"^https?://", uri, re.I) or not bare or bare.lower() in text.lower() or uri in seen:
+            continue
+        seen.append(uri)
+    return seen
+
+
+def _with_header_links(text: str, links: list[str]) -> str:
+    """Put header links on their own line, right after the line that names them
+    ("GitHub • LinkedIn") or, if no line does, after the name."""
+    if not links:
+        return text
+    lines = text.split("\n")
+    head = min(len(lines), 8)
+    at = next((i for i in range(head) if _LABEL_LINE.search(lines[i])), 0)
+    lines.insert(at + 1, " | ".join(links))
+    return "\n".join(lines)
+
+
+def _pdf_header_links(page) -> list[str]:
+    """Link addresses in the top part of a PDF page."""
+    try:
+        top = float(page.mediabox.top)
+        height = float(page.mediabox.height) or 1.0
+        annotations = page.get("/Annots") or []
+        found = []
+        for ref in annotations:
+            annot = ref.get_object()
+            action = annot.get("/A") or {}
+            uri = action.get("/URI") if hasattr(action, "get") else None
+            rect = annot.get("/Rect")
+            if not uri or not rect:
+                continue
+            if (top - float(max(rect[1], rect[3]))) / height <= HEADER_SHARE:
+                found.append(str(uri))
+        return found
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return []  # a malformed annotation never stops the text from being read
+
+
 def _pdf(data: bytes) -> str:
     from pypdf import PdfReader
     from pypdf.errors import PdfReadError
@@ -33,7 +89,9 @@ def _pdf(data: bytes) -> str:
                 "This PDF is password protected. Save a copy without a password and try again."
             )
         pages = reader.pages[:MAX_PAGES]
-        return "\n\n".join(page.extract_text() or "" for page in pages)
+        text = "\n\n".join(page.extract_text() or "" for page in pages)
+        links = _pdf_header_links(pages[0]) if pages else []
+        return _with_header_links(text, _web_links(links, text))
     except PdfReadError as exc:
         raise UnreadableResume(
             "This PDF couldn't be read. Try exporting it again, or upload a Word file."
@@ -51,7 +109,10 @@ def _docx(data: bytes) -> str:
     for paragraph in document.paragraphs:
         style = (paragraph.style.name or "").lower() if paragraph.style is not None else ""
         prefix = "• " if "list" in style else ""
-        lines.append(prefix + paragraph.text)
+        # a hyperlink's text is in paragraph.text, its address isn't: add it on the same line
+        addresses = [link.address for link in paragraph.hyperlinks if link.address]
+        extra = _web_links(addresses, paragraph.text)
+        lines.append(prefix + paragraph.text + (" | " + " | ".join(extra) if extra else ""))
     for table in document.tables:  # some templates lay resumes out in tables
         for row in table.rows:
             lines.append(" | ".join(cell.text for cell in row.cells))

@@ -12,7 +12,15 @@ export async function GET() {
 
 const STATUSES = ["saved", "applied", "interviewing", "offer", "rejected"] as const;
 
-/** Update an application: { status?, notes? } for ?id= */
+/** A date the person picked ("2026-09-02"), as noon UTC so it shows as that day everywhere; null clears it. */
+function appliedAt(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(`${value}T12:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.getTime() > Date.now() + 86_400_000 ? undefined : date.toISOString();
+}
+
+/** Update an application: { status?, notes?, applied_at? } for ?id= */
 export async function PATCH(request: Request) {
   if (!sameOrigin(request)) return badRequest();
   const id = Number(new URL(request.url).searchParams.get("id"));
@@ -20,8 +28,12 @@ export async function PATCH(request: Request) {
   if (!Number.isSafeInteger(id) || !body) return badRequest();
   const status = STATUSES.find((s) => s === body.status);
   const notes = typeof body.notes === "string" ? body.notes.slice(0, 2000) : undefined;
-  if (!status && notes === undefined) return badRequest();
-  return respond(async () => api.updateSaved(await visitorClient(), id, { status, notes }));
+  const applied = "applied_at" in body ? appliedAt(body.applied_at) : undefined;
+  if ("applied_at" in body && applied === undefined) return badRequest(); // not a date, or in the future
+  if (!status && notes === undefined && applied === undefined) return badRequest();
+  return respond(async () =>
+    api.updateSaved(await visitorClient(), id, { status, notes, ...(applied !== undefined && { applied_at: applied }) }),
+  );
 }
 
 export async function POST(request: Request) {

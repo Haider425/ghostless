@@ -183,3 +183,53 @@ def test_reprocess_clears_an_old_false_flag(conn):
     assert result["postings"] == 1
     vacancy, salary_min = conn.execute("SELECT vacancy, salary_min FROM jobs").fetchone()
     assert vacancy is None and float(salary_min) == 100000
+
+
+def test_reprocess_reads_seasons_and_keeps_job_list_labels(conn):
+    from tracker import reprocess
+
+    cid = db.upsert_company(conn, Company("Shopify", "greenhouse", "shopify"))
+    text = "A 4-month work term beginning January 2027."
+    db.save_company_jobs(
+        conn,
+        cid,
+        [
+            job("t", title="Software Engineering Intern (2027 Summer Internship)"),
+            job("d", title="Data Engineering Co-op", description=text),
+            job(
+                "g", title="Software Engineer, Entry-Level (Graduation Date Winter 2026 - Spring/Summer 2027)"
+            ),
+            job("l", title="Hardware Intern"),
+        ],
+        datetime(2026, 10, 1, tzinfo=timezone.utc),
+    )
+    # as an older version stored them; "Hardware Intern" came from a job list labelled Fall 2027
+    conn.execute("UPDATE jobs SET terms = '{}' WHERE external_id <> 'l'")
+    conn.execute("UPDATE jobs SET terms = '{Fall 2027}', listed_in = 'Test list' WHERE external_id = 'l'")
+    conn.commit()
+
+    reprocess.run(DSN)
+    terms = dict(conn.execute("SELECT external_id, terms FROM jobs").fetchall())
+    assert terms == {"t": ["Summer 2027"], "d": ["Winter 2027"], "g": [], "l": ["Fall 2027"]}
+
+
+def test_the_season_filter_lists_only_seasons_ahead_soonest_first(conn):
+    from tracker.api import queries
+
+    cid = db.upsert_company(conn, Company("Shopify", "greenhouse", "shopify"))
+    titles = [
+        "Software Engineering Intern (Fall 2026)",  # under way in October
+        "Software Engineering Intern (Summer 2027)",
+        "Software Engineering Intern (Summer 2027) Toronto",
+        "Software Engineering Intern (Winter 2027)",
+        "Data Engineering Intern (Spring 2016)",  # a stale list label
+        "Software Engineering Intern (Fall 2027)",
+    ]
+    db.save_company_jobs(conn, cid, [job(str(i), title=t) for i, t in enumerate(titles)], day(0))
+    conn.commit()
+    seasons = queries.term_counts(conn, today=datetime(2026, 10, 18).date())
+    assert seasons == [
+        {"term": "Winter 2027", "jobs": 1},
+        {"term": "Summer 2027", "jobs": 2},
+        {"term": "Fall 2027", "jobs": 1},
+    ]

@@ -103,13 +103,18 @@ export function formatMonthDay(isoDate: string): string {
   );
 }
 
+/** Pound and euro amounts carry their own symbol; dollar amounts name their currency at the end. */
+const SYMBOLS: Record<string, string> = { GBP: "£", EUR: "€" };
+
 export function formatSalary(salary: NonNullable<Job["salary"]>): string {
-  const currency = salary.currency ?? "";
+  const symbol = SYMBOLS[salary.currency ?? ""] ?? "$";
+  const currency = symbol === "$" ? (salary.currency ?? "") : "";
   const hourly = salary.period === "hour";
   // hourly rates with cents show both digits ($25.50, $32.00); whole rates show none ($30)
   const cents = hourly && (salary.min % 1 !== 0 || salary.max % 1 !== 0) ? 2 : 0;
   const money = new Intl.NumberFormat("en-CA", { minimumFractionDigits: cents, maximumFractionDigits: cents });
-  const show = (value: number) => (hourly ? `$${money.format(value)}` : `$${money.format(Math.round(value / 1000))}k`);
+  const show = (value: number) =>
+    hourly ? `${symbol}${money.format(value)}` : `${symbol}${money.format(Math.round(value / 1000))}k`;
   const range = salary.min === salary.max ? show(salary.min) : `${show(salary.min)} to ${show(salary.max)}`;
   return `${range}${hourly ? " an hour" : " a year"}${currency ? ` ${currency}` : ""}`;
 }

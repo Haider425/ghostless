@@ -465,6 +465,26 @@ _PHONE = re.compile(r"(\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b")
 _LINKEDIN = re.compile(r"linkedin\.com/in/[\w-]+", re.I)
 _GITHUB = re.compile(r"github\.com/[\w-]+", re.I)
 _URL = re.compile(r"\b(?:https?://|www\.)\S+|\b[\w-]+\.(?:dev|io|me|xyz|app|site|page|tech)\b(?:/\S*)?", re.I)
+# Link words in the header ("GitHub • LinkedIn • Portfolio") are clickable links
+# in the original file even when the text that reaches us lost the address.
+_LINKEDIN_LABEL = re.compile(r"\blinked\s?in\b", re.I)
+_GITHUB_LABEL = re.compile(r"\bgit(?:hub|lab)\b", re.I)
+_SITE_LABEL = re.compile(r"\b(?:portfolio|website|personal\s+site|blog)\b", re.I)
+
+
+def _contact(text: str, header: str) -> dict[str, bool]:
+    """Which ways to reach the person the resume shows: addresses anywhere,
+    or link words in the header (above the first section)."""
+    header = header or "\n".join(text.splitlines()[:6])
+    rest = _EMAIL.sub("", _LINKEDIN.sub("", _GITHUB.sub("", text)))
+    return {
+        "email": bool(_EMAIL.search(text)),
+        "phone": bool(_PHONE.search(text)),
+        "linkedin": bool(_LINKEDIN.search(text) or _LINKEDIN_LABEL.search(header)),
+        "github": bool(_GITHUB.search(text) or _GITHUB_LABEL.search(header)),
+        "website": bool(_URL.search(rest) or _SITE_LABEL.search(header)),
+    }
+
 
 _STOP = set(
     """a an and are as at be by for from has have in is it of on or that the to with will your you our we
@@ -580,13 +600,7 @@ def build_profile(text: str, today: date | None = None) -> Profile:
         education=education,
         roles=roles,
         top_role=max(roles, key=roles.get),
-        contact={
-            "email": bool(_EMAIL.search(text)),
-            "phone": bool(_PHONE.search(text)),
-            "linkedin": bool(_LINKEDIN.search(text)),
-            "github": bool(_GITHUB.search(text)),
-            "website": bool(_URL.search(_EMAIL.sub("", _LINKEDIN.sub("", _GITHUB.sub("", text))))),
-        },
+        contact=_contact(text, sections.get("header", "")),
         sections=sorted(k for k in sections if k != "header"),
         bullet_count=len(found_bullets),
         quantified_bullets=len(quantified),

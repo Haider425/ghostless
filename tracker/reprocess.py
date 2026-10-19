@@ -1,4 +1,4 @@
-"""Re-derive classification, disclosures and fingerprints for every stored posting.
+"""Re-derive classification, seasons, disclosures and fingerprints for every stored posting.
 
 Run `ghostless reprocess` after upgrading, so improved parsing applies to
 postings already in the database (including closed ones) right away instead
@@ -12,7 +12,7 @@ import logging
 import psycopg
 
 from tracker import db
-from tracker.classify import classify_level, classify_role, is_canada, is_remote
+from tracker.classify import classify_level, classify_role, is_canada, is_remote, parse_terms
 from tracker.disclosures import fingerprint, parse_ai_screening, parse_salary, parse_vacancy
 from tracker.skills import extract_skills
 
@@ -22,8 +22,12 @@ BATCH = 1000
 
 
 def _derive(row: tuple) -> tuple:
-    job_id, platform, title, location, description, was_remote, vacancy = row
+    job_id, platform, title, location, description, was_remote, vacancy, first_seen, listed_in, terms = row
     text = description or ""
+    level = classify_level(title)
+    # a job list's own season labels stay; title and description add to them
+    found = parse_terms(title, text, level, first_seen.year if first_seen else None)
+    seasons = list(dict.fromkeys([*(terms or [])] + found)) if listed_in else found
     canada = is_canada(location or "")
     # the platform's own remote flag isn't stored separately, so a remote job stays remote
     remote = is_remote(location or "") or bool(was_remote)
@@ -34,7 +38,7 @@ def _derive(row: tuple) -> tuple:
     # Apple reports its own pipeline status, which the text may not repeat
     new_vacancy = parse_vacancy(text) or (vacancy if platform == "apple" else None)
     return (
-        classify_level(title),
+        level,
         classify_role(title),
         canada,
         remote,
@@ -45,6 +49,7 @@ def _derive(row: tuple) -> tuple:
         new_vacancy,
         parse_ai_screening(text),
         fingerprint(title, location or "", text),
+        seasons,
         job_id,
     )
 
@@ -62,7 +67,8 @@ def run(dsn: str, companies: list | None = None) -> dict:
         with conn.cursor(name="reprocess") as read:  # server-side cursor: constant memory
             read.itersize = BATCH
             read.execute(
-                """SELECT j.id, c.platform, j.title, j.location, j.description, j.is_remote, j.vacancy
+                """SELECT j.id, c.platform, j.title, j.location, j.description, j.is_remote, j.vacancy,
+                          j.first_seen, j.listed_in, j.terms
                    FROM jobs j JOIN companies c ON c.id = j.company_id ORDER BY j.id"""
             )
             while rows := read.fetchmany(BATCH):
@@ -70,7 +76,8 @@ def run(dsn: str, companies: list | None = None) -> dict:
                     write.executemany(
                         """UPDATE jobs SET level = %s, role_type = %s, is_canada = %s, is_remote = %s,
                                   salary_min = %s, salary_max = %s, salary_period = %s,
-                                  salary_currency = %s, vacancy = %s, ai_screening = %s, fingerprint = %s
+                                  salary_currency = %s, vacancy = %s, ai_screening = %s, fingerprint = %s,
+                                  terms = %s
                            WHERE id = %s""",
                         [_derive(row) for row in rows],
                     )

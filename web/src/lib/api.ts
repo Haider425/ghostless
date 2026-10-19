@@ -160,6 +160,8 @@ export const api = {
   updateSaved: (c: ApiClient, job_id: number, body: Schemas["SavedUpdateIn"]) =>
     call(c.PATCH("/me/saved/{job_id}", { params: { path: { job_id } }, body }), "your application"),
   saveJobs: (c: ApiClient, job_ids: number[]) => call(c.POST("/me/saved", { body: { job_ids } }), "saved jobs"),
+  recordApplication: (c: ApiClient, job_id: number, source: Schemas["ApplicationIn"]["source"]) =>
+    call(c.POST("/me/applications/{job_id}", { params: { path: { job_id } }, body: { source } }), "your application"),
   unsaveJob: (c: ApiClient, job_id: number) =>
     call(c.DELETE("/me/saved/{job_id}", { params: { path: { job_id } } }), "saved jobs"),
 

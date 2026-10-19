@@ -48,6 +48,19 @@ ASHBY = {
 }
 
 
+def test_html_to_text_drops_scripts_styles_and_comments():
+    page = (
+        "<html><head><title>Job</title><style>.a{color:red}</style></head><body>"
+        "<p>Build things.</p><script>var cfg = {'url': 'https://accounts.example.com'};</script>"
+        "<!-- tracking --><noscript>Enable JavaScript</noscript><p>Ship them.</p></body></html>"
+    )
+    assert html_to_text(page) == "Build things.\n\nShip them."
+
+
+def test_html_to_text_drops_a_double_escaped_script():
+    assert html_to_text("&lt;p&gt;Hi&lt;/p&gt;&lt;script&gt;track()&lt;/script&gt;") == "Hi"
+
+
 def test_html_to_text_handles_double_escaping():
     assert html_to_text("&lt;p&gt;A &amp;amp; B&lt;/p&gt;") == "A & B"
 

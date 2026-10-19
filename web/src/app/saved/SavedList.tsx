@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { ApplyLink } from "@/components/ApplyLink";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { CloseIcon, ExternalIcon, PinIcon } from "@/components/Icons";
 import { ago, possessive, shortLocation } from "@/lib/format";
@@ -37,16 +38,11 @@ export function SavedList() {
                 </span>
                 <span>Saved {ago(job.savedAt)}</span>
               </p>
-              <a
-                href={job.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-sm link"
-              >
+              <ApplyLink job={job} className="mt-2 inline-flex items-center gap-1 text-sm link">
                 Apply on {possessive(job.company)} site
                 <ExternalIcon className="size-3.5" />
                 <span className="sr-only"> (opens in a new tab)</span>
-              </a>
+              </ApplyLink>
             </div>
             <button
               type="button"

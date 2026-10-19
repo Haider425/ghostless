@@ -18,19 +18,70 @@ import re
 from dataclasses import dataclass, field
 
 # ---------- Salary ----------
+#
+# Pay is written many ways: "$95K-$120K", "CAD $40 - CAD $45 per hour",
+# "224,000 USD - 300,000 USD", "£39,000-£43,000 per year", "€111.800",
+# a bare "34 - 68, $ per hour" under a "Base Pay Range (USD)" heading, a
+# range in words ("between USD 142,500 in the lowest market and USD 228,000
+# in the highest"), or a single "Salary: £34k". Each pattern finds candidates,
+# ranked: a written range ($X - $Y) first, then a range in words, then a lone
+# amount, and within a rank the first plausible one in the text. Ranges with
+# no currency symbol, and lone amounts, only count right after a pay word, so
+# "200 - 300 engineers" or "a $5 gift card" never become a salary.
 
-_NUMBER = r"\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?"
-_CURRENCY = r"CAD|USD|C\$|CA\$|US\$|\$"
-_SALARY = re.compile(
-    rf"(?P<cur1>{_CURRENCY})\s?(?P<min>{_NUMBER})\s?(?P<k1>[kK]\b)?"
-    rf"\s*(?:-|–|—|to|and)\s*"
-    rf"(?P<cur2>{_CURRENCY})?\s?(?P<max>{_NUMBER})\s?(?P<k2>[kK]\b)?"
-    r"(?=(?P<after>.{0,60}))",  # lookahead: never consume text a later match needs
+# 1,234,567 · 120 000 · 111.800 (European thousands: three digits after each dot) · 25.50
+_NUMBER = r"\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?(?![\d,])|\d+(?:\.\d+)?"
+_CODE = r"CAD|USD|GBP|EUR|AUD"
+_SYMBOL = r"(?:C|CA|US|A)?\$|£|€"
+# a symbol (optionally after a code: "CAD $40"), or a code on its own ("CAD 80,000")
+_CURRENCY = rf"(?:(?:{_CODE})\s?)?(?:{_SYMBOL})|\b(?:{_CODE})\b"
+_TO = r"\s*(?:-|–|—|to|and|à)\s*"
+_K = r"\s?(?P<{}>[kK]\b)?"
+_UNIT = r"(?:\s?/\s?(?:hr|hour|yr|year))?"  # "$33/hour to $40/hour"
+_AFTER = r"(?=(?P<after>.{0,60}))"  # lookahead: never consume text a later match needs
+
+_SALARY = re.compile(  # $90,000 - $110,000 · CAD $40 - CAD $45 · £39k to £43k
+    rf"(?P<cur1>{_CURRENCY})\s?(?P<min>{_NUMBER}){_K.format('k1')}{_UNIT}(?:\s?\(?(?P<code1>{_CODE})\)?)?{_TO}"
+    rf"(?P<cur2>{_CURRENCY})?\s?(?P<max>{_NUMBER}){_K.format('k2')}{_AFTER}",
     re.S,
 )
-_HOURLY = re.compile(r"\b(?:per\s+hour|an\s+hour|/\s*h(?:ou)?r|hourly)\b", re.I)
-_YEARLY = re.compile(r"\b(?:per\s+year|a\s+year|/\s*y(?:ea)?r|annual(?:ly)?|per\s+annum|salary)\b", re.I)
+_SALARY_CODE_AFTER = re.compile(  # 224,000 USD - 300,000 USD
+    rf"(?<![\d.,])(?P<min>{_NUMBER}){_K.format('k1')}\s?(?:(?P<cur1>{_CODE})\b)?{_TO}"
+    rf"(?P<max>{_NUMBER}){_K.format('k2')}\s?(?P<cur2>{_CODE})\b{_AFTER}",
+    re.S,
+)
+_PAY_WORDS = r"salary|salaries|pay|wages?|compensation|stipend|hourly\s+rate|rate\s+of\s+pay"
+_SALARY_BARE = re.compile(  # Base Pay Range (USD)\n\n34 - 68, $ per hour
+    rf"(?<![\d.,$£€])(?P<min>{_NUMBER}){_K.format('k1')}{_TO}(?P<max>{_NUMBER}){_K.format('k2')}{_AFTER}",
+    re.S,
+)
+_PAY_BEFORE = re.compile(rf"\b(?:{_PAY_WORDS})\b", re.I)
+_SALARY_SINGLE = re.compile(  # Salary: £34k · Pay rate: 19.50 USD/hour
+    rf"\b(?:{_PAY_WORDS})\b[^\n\d$£€]{{0,30}}?"
+    rf"(?:(?P<cur1>{_CURRENCY})\s?(?P<min>{_NUMBER}){_K.format('k1')}"
+    rf"|(?P<min2>{_NUMBER}){_K.format('k2')}\s?(?P<cur2>{_CODE})\b){_AFTER}",
+    re.I | re.S,
+)
+_SALARY_SPAN = re.compile(  # between USD 168,750 in the lowest market and USD 270,000 in the highest
+    rf"\b(?:between|from|starts?\s+at|starting\s+at)\s+(?P<cur1>{_CURRENCY})\s?(?P<min>{_NUMBER}){_K.format('k1')}"
+    rf"[^.\n$£€\d]{{0,60}}?\b(?:and|to|up\s+to)\s+(?P<cur2>{_CURRENCY})\s?(?P<max>{_NUMBER}){_K.format('k2')}{_AFTER}",
+    re.I | re.S,
+)
+_RANGE_NEXT = re.compile(rf"^{_TO}(?:{_CURRENCY})?\s?\d")
+# a single amount that is a ceiling ("up to $18/hr per task") or isn't base pay at all
+_CEILING_BEFORE = re.compile(r"(?:\bup\s*to(?:\s+of)?|\bmaximum(?:\s+of)?|\bmax\.?)\s*$", re.I)
+_NOT_PAY = re.compile(
+    r"\b(?:bonus|sign(?:ing|-on)|relocation|stipend|allowance|reimburse\w*|credit|gift|referral|equity|stock)\b",
+    re.I,
+)
+# \b only before words: the "after" text often starts at "/hour", where no word boundary exists
+_HOURLY = re.compile(r"(?:\bper\s+hour|\ban\s+hour|/\s*(?:per\s+)?h(?:ou)?r|\bhourly)\b", re.I)
+_YEARLY = re.compile(
+    r"(?:\bper\s+year|\ba\s+year|/\s*y(?:ea)?r|\bannual(?:ly)?|\bper\s+annum|\bsalary)\b", re.I
+)
 _SCALE_WORDS = re.compile(r"^\s*(?:million|billion|m\b|bn\b)", re.I)
+_CODE_NEARBY = re.compile(rf"^[^.\n]{{0,20}}?\(?\b({_CODE})\b", re.I)
+_SPLIT_THOUSANDS = re.compile(r"(\d) ,(\d{3})\b")  # "$202 ,400" as some sites render it
 
 
 @dataclass(frozen=True)
@@ -38,11 +89,13 @@ class Salary:
     minimum: float
     maximum: float
     period: str  # "year" | "hour"
-    currency: str | None  # "CAD" | "USD" | None when not stated
+    currency: str | None  # "CAD" | "USD" | "GBP" | "EUR" | "AUD" | None when not stated
     text: str = field(default="", compare=False)  # the sentence it came from
 
 
 def _to_number(raw: str, thousands: bool) -> float:
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?", raw):  # 111.800 or 43.600,00: European
+        raw = raw.replace(".", "").replace(",", ".")
     value = float(re.sub(r"[,\s]", "", raw))
     return value * 1000 if thousands else value
 
@@ -51,11 +104,17 @@ def _currency(*tokens: str | None) -> str | None:
     for token in tokens:
         if not token:
             continue
-        upper = token.upper()
-        if upper in ("CAD", "C$", "CA$"):
+        upper = token.upper().replace(" ", "")
+        if upper.startswith(("CAD", "C$", "CA$")):
             return "CAD"
-        if upper in ("USD", "US$"):
+        if upper.startswith(("USD", "US$")):
             return "USD"
+        if upper.startswith(("GBP", "£")):
+            return "GBP"
+        if upper.startswith(("EUR", "€")):
+            return "EUR"
+        if upper.startswith(("AUD", "A$")):
+            return "AUD"
     return None
 
 
@@ -67,28 +126,113 @@ def _plausible(low: float, high: float, period: str) -> bool:
     return 15_000 <= low and high <= 1_000_000
 
 
+def _period(text: str, start: int, after: str, high: float) -> str:
+    context = text[max(0, start - 40) : start] + after
+    if _HOURLY.search(after) or (_HOURLY.search(context) and not _YEARLY.search(after)):
+        return "hour"
+    if _YEARLY.search(context) or high >= 1000:
+        return "year"
+    return "hour"
+
+
+def _candidates(text: str):
+    """(start, end, low, high, currency tokens, after, explicit_period) for every pattern."""
+    for m in _SALARY.finditer(text):
+        k = bool(m["k1"] or m["k2"])
+        yield (
+            m.start(),
+            m.end("max"),
+            _to_number(m["min"], k),
+            _to_number(m["max"], k),
+            (m["cur1"], m["code1"], m["cur2"]),
+            m["after"],
+            False,
+        )
+    for m in _SALARY_CODE_AFTER.finditer(text):
+        k = bool(m["k1"] or m["k2"])
+        yield (
+            m.start(),
+            m.end("max"),
+            _to_number(m["min"], k),
+            _to_number(m["max"], k),
+            (m["cur2"], m["cur1"]),
+            m["after"],
+            False,
+        )
+    for m in _SALARY_BARE.finditer(text):
+        before = text[max(0, m.start() - 80) : m.start()]
+        currency_before = re.search(rf"\b({_CODE})\b|[$£€]", before)
+        # a bare range must sit under a pay word, and say its currency or its period
+        if not _PAY_BEFORE.search(before) or not (
+            currency_before or _HOURLY.search(m["after"]) or _YEARLY.search(m["after"])
+        ):
+            continue
+        k = bool(m["k1"] or m["k2"])
+        code = currency_before.group(1) if currency_before and currency_before.group(1) else None
+        yield (
+            m.start(),
+            m.end("max"),
+            _to_number(m["min"], k),
+            _to_number(m["max"], k),
+            (code,),
+            m["after"],
+            True,
+        )
+
+
+def _ranges_in_words(text: str):
+    """Candidates for a range written as a sentence, in the same shape as _candidates."""
+    for m in _SALARY_SPAN.finditer(text):
+        k = bool(m["k1"] or m["k2"])
+        yield (
+            m.start(),
+            m.end("max"),
+            _to_number(m["min"], k),
+            _to_number(m["max"], k),
+            (m["cur1"], m["cur2"]),
+            m["after"],
+            False,
+        )
+
+
+def _single_amounts(text: str):
+    """Candidates for one stated amount, in the same shape as _candidates."""
+    for m in _SALARY_SINGLE.finditer(text):
+        if _RANGE_NEXT.match(m["after"]):
+            continue  # "Salary $90,000 - $110,000" is a range, found above
+        raw, k, cur = (m["min"], m["k1"], m["cur1"]) if m["min"] else (m["min2"], m["k2"], m["cur2"])
+        start = m.start("cur1") if m["min"] else m.start("min2")
+        lead = text[m.start() : start]
+        # "$20,000 signing bonus" is not pay; "£34k + discretionary 10% bonus" is
+        if _CEILING_BEFORE.search(lead) or _NOT_PAY.search(lead) or _NOT_PAY.search(m["after"][:15]):
+            continue
+        value = _to_number(raw, bool(k))
+        yield start, m.end("after") - len(m["after"]), value, value, (cur,), m["after"], False
+
+
 def parse_salary(text: str) -> Salary | None:
-    """Return the first plausible pay range in the text."""
+    """Return the first plausible written pay range in the text; failing that a
+    range in words; failing that a stated amount. A labelled "$X - $Y" is the
+    most specific statement, so it beats "between $X in the lowest market..."."""
     if not text:
         return None
-    for match in _SALARY.finditer(text):
-        after = match["after"]
+    text = _SPLIT_THOUSANDS.sub(r"\1,\2", text)
+    ranked = [
+        *((0, *c) for c in _candidates(text)),
+        *((1, *c) for c in _ranges_in_words(text)),
+        *((2, *c) for c in _single_amounts(text)),
+    ]
+    for _, start, end, low, high, tokens, after, bare in sorted(ranked, key=lambda c: (c[0], c[1])):
         if _SCALE_WORDS.match(after):
             continue  # "$5 to $10 billion" is not a salary
-        low = _to_number(match["min"], bool(match["k1"] or match["k2"]))
-        high = _to_number(match["max"], bool(match["k2"] or match["k1"]))
-        context = text[max(0, match.start() - 40) : match.start()] + after
-        if _HOURLY.search(after) or (_HOURLY.search(context) and not _YEARLY.search(after)):
-            period = "hour"
-        elif _YEARLY.search(context) or high >= 1000:
-            period = "year"
-        else:
-            period = "hour"
+        period = _period(text, start, after, high)
+        if bare and period == "hour" and not _HOURLY.search(after):
+            continue  # a bare small range is only pay when it says "per hour"
         if not _plausible(low, high, period):
             continue
-        currency_after = re.match(r"\s*\(?\s*(CAD|USD)\b", after, re.I)
-        currency = _currency(match["cur1"], match["cur2"], currency_after and currency_after.group(1))
-        return Salary(low, high, period, currency, _around(text, match.start(), match.end("max")))
+        code_after = _CODE_NEARBY.match(after)
+        currency = _currency(*tokens, code_after and code_after.group(1))
+        return Salary(low, high, period, currency, _around(text, start, end))
     return None
 
 

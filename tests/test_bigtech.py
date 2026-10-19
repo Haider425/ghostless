@@ -10,10 +10,13 @@ import pytest
 from tracker.models import Company
 from tracker.sources import (
     FetchError,
+    complete_descriptions,
     fetch_jobs,
     http,
+    is_full_description,
     listing_is_complete,
     parse_amazon,
+    parse_apple_detail,
     parse_apple_page,
     parse_eightfold_position,
     parse_eightfold_slug,
@@ -172,6 +175,20 @@ def test_parse_google_detail_skips_navigation():
     assert "Swift" in description and "Google Cloud" not in description
 
 
+def test_parse_google_detail_ends_before_the_privacy_notice_and_page_scripts():
+    page = (
+        "<html><body><h3>Minimum qualifications:</h3><ul><li>Experience with C++.</li></ul>"
+        "<p>Canada: $182000 - $186000 (CAD) + bonus</p><h3>Responsibilities</h3><ul><li>Build it.</li></ul>"
+        "<p>Information collected and processed as part of your Google Careers profile is subject to the policy.</p>"
+        "<p>Google is proud to be an equal opportunity employer.</p>"
+        "<script>AF_initDataCallback({key: 'ds:0', data: ['https://accounts.google.com/AccountChooser']});</script>"
+        "</body></html>"
+    )
+    _, description = parse_google_detail(page)
+    assert description.endswith("• Build it.")
+    assert "accounts.google.com" not in description and "Information collected" not in description
+
+
 def test_fetch_google(monkeypatch):
     def fake(url):
         return GOOGLE_LISTING if "?" in url else GOOGLE_DETAIL
@@ -226,8 +243,9 @@ def test_fetch_apple_stops_when_no_new_jobs(monkeypatch):
     monkeypatch.setattr(http, "get_text", fake)
     jobs = fetch_jobs(Company("Apple", "apple", "en-ca/search?location=canada-CANC", region="Canada"))
     assert len(jobs) == 2
-    assert urls[0].endswith("location=canada-CANC&page=1")
-    assert len(urls) == 2
+    searches = [u for u in urls if "/search" in u]  # the rest are the postings' own pages
+    assert searches[0].endswith("location=canada-CANC&page=1")
+    assert len(searches) == 2
     assert jobs[0].location == "Canada"
 
 
@@ -325,6 +343,95 @@ def test_apple_pipeline_flag_survives_enrich():
     pipeline = enrich(jobs[2], [])
     assert pipeline.vacancy == "not_existing"
     assert pipeline.is_canada
+
+
+# Shape copied from a jobs.apple.com posting page's embedded data (trimmed).
+APPLE_DETAIL_DATA = {
+    "loaderData": {
+        "jobDetails": {
+            "jobsData": {
+                "id": "200682548-3350",
+                "postingTitle": "Software Development Engineer in Test, Full Stack, Creativity Apps",
+                "jobSummary": "Imagine what you could do here. The Creativity Applications team is looking for an SDET.",
+                "description": "In this role, you will plan and execute test strategy.\nYou will drive quality.",
+                "minimumQualifications": "Minimum of 3 years of experience as an SDET.\nFluent in Python, Swift, and/or JavaScript.",
+                "preferredQualifications": "Experience with video editing workflows.",
+                "postingFooters": [
+                    {
+                        "postLocationId": "postLocation-VAC",
+                        "localizations": {
+                            "en_US": [
+                                {
+                                    "displayOrder": 1,
+                                    "name": "Pay & Benefits",
+                                    "content": "At Apple, base pay is one part of our total compensation package. "
+                                    "The base pay range for this role is between $119,100 and $230,500, and your "
+                                    "base pay will depend on your skills.<br><br>Apple employees also have stock programs.",
+                                }
+                            ]
+                        },
+                    }
+                ],
+            }
+        }
+    }
+}
+
+
+def test_parse_apple_detail_reads_the_whole_posting():
+    from tracker.disclosures import parse_salary
+
+    text = parse_apple_detail(_hydration_page(APPLE_DETAIL_DATA))
+    assert text.startswith("Imagine what you could do here.")
+    assert (
+        "\n\nDescription\nIn this role, you will plan and execute test strategy.\nYou will drive quality."
+        in text
+    )
+    assert (
+        "\n\nMinimum Qualifications\n• Minimum of 3 years of experience as an SDET.\n• Fluent in Python"
+        in text
+    )
+    assert "\n\nPreferred Qualifications\n• Experience with video editing workflows." in text
+    assert "\n\nPay & Benefits\nAt Apple, base pay" in text
+    assert is_full_description(text)
+    salary = parse_salary(text)
+    assert (salary.minimum, salary.maximum, salary.period) == (119100, 230500, "year")
+
+
+def test_parse_apple_detail_without_posting_data_is_empty():
+    assert parse_apple_detail("<html><body>Something went wrong</body></html>") == ""
+    assert not is_full_description("Imagine what you could do here.")  # a search-results summary
+
+
+def test_fetch_apple_fetches_each_posting_page_once(monkeypatch):
+    urls = []
+    search = _hydration_page(APPLE_DATA)
+    detail = _hydration_page(APPLE_DETAIL_DATA)
+
+    def fake(url):
+        urls.append(url)
+        return search if "/search" in url else detail
+
+    monkeypatch.setattr(http, "get_text", fake)
+    apple = Company("Apple", "apple", "en-ca/search?location=canada-CANC", region="Canada")
+    jobs = {j.external_id: j for j in fetch_jobs(apple)}
+    assert sum("/details/" in u for u in urls) == 3
+    assert all(is_full_description(j.description) for j in jobs.values())
+
+    # stored in full: not fetched again, and no summary to overwrite the stored text
+    urls.clear()
+    jobs = {j.external_id: j for j in fetch_jobs(apple, known=frozenset({"200679759-3350"}))}
+    assert sum("/details/" in u for u in urls) == 2
+    assert jobs["200679759-3350"].description == ""
+
+
+def test_only_full_apple_descriptions_count_as_known():
+    stored = {
+        "a": ("Just the search summary.", ""),
+        "b": (parse_apple_detail(_hydration_page(APPLE_DETAIL_DATA)), ""),
+    }
+    assert complete_descriptions("apple", stored) == frozenset({"b"})
+    assert complete_descriptions("workday", stored) == frozenset({"a", "b"})
 
 
 def test_parse_apple_escaped_links_fallback():

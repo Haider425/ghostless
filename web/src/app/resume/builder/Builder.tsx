@@ -229,6 +229,18 @@ export function Builder({
   const [notice, setNotice] = useState(imported ? "Your uploaded resume was read into the builder. Resumes come in many layouts, so check each section before saving." : "");
   const [importing, setImporting] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  // the toolbar wraps onto more rows on narrower screens: the preview sticks below its real height
+  const frame = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const toolbar = bar.current;
+    if (!toolbar) return;
+    const measure = () => frame.current?.style.setProperty("--builder-bar", `${toolbar.offsetHeight}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, []);
 
   async function importFile(file: File) {
     const hasContent = Boolean(doc.contact.name || doc.experience.some((e) => e.title) || doc.education.some((e) => e.school));
@@ -424,8 +436,8 @@ export function Builder({
   }[status];
 
   return (
-    <div>
-      <div className="sticky top-15 z-20 -mx-4 mb-6 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+    <div ref={frame}>
+      <div ref={bar} className="sticky top-(--header-h) z-20 -mx-4 mb-6 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="flex flex-wrap items-center gap-3">
           <label className="min-w-0 flex-1">
             <span className="sr-only">Resume name</span>
@@ -544,7 +556,10 @@ export function Builder({
           </div>
         </div>
 
-        <div className={`lg:sticky lg:top-36 ${tab === "edit" ? "hidden lg:block" : ""}`}>
+        {/* below the header and the toolbar; a page taller than the window scrolls inside its column */}
+        <div
+          className={`scroll-quiet lg:sticky lg:top-[calc(var(--header-h)+var(--builder-bar,4.5rem)+1rem)] lg:max-h-[calc(100dvh-var(--header-h)-var(--builder-bar,4.5rem)-2rem)] lg:overflow-y-auto lg:pr-1 ${tab === "edit" ? "hidden lg:block" : ""}`}
+        >
           <TailorPanel doc={doc} initialJob={tailorTo} />
           <h2 className="sr-only">Preview</h2>
           <ScaledPreview doc={doc} />

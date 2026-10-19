@@ -276,3 +276,37 @@ def test_a_file_reads_into_a_builder_document(client):
     assert doc["contact"]["name"] == "Jordan Lee"
     assert doc["experience"][0]["company"] == "Maple Ledger Bank"
     assert len(doc["experience"][0]["bullets"]) == 4
+
+
+def test_a_resume_saved_under_older_rules_is_re_read(client):
+    import json
+
+    token = client.post(
+        "/auth/signup", json={"email": "h@example.com", "password": "a long passphrase"}
+    ).json()["token"]
+    # header link words with the addresses lost, as text pulled from a PDF
+    text = STRONG.replace("linkedin.com/in/jordanlee | github.com/jordanlee", "GitHub • LinkedIn • Portfolio")
+    saved = client.post(
+        "/resume/analyze?save=true",
+        files={"file": ("Jordan Lee.txt", text.encode(), "text/plain")},
+        headers=auth(token),
+    ).json()
+    assert "no_linkedin" not in {c["id"] for c in saved["checks"]}
+
+    # as an older version stored it: no version, and the wrong "add your LinkedIn" check
+    old = {
+        **saved,
+        "checks": [
+            {"id": "no_linkedin", "severity": "medium", "title": "Add your LinkedIn URL", "detail": ""}
+        ],
+    }
+    old.pop("version", None)
+    with db.connect(DSN) as conn:
+        conn.execute("UPDATE resumes SET profile = %s::jsonb", (json.dumps(old),))
+        conn.commit()
+
+    stored = client.get(f"/me/resumes/{saved['resume_id']}", headers=auth(token)).json()
+    assert "no_linkedin" not in {c["id"] for c in stored["analysis"]["checks"]}
+    with db.connect(DSN) as conn:
+        version = conn.execute("SELECT profile->>'version' FROM resumes").fetchone()[0]
+    assert version == str(resume_routes.ANALYSIS_VERSION)  # re-read once, and kept

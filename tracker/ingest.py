@@ -15,7 +15,7 @@ from tracker.classify import enrich
 from tracker.config import database_url, load_companies, load_lists, select
 from tracker.parallel import in_shard, run_by_site, site_of, workers
 from tracker.skills import extract_skills
-from tracker.sources import INCREMENTAL_DETAILS, FetchError, fetch_jobs
+from tracker.sources import INCREMENTAL_DETAILS, FetchError, complete_descriptions, fetch_jobs
 
 log = logging.getLogger("tracker.ingest")
 
@@ -103,7 +103,7 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
     def _collect(company, started: float) -> tuple[int, int, int] | None:
         stored = _stored_details(dsn, company)
         try:
-            jobs = fetch_jobs(company, known=frozenset(stored))
+            jobs = fetch_jobs(company, known=complete_descriptions(company.platform, stored))
         except FetchError as exc:
             log.error("%s: fetch failed, skipping (no jobs closed): %s", company.name, exc)
             return None

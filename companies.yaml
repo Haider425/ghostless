@@ -35,7 +35,7 @@ companies:
     region: Canada
   - name: Apple
     domain: apple.com
-    platform: apple    # short summaries only: full job pages need JavaScript
+    platform: apple    # full posting from each job page, fetched once
     slug: "en-ca/search?location=canada-CANC"
     region: Canada
   - name: Shopify

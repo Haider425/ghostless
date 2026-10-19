@@ -14,22 +14,30 @@ Using several strategies keeps the adapter working through small markup
 changes. If all three find nothing, `verify` reports WARN; rerun it with
 `--dump` and inspect the saved page.
 
-Apple's job pages need JavaScript for the full description, so only the
-short summary from the search data (when present) is stored.
+Search results carry only a short summary. Each posting's own page embeds
+the full posting in the same hydration data (description, minimum and
+preferred qualifications, and the "Pay & Benefits" footer with the pay
+range), so that page is fetched once per posting, most relevant first and a
+batch per run, like Workday (common.plan_details). Postings whose full text is
+already stored are not fetched again.
 """
 
 from __future__ import annotations
 
 import html as html_lib
 import json
+import logging
 import re
 from collections.abc import Iterator
 from typing import Any
 
 from tracker.models import Company, Job
 from tracker.sources import http
-from tracker.sources.common import parse_iso, slug_to_title
-from tracker.text import html_to_text
+from tracker.sources.common import parse_iso, plan_details, slug_to_title
+from tracker.sources.http import FetchError
+from tracker.text import BULLET, html_to_text
+
+log = logging.getLogger(__name__)
 
 BASE = "https://jobs.apple.com"
 MAX_PAGES = 100  # safety stop
@@ -172,6 +180,56 @@ def jobs_from_links(page_html: str, locale: str) -> list[Job]:
     return list(jobs.values())
 
 
+# ---------- the posting's own page ----------
+
+# Full descriptions are built with these headings; a summary from the search
+# results never contains them, which is how a stored full text is recognised.
+_FULL_HEADINGS = ("\n\nDescription\n", "\n\nMinimum Qualifications\n")
+
+
+def is_full_description(text: str | None) -> bool:
+    return bool(text) and any(heading in text for heading in _FULL_HEADINGS)
+
+
+def _lines_as_bullets(raw: str) -> str:
+    lines = [line.strip(" •-\t") for line in html_to_text(raw.replace("\n", "<br>")).split("\n")]
+    return "\n".join(BULLET + line for line in lines if line)
+
+
+def parse_apple_detail(page_html: str) -> str:
+    """The full posting from a job page: summary, description, qualifications
+    and the footer sections (pay and benefits), as structured plain text.
+    Empty when the page has no posting data."""
+    data = _embedded_json(page_html)
+    posting = next(
+        (obj for obj in _walk(data) if "postingTitle" in obj and "minimumQualifications" in obj), None
+    )
+    if posting is None:
+        return ""
+    parts = []
+    if posting.get("jobSummary"):
+        parts.append(html_to_text(posting["jobSummary"]))
+    if posting.get("description"):
+        parts.append("Description\n" + html_to_text(posting["description"].replace("\n", "<br>")))
+    for key, heading in (
+        ("minimumQualifications", "Minimum Qualifications"),
+        ("preferredQualifications", "Preferred Qualifications"),
+    ):
+        if posting.get(key):
+            parts.append(f"{heading}\n{_lines_as_bullets(posting[key])}")
+    for footer in posting.get("postingFooters") or []:
+        localizations = (footer.get("localizations") or {}) if isinstance(footer, dict) else {}
+        # one language is enough: prefer English, else whatever the page has
+        sections = localizations.get("en_US") or next(iter(localizations.values()), [])
+        for section in sorted(sections, key=lambda s: s.get("displayOrder") or 0):
+            body = html_to_text(section.get("content") or "")
+            if body:
+                parts.append(f"{section.get('name')}\n{body}" if section.get("name") else body)
+    text = "\n\n".join(p.strip() for p in parts if p.strip())
+    # the summary alone is what the search results already gave
+    return text if is_full_description(text) else ""
+
+
 def parse_apple_page(page_html: str, locale: str = "en-us") -> tuple[list[Job], int | None]:
     """Return (jobs on this page, total result count if known)."""
     data = _embedded_json(page_html)
@@ -184,7 +242,15 @@ def parse_apple_page(page_html: str, locale: str = "en-us") -> tuple[list[Job], 
     return jobs, int(total.group(1).replace(",", "")) if total else None
 
 
-def fetch_apple(company: Company, details: bool = True) -> list[Job]:
+def fetch_apple(
+    company: Company,
+    details: bool = True,
+    known: frozenset[str] = frozenset(),
+    max_details: int | None = None,
+) -> list[Job]:
+    """Every posting in the search, with full descriptions for those not yet
+    stored in full (`known`). A posting in `known` comes back with no
+    description, so ingest keeps its stored full text instead of the summary."""
     search = company.board_slug.strip("/")
     locale = _locale(search)
     sep = "&" if "?" in search else "?"
@@ -196,4 +262,20 @@ def fetch_apple(company: Company, details: bool = True) -> list[Job]:
             jobs[job.external_id] = job
         if not new or (total is not None and len(jobs) >= total):
             break
+
+    for job_id in known & jobs.keys():
+        jobs[job_id].description = ""  # reuse the stored full text
+    if details:
+        wanted = plan_details(
+            [(j.external_id, j.title, j.location) for j in jobs.values()], known, max_details
+        )
+        for job_id in wanted:
+            job = jobs[job_id]
+            try:
+                full = parse_apple_detail(http.get_text(job.url))
+            except FetchError as exc:  # keep the summary; the page is tried again next run
+                log.warning("%s: detail fetch failed for %s: %s", company.name, job_id, exc)
+                continue
+            if full:
+                job.description = full
     return list(jobs.values())

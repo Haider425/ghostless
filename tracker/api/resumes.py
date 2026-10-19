@@ -204,10 +204,20 @@ class AIFeedbackOut(BaseModel):
 # ---------- helpers ----------
 
 
+# Bump when the profile or the checks change, so saved resumes are re-read
+# with the current rules (2: link words in the header count as links).
+ANALYSIS_VERSION = 2
+
+
 def analyze_text(text: str) -> dict:
     profile = build_profile(text)
     checks, strength = check_resume(text, profile)
-    return {"profile": profile.to_dict(), "checks": [c.to_dict() for c in checks], "strength": strength}
+    return {
+        "profile": profile.to_dict(),
+        "checks": [c.to_dict() for c in checks],
+        "strength": strength,
+        "version": ANALYSIS_VERSION,
+    }
 
 
 def _store_resume(
@@ -253,6 +263,14 @@ def _own_resume(conn: psycopg.Connection, user_id: int, resume_id: int) -> dict:
         ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="resume not found")
+    stored = row["profile"] or {}
+    if row["text"] and len(row["text"]) >= 50 and stored.get("version") != ANALYSIS_VERSION:
+        # analysed under older rules: re-read once from the stored text and keep the result
+        row["profile"] = analyze_text(row["text"])
+        conn.execute(
+            "UPDATE resumes SET profile = %s::jsonb WHERE id = %s AND user_id = %s",
+            (json.dumps(row["profile"]), resume_id, user_id),
+        )  # the pool's connections autocommit; inside a caller's transaction it joins that
     return row
 
 

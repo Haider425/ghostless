@@ -39,6 +39,7 @@ export type ErrorRow = Schemas["ErrorRow"];
 export type RunRow = Schemas["RunRow"];
 export type SavedEntry = Schemas["SavedJob"];
 export type ApplicationStatus = SavedEntry["status"];
+export type Application = Schemas["Application"];
 export type Level = Job["level"];
 export type RoleType = Job["role_type"];
 export type GhostRisk = NonNullable<Job["signals"]["risk"]>;

@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_min      NUMERIC(12, 2);
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_max      NUMERIC(12, 2);
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_period   TEXT;     -- year | hour
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_currency TEXT;     -- CAD | USD | NULL (not stated)
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_currency TEXT;     -- CAD | USD | GBP | EUR | AUD | NULL (not stated)
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vacancy         TEXT;     -- existing | not_existing | NULL
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ai_screening    BOOLEAN;  -- NULL means not disclosed
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS fingerprint     TEXT NOT NULL DEFAULT '';
@@ -288,6 +288,24 @@ ALTER TABLE saved_jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL 
 ALTER TABLE saved_jobs DROP CONSTRAINT IF EXISTS saved_jobs_status_check;
 ALTER TABLE saved_jobs ADD CONSTRAINT saved_jobs_status_check
     CHECK (status IN ('saved', 'applied', 'interviewing', 'offer', 'rejected'));
+-- When the person says they applied. NULL when they haven't said (rows from
+-- before this column existed stay NULL: an unknown date is never guessed).
+ALTER TABLE saved_jobs ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ;
+
+-- Every status change on an application, for its timeline and funnel counts.
+-- `source` says how it was recorded: the person changed it on the tracker,
+-- or answered "yes, I applied" on returning from the employer's site.
+-- Nothing here is verified with the employer: it is what the person told us.
+CREATE TABLE IF NOT EXISTS application_events (
+    id       BIGSERIAL PRIMARY KEY,
+    user_id  BIGINT NOT NULL,
+    job_id   BIGINT NOT NULL,
+    status   TEXT NOT NULL CHECK (status IN ('saved', 'applied', 'interviewing', 'offer', 'rejected')),
+    source   TEXT NOT NULL DEFAULT 'tracker' CHECK (source IN ('tracker', 'apply_prompt')),
+    at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (user_id, job_id) REFERENCES saved_jobs (user_id, job_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS application_events_user_job ON application_events (user_id, job_id, at);
 
 -- Uploaded resumes keep their extracted text and profile, never the file.
 -- Built resumes keep the builder document.

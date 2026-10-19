@@ -123,6 +123,56 @@ test("saving a job lists it on the saved page", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Nothing saved yet" })).toBeVisible();
 });
 
+test("coming back from an employer's site asks whether you applied, once", async ({ page, context }) => {
+  // an open posting: one with an Apply link
+  await page.goto("/jobs");
+  const href = await page.getByRole("region", { name: /jobs?/ }).getByRole("article").first().getByRole("heading").getByRole("link").getAttribute("href");
+  await page.goto(href!);
+  const apply = page.getByRole("link", { name: /^Apply on .+ site/ });
+  test.skip(!(await apply.count()), "this posting has closed");
+  const title = (await page.getByRole("heading", { level: 1 }).textContent()) ?? "";
+
+  // the employer's site opens in a new tab; nothing is asked yet
+  await context.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, (route) => route.fulfill({ body: "employer site" }));
+  const [employer] = await Promise.all([context.waitForEvent("page"), apply.click()]);
+  await employer.close();
+  const prompt = page.getByRole("region", { name: "Did you apply?" });
+  await expect(prompt).toBeHidden(); // back within seconds: probably didn't apply yet
+
+  // back after a while (the visit is backdated rather than waiting)
+  const comeBack = () =>
+    page.evaluate(() => {
+      const key = "ghostless:apply-pending:v1";
+      const pending = JSON.parse(localStorage.getItem(key) ?? "null");
+      if (pending) localStorage.setItem(key, JSON.stringify({ ...pending, at: Date.now() - 60_000 }));
+      window.dispatchEvent(new Event("focus"));
+    });
+  await comeBack();
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toContainText(title.trim());
+
+  // "Not yet" closes it, and the same visit isn't asked about again
+  await prompt.getByRole("button", { name: "Not yet" }).click();
+  await expect(prompt).toBeHidden();
+  await comeBack();
+  await expect(prompt).toBeHidden();
+
+  // another visit, then "Yes": signed out, the job is saved in this browser
+  const [again] = await Promise.all([context.waitForEvent("page"), apply.click()]);
+  await again.close();
+  await comeBack();
+  await prompt.getByRole("button", { name: "Yes, I applied" }).click();
+  await expect(prompt).toContainText("Saved in this browser");
+  await expect(page.getByRole("button", { name: /^Saved\b/ }).first()).toHaveAttribute("aria-pressed", "true");
+
+  // a job you said you applied to is never asked about again
+  const [third] = await Promise.all([context.waitForEvent("page"), apply.click()]);
+  await third.close();
+  await comeBack();
+  await page.waitForTimeout(500);
+  await expect(prompt.getByRole("button", { name: "Yes, I applied" })).toHaveCount(0);
+});
+
 test("skills gap marks what you have and what you're missing", async ({ page }) => {
   await page.goto("/skills");
   await page.getByLabel("Your skills").fill("Python, SQL");

@@ -33,7 +33,9 @@ BASE = "https://www.google.com/about/careers/applications/jobs/results/"
 _JOB_LINK = re.compile(r"jobs/results/(\d{6,})-([a-z0-9-]+)")
 _TITLE_TAG = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
 _SECTION_START = re.compile(r"minimum qualifications", re.I)
-MAX_DESCRIPTION_CHARS = 10_000
+# the posting ends where Google's privacy notice and page furniture begin
+_SECTION_END = re.compile(r"Information collected and processed as part of your Google Careers profile", re.I)
+MAX_DESCRIPTION_CHARS = 20_000  # only for a page without that notice: never cut a real posting short
 
 
 def _encode_query(query: str) -> str:
@@ -60,8 +62,11 @@ def parse_google_detail(page_html: str) -> tuple[str | None, str]:
         title = re.split(r"\s+[—|–-]\s+Google", raw)[0].strip() or None
     text = html_to_text(page_html)
     start = _SECTION_START.search(text)
-    description = text[start.start() : start.start() + MAX_DESCRIPTION_CHARS] if start else ""
-    return title, description
+    if not start:
+        return title, ""
+    end = _SECTION_END.search(text, start.end())
+    description = text[start.start() : end.start() if end else start.start() + MAX_DESCRIPTION_CHARS]
+    return title, description.strip()
 
 
 def fetch_google(company: Company, details: bool = True) -> list[Job]:

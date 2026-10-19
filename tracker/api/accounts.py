@@ -13,6 +13,8 @@ from tracker.accounts.security import password_problem
 from tracker.api import events
 from tracker.api.deps import Conn, CurrentUser, OptionalUser, bearer_token, client_ip, limiter
 from tracker.api.schemas import (
+    Application,
+    ApplicationIn,
     AuthorizeOut,
     EmailIn,
     LoginIn,
@@ -317,11 +319,28 @@ def saved_ids(user: CurrentUser, conn: Conn):
     return store.saved_job_ids(conn, user["id"])
 
 
-@router.patch("/me/saved/{job_id}", response_model=Message, summary="Update an application's status or notes")
+@router.patch(
+    "/me/saved/{job_id}",
+    response_model=Message,
+    summary="Update an application's status, notes or applied date",
+)
 def update_saved(job_id: int, body: SavedUpdateIn, user: CurrentUser, conn: Conn):
-    if not store.update_saved(conn, user["id"], job_id, body.status, body.notes):
+    applied_at = body.applied_at if "applied_at" in body.model_fields_set else ...
+    if not store.update_saved(conn, user["id"], job_id, body.status, body.notes, applied_at):
         raise HTTPException(status_code=404, detail="That job isn't in your saved jobs.")
     return {"detail": "Updated."}
+
+
+@router.post(
+    "/me/applications/{job_id}",
+    response_model=Application,
+    summary="Record that you applied (saves the job if needed; safe to repeat)",
+)
+def record_application(job_id: int, body: ApplicationIn, user: CurrentUser, conn: Conn):
+    application = store.record_application(conn, user["id"], job_id, body.source)
+    if application is None:
+        raise HTTPException(status_code=404, detail="That job doesn't exist.")
+    return application
 
 
 @router.post(

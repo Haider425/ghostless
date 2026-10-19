@@ -280,27 +280,108 @@ APPLICATION_STATUSES = ("saved", "applied", "interviewing", "offer", "rejected")
 def saved_entries(conn: psycopg.Connection, user_id: int) -> list[dict]:
     """Each saved job's tracking state, newest first."""
     rows = conn.execute(
-        """SELECT job_id, status, notes, saved_at, updated_at FROM saved_jobs
+        """SELECT job_id, status, notes, saved_at, updated_at, applied_at FROM saved_jobs
            WHERE user_id = %s ORDER BY saved_at DESC""",
         (user_id,),
     ).fetchall()
     return [
-        {"job_id": r[0], "status": r[1], "notes": r[2], "saved_at": r[3], "updated_at": r[4]} for r in rows
+        {
+            "job_id": r[0],
+            "status": r[1],
+            "notes": r[2],
+            "saved_at": r[3],
+            "updated_at": r[4],
+            "applied_at": r[5],
+        }
+        for r in rows
     ]
 
 
+def saved_entry(conn: psycopg.Connection, user_id: int, job_id: int) -> dict | None:
+    row = conn.execute(
+        "SELECT status, applied_at FROM saved_jobs WHERE user_id = %s AND job_id = %s", (user_id, job_id)
+    ).fetchone()
+    return {"job_id": job_id, "status": row[0], "applied_at": row[1]} if row else None
+
+
+def record_application(
+    conn: psycopg.Connection, user_id: int, job_id: int, source: str = "apply_prompt"
+) -> dict | None:
+    """The person says they applied. Safe to repeat (double clicks, two tabs,
+    two devices): the job is saved once, an application already further
+    along (interviewing, offer) is never moved back, and the first applied
+    date is kept. Returns the application, with `changed` False when there
+    was nothing to record, or None when the job doesn't exist."""
+    recorded = conn.execute(
+        """
+        WITH up AS (
+            INSERT INTO saved_jobs (user_id, job_id, status, applied_at, updated_at)
+            SELECT %(user)s, id, 'applied', now(), now() FROM jobs WHERE id = %(job)s
+            ON CONFLICT (user_id, job_id) DO UPDATE
+                SET status = 'applied', applied_at = coalesce(saved_jobs.applied_at, now()), updated_at = now()
+                WHERE saved_jobs.status = 'saved'
+            RETURNING job_id
+        )
+        INSERT INTO application_events (user_id, job_id, status, source)
+        SELECT %(user)s, job_id, 'applied', %(source)s FROM up
+        RETURNING id
+        """,
+        {"user": user_id, "job": job_id, "source": source},
+    ).fetchone()
+    entry = saved_entry(conn, user_id, job_id)
+    return {**entry, "changed": recorded is not None} if entry else None
+
+
 def update_saved(
-    conn: psycopg.Connection, user_id: int, job_id: int, status: str | None, notes: str | None
+    conn: psycopg.Connection,
+    user_id: int,
+    job_id: int,
+    status: str | None,
+    notes: str | None,
+    applied_at: object = ...,
 ) -> bool:
-    """Change a saved job's status and/or notes; False if it isn't saved."""
-    return bool(
+    """Change a saved job's status, notes and/or applied date; False if it
+    isn't saved. Moving to "applied" stamps the date if none is set yet;
+    `applied_at=None` clears it, and leaving it out keeps it. Each status
+    change is added to the application's history."""
+    with conn.transaction():
+        current = conn.execute(
+            "SELECT status FROM saved_jobs WHERE user_id = %s AND job_id = %s FOR UPDATE", (user_id, job_id)
+        ).fetchone()
+        if current is None:
+            return False
         conn.execute(
-            """UPDATE saved_jobs SET status = coalesce(%s, status),
-                      notes = CASE WHEN %s THEN %s ELSE notes END, updated_at = now()
-               WHERE user_id = %s AND job_id = %s""",
-            (status, notes is not None, (notes or "").strip() or None, user_id, job_id),
-        ).rowcount
-    )
+            """UPDATE saved_jobs SET status = coalesce(%(status)s, status),
+                      notes = CASE WHEN %(set_notes)s THEN %(notes)s ELSE notes END,
+                      applied_at = CASE
+                          WHEN %(set_applied)s THEN %(applied_at)s
+                          WHEN %(status)s = 'applied' THEN coalesce(applied_at, now())
+                          ELSE applied_at END,
+                      updated_at = now()
+               WHERE user_id = %(user)s AND job_id = %(job)s""",
+            {
+                "status": status,
+                "set_notes": notes is not None,
+                "notes": (notes or "").strip() or None,
+                "set_applied": applied_at is not ...,
+                "applied_at": None if applied_at is ... else applied_at,
+                "user": user_id,
+                "job": job_id,
+            },
+        )
+        if status is not None and status != current[0]:
+            conn.execute(
+                "INSERT INTO application_events (user_id, job_id, status, source) VALUES (%s, %s, %s, 'tracker')",
+                (user_id, job_id, status),
+            )
+    return True
+
+
+def application_history(conn: psycopg.Connection, user_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT job_id, status, source, at FROM application_events WHERE user_id = %s ORDER BY at", (user_id,)
+    ).fetchall()
+    return [{"job_id": r[0], "status": r[1], "source": r[2], "at": r[3]} for r in rows]
 
 
 def unsave_job(conn: psycopg.Connection, user_id: int, job_id: int) -> None:
@@ -315,9 +396,14 @@ def export_user(conn: psycopg.Connection, user_id: int) -> dict:
     with _cursor(conn) as cur:
         user = cur.execute(f"SELECT {USER_COLUMNS} FROM users WHERE id = %s", (user_id,)).fetchone()
         saved = cur.execute(
-            """SELECT j.id, j.title, c.name AS company, j.url, s.saved_at
+            """SELECT j.id, j.title, c.name AS company, j.url, s.saved_at,
+                      s.status, s.applied_at, s.notes, s.updated_at
                FROM saved_jobs s JOIN jobs j ON j.id = s.job_id JOIN companies c ON c.id = j.company_id
                WHERE s.user_id = %s ORDER BY s.saved_at DESC""",
+            (user_id,),
+        ).fetchall()
+        history = cur.execute(
+            "SELECT job_id, status, source, at FROM application_events WHERE user_id = %s ORDER BY at",
             (user_id,),
         ).fetchall()
         resumes = cur.execute(
@@ -344,6 +430,7 @@ def export_user(conn: psycopg.Connection, user_id: int) -> dict:
         "exported_at": _now(),
         "account": user,
         "saved_jobs": saved,
+        "application_history": history,
         "resumes": resumes,
         "reports": reports,
         "sessions": sessions,

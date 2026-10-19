@@ -16,7 +16,7 @@ export function SiteHeader() {
       >
         Skip to content
       </a>
-      <div className="relative mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:px-6 lg:gap-5">
+      <div className="relative mx-auto flex h-(--header-h) max-w-7xl items-center gap-3 px-4 sm:px-6 lg:gap-5">
         <Link href="/" aria-label="Ghostless home" className="shrink-0 rounded-md py-1">
           <Wordmark />
         </Link>

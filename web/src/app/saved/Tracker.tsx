@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { ApplyLink } from "@/components/ApplyLink";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { CloseIcon, ExternalIcon, PinIcon } from "@/components/Icons";
 import { RiskBadge } from "@/components/RiskBadge";
 import type { ApplicationStatus, SavedEntry } from "@/lib/api-types";
-import { ago, possessive, shortLocation } from "@/lib/format";
+import { TIME_ZONE, ago, possessive, shortLocation } from "@/lib/format";
 import { useSavedJobs } from "@/lib/saved";
 
 const STATUSES: { value: ApplicationStatus; label: string }[] = [
-  { value: "saved", label: "Saved" },
+  { value: "saved", label: "Interested" },
   { value: "applied", label: "Applied" },
   { value: "interviewing", label: "Interviewing" },
   { value: "offer", label: "Offer" },
@@ -43,7 +44,18 @@ export function EmptySaved() {
   );
 }
 
-async function patch(jobId: number, body: { status?: ApplicationStatus; notes?: string }): Promise<boolean> {
+/** "2026-09-02" in Toronto time, for a date input; empty when not recorded. */
+function dateInputValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    new Date(iso),
+  );
+}
+
+async function patch(
+  jobId: number,
+  body: { status?: ApplicationStatus; notes?: string; applied_at?: string | null },
+): Promise<boolean> {
   try {
     const response = await fetch(`/api/saved?id=${jobId}`, {
       method: "PATCH",
@@ -76,10 +88,21 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
 
   async function setStatus(entry: SavedEntry, status: ApplicationStatus) {
     const before = entry.status;
-    update(entry.job.id, { status });
+    // moving to applied records today, as the server does
+    update(entry.job.id, { status, ...(status === "applied" && !entry.applied_at && { applied_at: new Date().toISOString() }) });
     if (!(await patch(entry.job.id, { status }))) {
       update(entry.job.id, { status: before });
       setError("That change didn't save. Check your connection and try again.");
+    }
+  }
+
+  async function setAppliedDate(entry: SavedEntry, day: string) {
+    const before = entry.applied_at ?? null;
+    const next = day ? new Date(`${day}T12:00:00Z`).toISOString() : null;
+    update(entry.job.id, { applied_at: next });
+    if (!(await patch(entry.job.id, { applied_at: day || null }))) {
+      update(entry.job.id, { applied_at: before });
+      setError("That date didn't save. Try again.");
     }
   }
 
@@ -170,17 +193,36 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
                         ))}
                       </select>
                       <RiskBadge risk={job.signals.risk} />
+                      {entry.status !== "saved" && (
+                        <label className="inline-flex items-center gap-1.5 text-sm text-ink-soft">
+                          Applied on
+                          <input
+                            type="date"
+                            value={dateInputValue(entry.applied_at)}
+                            max={dateInputValue(new Date().toISOString())}
+                            onChange={(e) => setAppliedDate(entry, e.target.value)}
+                            aria-label={`Date you applied to ${job.title}`}
+                            className="field h-8 w-auto px-2 text-sm"
+                          />
+                          {!entry.applied_at && <span className="text-xs text-ink-faint">not recorded</span>}
+                        </label>
+                      )}
                       {job.is_active && (
-                        <a
-                          href={job.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <ApplyLink
+                          job={{
+                            id: job.id,
+                            title: job.title,
+                            company: job.company,
+                            companyDomain: job.company_domain ?? null,
+                            location: job.location,
+                            url: job.url,
+                          }}
                           className="inline-flex items-center gap-1 text-sm link"
                         >
                           Apply on {possessive(job.company)} site
                           <ExternalIcon className="size-3.5" />
                           <span className="sr-only"> (opens in a new tab)</span>
-                        </a>
+                        </ApplyLink>
                       )}
                     </div>
                   </div>

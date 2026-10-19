@@ -1,6 +1,18 @@
+from datetime import date, datetime, timezone
+
 import pytest
 
-from tracker.classify import classify_level, classify_role, is_canada, is_remote
+from tracker.classify import (
+    classify_level,
+    classify_role,
+    enrich,
+    is_canada,
+    is_remote,
+    is_upcoming,
+    parse_terms,
+    term_start,
+)
+from tracker.models import Job
 
 
 @pytest.mark.parametrize(
@@ -85,3 +97,105 @@ def test_is_remote():
     assert is_remote("Remote - US")
     assert is_remote("New York", source_remote=True)
     assert not is_remote("New York")
+
+
+# ---------- Seasons ----------
+
+
+@pytest.mark.parametrize(
+    "title, expected",
+    [
+        ("Software Engineer Intern (Summer 2027)", ["Summer 2027"]),
+        ("Co-op, Winter-27", ["Winter 2027"]),
+        ("2027 Summer Internship - PSG Product Analyst, APAC", ["Summer 2027"]),
+        ("Software Engineering Intern (2027 Summer Internship)", ["Summer 2027"]),
+        ("Spring/Summer 2027 Engineering Intern", ["Spring 2027", "Summer 2027"]),
+        ("Co-op Engineer - Winter/Spring/Summer 2027", ["Winter 2027", "Spring 2027", "Summer 2027"]),
+        ("Robotics Intern (Fall/Winter 2026)", ["Fall 2026", "Winter 2026"]),
+        ("Run Perception Graduate Internship, R&D - Winter 2027", ["Winter 2027"]),  # a program, not a date
+        # a graduation date is about the applicant, not the work term
+        ("Software Engineer, Entry-Level (Graduation Date Winter 2026 - Spring/Summer 2027)", []),
+        ("Software Engineer I, Entry-Level (Graduation Date: Fall 2026-Summer 2027)", []),
+    ],
+)
+def test_parse_terms_from_titles(title, expected):
+    assert parse_terms(title) == expected
+
+
+@pytest.mark.parametrize(
+    "description, expected",
+    [
+        (
+            "The opportunity:\n• 12 month work-term beginning January 2027.\n• Full-time, paid",
+            ["Winter 2027"],
+        ),
+        (
+            "This position starts in January 2027 or June 2027 and runs four months.",
+            ["Winter 2027", "Summer 2027"],
+        ),
+        ("You must be available for 10 weeks beginning May 24, 2027.", ["Summer 2027"]),
+        ("• Duration : 8 months starting on January 4, 2027", ["Winter 2027"]),
+        ("We are hiring for a co-op starting in September 2027.", ["Fall 2027"]),
+        (
+            "This application is for internship starts in Spring and Summer 2027.",
+            ["Spring 2027", "Summer 2027"],
+        ),
+        ("• Program: Summer 2027 Internship", ["Summer 2027"]),
+        # not the work term: company history, an old cohort, the hiring timeline, a graduation date
+        ("Founded in Spring 2016, we have grown fast. Our Summer 2025 interns loved it.", []),
+        ("We will begin reviewing applications and interviews starting August 2026.", []),
+        ("You are graduating in May 2028 or later.", []),
+    ],
+)
+def test_parse_terms_from_intern_descriptions(description, expected):
+    assert parse_terms("Software Engineering Intern", description, "intern", 2026) == expected
+
+
+def test_parse_terms_reads_descriptions_only_for_student_roles():
+    text = "Our onboarding program starts in January 2027."
+    assert parse_terms("Senior Engineer", text, "senior", 2026) == []
+    assert parse_terms("New Grad Engineer", text, "new_grad", 2026) == ["Winter 2027"]
+
+
+def test_a_season_in_the_title_wins_over_the_description():
+    # the description still names last year's program
+    text = "Join the RF-SMART Summer 2026 Internship Program, starting in May."
+    assert parse_terms("Hardware Support Internship - Summer 2027", text, "intern", 2026) == ["Summer 2027"]
+
+
+def test_description_seasons_must_be_near_the_year_the_posting_appeared():
+    text = "The internship starts in January 2031."
+    assert parse_terms("Intern", text, "intern", 2026) == []
+    assert parse_terms("Intern", text, "intern", 2030) == ["Winter 2031"]
+
+
+def test_term_order_and_upcoming():
+    terms = ["Fall 2027", "Winter 2027", "Summer 2027", "Spring 2027", "Fall 2026", "Spring 2016"]
+    assert sorted(terms, key=term_start) == [
+        "Spring 2016",
+        "Fall 2026",
+        "Winter 2027",
+        "Spring 2027",
+        "Summer 2027",
+        "Fall 2027",
+    ]
+    october = date(2026, 10, 18)
+    assert [t for t in terms if is_upcoming(t, october)] == [
+        "Fall 2027",
+        "Winter 2027",
+        "Summer 2027",
+        "Spring 2027",
+    ]
+    assert is_upcoming("Fall 2026", date(2026, 8, 31)) and not is_upcoming("Fall 2026", date(2026, 9, 1))
+    assert not is_upcoming("N/A", october)
+
+
+def test_enrich_reads_seasons_from_the_description():
+    next_year = datetime.now(timezone.utc).year + 1
+    job = Job(
+        external_id="1",
+        title="Data Engineering Co-op",
+        url="https://example.com/1",
+        description=f"A 4-month work term beginning January {next_year}.",
+    )
+    assert enrich(job, []).terms == [f"Winter {next_year}"]

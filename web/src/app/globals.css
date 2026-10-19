@@ -24,6 +24,8 @@
 */
 
 :root {
+  /* the sticky site header's height: anything sticky below it starts here */
+  --header-h: 3.5rem;
   --paper: #f5f6f8;
   --surface: #ffffff;
   --sunken: #eef0f3;

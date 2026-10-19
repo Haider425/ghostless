@@ -93,6 +93,17 @@ async function loadRemote(): Promise<void> {
   setRemote(ids);
 }
 
+/** A job the account now has saved (recording an application saves it), shown without reloading the list. */
+export function noteSavedOnAccount(jobId: number): void {
+  if (remote.loaded && !remote.ids.includes(jobId)) setRemote([jobId, ...remote.ids]);
+}
+
+/** Save a job in this browser if it isn't already (signed out). */
+export function saveLocally(job: Omit<SavedJob, "savedAt">): void {
+  const current = readLocal();
+  if (!current.some((j) => j.id === job.id)) writeLocal([{ ...job, savedAt: new Date().toISOString() }, ...current]);
+}
+
 /** Forget the previous person's saved jobs (the next account's list loads fresh). */
 export function resetSavedForViewer(): void {
   remote = { loaded: false, ids: [] };

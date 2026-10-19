@@ -43,13 +43,23 @@ function resultsLabel(total: number, role: RoleScope): string {
   return `${total.toLocaleString("en-CA")} ${what}${total === 1 ? "job" : "jobs"}`;
 }
 
+/**
+ * The next eight seasons (the API lists only seasons that haven't started),
+ * plus any season already chosen, so a shared link's filter can still be unticked.
+ */
+function seasonOptions(upcoming: { term: string; jobs: number }[], chosen: string[]) {
+  const shown = upcoming.slice(0, 8);
+  const missing = chosen.filter((term) => !shown.some((s) => s.term === term));
+  return [...missing.map((term) => upcoming.find((s) => s.term === term) ?? { term, jobs: 0 }), ...shown];
+}
+
 /** The selected job, in the right-hand pane on wide screens. */
 function Preview({ job }: { job: JobDetail }) {
   return (
     <div
       data-preview
       key={job.id /* new job, new scroll position */}
-      className="panel scroll-quiet sticky top-[4.5rem] max-h-[calc(100dvh-5.5rem)] overflow-y-auto"
+      className="panel scroll-quiet sticky top-[calc(var(--header-h)+1rem)] max-h-[calc(100dvh-var(--header-h)-2rem)] overflow-y-auto"
     >
       <div className="border-b border-line p-6">
         <JobHeader job={job} titleAs="h2" showPageLink />
@@ -84,7 +94,7 @@ export default async function JobsPage({ searchParams }: Props) {
     <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6">
       <h1 className="sr-only">Search jobs</h1>
       <div className="mb-3">
-        <FilterBar filters={filters} seasons={seasons.slice(0, 8)} />
+        <FilterBar filters={filters} seasons={seasonOptions(seasons, filters.term)} />
       </div>
       <div className="mb-5">
         <RoleTabs filters={filters} />

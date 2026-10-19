@@ -5,6 +5,7 @@ import localFont from "next/font/local";
 import { type ReactNode, Suspense } from "react";
 
 import { Analytics } from "@/components/Analytics";
+import { ApplyPrompt } from "@/components/ApplyPrompt";
 import { NavProgress } from "@/components/NavProgress";
 import { SiteProvider } from "@/components/SiteContext";
 import { ViewerChange } from "@/components/ViewerChange";
@@ -75,6 +76,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             {children}
           </main>
           <SiteFooter />
+          <ApplyPrompt />
           <Analytics />
           <ViewerChange />
         </SiteProvider>

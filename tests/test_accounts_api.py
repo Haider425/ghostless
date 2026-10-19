@@ -218,15 +218,87 @@ def test_saved_jobs_sync(client):
     assert client.delete(f"/me/saved/{first}", headers=auth(token)).json() == [second]
 
 
+def test_recording_an_application_is_idempotent_and_never_moves_backwards(client):
+    token = signup(client)["token"]
+    first, second = job_ids(client)[:2]
+
+    # "yes, I applied" on a job that wasn't saved: saved once, as applied, with today's date
+    recorded = client.post(f"/me/applications/{first}", json={}, headers=auth(token)).json()
+    assert (recorded["status"], recorded["changed"]) == ("applied", True)
+    assert recorded["applied_at"] is not None
+
+    # asked again (a second tab, a double click): nothing changes, nothing is duplicated
+    again = client.post(f"/me/applications/{first}", json={}, headers=auth(token)).json()
+    assert (again["status"], again["changed"], again["applied_at"]) == (
+        "applied",
+        False,
+        recorded["applied_at"],
+    )
+    assert client.get("/me/saved/ids", headers=auth(token)).json() == [first]
+
+    # further along on the tracker: a later "yes, I applied" doesn't move it back
+    client.patch(f"/me/saved/{first}", json={"status": "interviewing"}, headers=auth(token))
+    later = client.post(f"/me/applications/{first}", json={}, headers=auth(token)).json()
+    assert (later["status"], later["changed"]) == ("interviewing", False)
+
+    # a job saved earlier moves from saved to applied
+    client.post("/me/saved", json={"job_ids": [second]}, headers=auth(token))
+    assert client.post(f"/me/applications/{second}", json={}, headers=auth(token)).json()["changed"] is True
+
+    assert client.post("/me/applications/999999", json={}, headers=auth(token)).status_code == 404
+    assert client.post(f"/me/applications/{first}", json={}).status_code == 401
+
+    with db.connect(DSN) as conn:
+        history = conn.execute("SELECT job_id, status, source FROM application_events ORDER BY id").fetchall()
+    assert history == [
+        (first, "applied", "apply_prompt"),
+        (first, "interviewing", "tracker"),
+        (second, "applied", "apply_prompt"),
+    ]
+
+
+def test_applications_are_private_to_each_person(client):
+    sam = signup(client)["token"]
+    alex = signup(client, email="alex@example.com")["token"]
+    job = job_ids(client)[0]
+    client.post(f"/me/applications/{job}", json={}, headers=auth(sam))
+    assert client.get("/me/saved", headers=auth(alex)).json() == []
+    assert client.patch(f"/me/saved/{job}", json={"status": "offer"}, headers=auth(alex)).status_code == 404
+    [entry] = client.get("/me/saved", headers=auth(sam)).json()
+    assert entry["status"] == "applied"
+
+
+def test_the_applied_date_can_be_set_and_cleared(client):
+    token = signup(client)["token"]
+    job = job_ids(client)[0]
+    client.post("/me/saved", json={"job_ids": [job]}, headers=auth(token))
+
+    def entry():
+        return client.get("/me/saved", headers=auth(token)).json()[0]
+
+    assert entry()["applied_at"] is None
+    client.patch(f"/me/saved/{job}", json={"status": "applied"}, headers=auth(token))
+    assert entry()["applied_at"] is not None  # moving to applied stamps the date
+    client.patch(f"/me/saved/{job}", json={"applied_at": "2026-09-02T12:00:00Z"}, headers=auth(token))
+    assert entry()["applied_at"].startswith("2026-09-02")
+    client.patch(f"/me/saved/{job}", json={"notes": "Referral from Priya"}, headers=auth(token))
+    assert entry()["applied_at"].startswith("2026-09-02")  # left out: kept
+    client.patch(f"/me/saved/{job}", json={"applied_at": None}, headers=auth(token))
+    assert entry()["applied_at"] is None
+
+
 def test_export_and_delete_account(client):
     token = signup(client)["token"]
     client.post("/me/saved", json={"job_ids": job_ids(client)[:1]}, headers=auth(token))
     client.post(
         "/reports", json={"category": "site_bug", "message": "The button is broken"}, headers=auth(token)
     )
+    client.post(f"/me/applications/{job_ids(client)[0]}", json={}, headers=auth(token))
     export = client.get("/me/export", headers=auth(token)).json()
     assert export["account"]["email"] == "sam@example.com"
     assert len(export["saved_jobs"]) == 1 and len(export["reports"]) == 1
+    assert export["saved_jobs"][0]["status"] == "applied" and export["saved_jobs"][0]["applied_at"]
+    assert [e["status"] for e in export["application_history"]] == ["applied"]
 
     assert (
         client.request("DELETE", "/me", json={"password": "wrong password"}, headers=auth(token)).status_code
@@ -238,6 +310,7 @@ def test_export_and_delete_account(client):
     assert client.get("/me", headers=auth(token)).status_code == 401
     with db.connect(DSN) as conn:
         assert conn.execute("SELECT count(*) FROM users").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM application_events").fetchone()[0] == 0
         # the report stays for the team, without the person's email
         assert conn.execute("SELECT user_id, email FROM reports").fetchone() == (None, None)
 
