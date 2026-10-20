@@ -184,6 +184,87 @@ Sites are found from companies' `domain` fields and from links in B1. Pages are 
 - JSON-LD parsing on recorded pages (including multiple JobPostings per page, `@graph`, and invalid JSON);
 - dedupe across platforms.
 
+### Stage B results (built 20 October 2026, switched off)
+
+**Settings, all off by default.** With them unset, every run behaves exactly as before. The schema gains `discovered_boards.state` and `sample_url`, existing boards default to `active`, and `jsonld` is added to the allowed platforms. The workflow passes repository variables of the same names through.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `GHOSTLESS_SNOWBALL` | off | B1: notes Greenhouse, Lever, Ashby and Workday boards linked from postings (addresses and descriptions), registers them as candidates, and checks them |
+| `GHOSTLESS_JSONLD` | off | B3: notes career sites from job list entries, checks them, and reads the active ones |
+| `GHOSTLESS_VERIFY_PER_RUN` | 100 | candidates checked per run, one request each |
+| `GHOSTLESS_JSONLD_PAGES_PER_SITE` | 25 | job pages read per career site per run |
+| `GHOSTLESS_JSONLD_SITEMAPS` | 3 | sitemap files read per career site per run |
+| `GHOSTLESS_JSONLD_URLS` | 2000 | job links considered per career site |
+
+**B1, built as planned.** Candidates are checked with one request:
+- **Active:** something worth storing, so the board is read in this run's crawl.
+- **Empty:** nothing worth storing; checked again in 30 days.
+- **Failed three times:** marked `dead`, and never registered again.
+- **Replaced:** a career site whose page links to a supported hiring system, which is registered instead.
+
+Board links for stage E's platforms are added in stage E, together with their adapters.
+
+**B2, built from the Parquet index (agreed 20 October 2026), switched off.** The Hugging Face bucket is Common Crawl's own mirror, announced on its blog, and current (crawls up to CC-MAIN-2026-39). Its CDX `cluster.idx` files aren't mirrored, so B2 reads the Parquet table (`cc-index/table/.../subset=warc`) instead, with `pyarrow`.
+
+- **Where pyarrow is used:** only in the optional `index` extra. Only the monthly `discover.yml` workflow installs it, plus CI for its tests. Ingest and the API never import it.
+- **How a crawl is read:**
+  - the files aren't in sorted order, so all 300 footers are read, about 2 requests each;
+  - row-group statistics on `url_surtkey` pick out the few row groups that can hold job board URLs;
+  - only the `url_surtkey` column of those row groups is downloaded.
+- **Candidates:** new boards are registered as candidates and checked like B1's, by the daily ingest.
+- **Ashby:** board names aren't case-sensitive (checked), so the lowercase SURT form is safe.
+
+**Settings:**
+- `GHOSTLESS_INDEX_SEEDING=1` as a repository variable runs the workflow monthly (the 5th), and lets ingest check the boards it finds.
+- A manual run of the workflow defaults to a dry run.
+- Locally: `ghostless seed-boards --dry-run`.
+
+**B2 dry run** (crawl CC-MAIN-2026-39; Neon read-only, nothing written):
+
+| | Greenhouse | Ashby | Workday | Lever |
+|---|---|---|---|---|
+| Boards in the index | 3,653 | 2,775 | 2,817 | 0 (the crawl has no jobs.lever.co pages) |
+| New to Ghostless | 3,398 | 2,552 | 2,419 | 0 |
+| Sample of 20 checked: active / empty / failed | 13 / 6 / 1 | 12 / 5 / 3 | 6 / 13 / 1 | n/a |
+| Postings kept per active board (sample) | 8 | 4 | 3 (first search page only) | n/a |
+| Estimated postings kept | ~17,800 | ~6,400 | ~2,100+ | n/a |
+
+**Cost and size:**
+- **Reading the index:** 609 requests, 96 MB downloaded, 5 minutes. Only 4 of 1,497 row groups were needed.
+- **After the filter:** about 26,000 postings, roughly 115 to 150 MB.
+- **Pace:** at the default of 100 checks per run, the 8,369 candidates take about 3 months to work through, so growth is gradual.
+- **Database size with B2 and B3 together:** about 790 MB, under 1 GB.
+
+**B3, built as planned, with these choices:**
+- **A site's path:** the path its job pages sit under, worked out from a job link. Ids and title-like segments are left out ("/JobDetail/Senior-Data-Analyst/123" becomes "/JobDetail"). When nothing sits under that path, its parents are tried, down to one segment and never the whole site.
+- **Excluded hosts:** shared hiring systems (Avature, Jibe, iCIMS, Taleo and others) are never treated as a company's career site, and neither are job sites and aggregators (LinkedIn, Indeed and others).
+- **Plain-text descriptions** keep their line breaks.
+- **Expired postings:** a posting past `validThrough` leaves the listing, so it closes.
+- **Pages not re-read:** a stored posting stays open while its page is in the sitemap.
+
+**B4, built as planned.**
+- **Pipeline:** career sites are read through `_crawl_one`, with the storage filter, the guard and the revisit schedule.
+- **Dedupe:** `merge_duplicates` retires a career site whose company also has a hiring-system board. Its postings that match by title are removed, with anything saved or reported moved to the hiring-system copy. Its other postings are closed, not deleted.
+
+**Dry run** (20 October 2026; Neon read-only, nothing written anywhere):
+
+| Step | Found | Checked | Result |
+|---|---|---|---|
+| B1: links in the 46k open postings' addresses and descriptions | 0 new boards | n/a | every linked board is already known |
+| B3: career sites from 9,106 job list entries | 217 candidates | 40 | 9 active, 22 failed (no JSON-LD), 9 replaced by a hiring system |
+| B3: reading 8 active sites | 4,362 job pages listed | 145 pages read | 65 kept by the filter; 6 of the 8 sites readable |
+
+**Estimates, with both switches on:**
+- **Requests:** about 100 checks per run, plus up to 28 requests per active site per run.
+- **Expected growth:** about 50 active sites in all, reached over a few runs. Reading 25 pages per site per run, and keeping about 45% of them, they add about 10,000 postings over 3 to 4 weeks. That's roughly 45 MB at about 4.4 KB per posting.
+- **Database size:** Neon is at 596 MB today, far below 1 GB.
+- **B1 on its own** adds nothing at the moment.
+
+**Verification:**
+- **Tests:** 522 pass with a database (on Windows-locale and C-locale databases) and 432 without one. The database tests run in CI.
+- **Lint:** ruff is clean.
+
 ## Stage C: smarter parsing
 
 **C1. Structured data first, then rules.** Adapters fill new `Job` fields from source data:

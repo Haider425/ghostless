@@ -389,6 +389,19 @@ def get_text(url: str) -> str:
     return _send("GET", url, None, "text/html,application/xml;q=0.9,*/*;q=0.8").text
 
 
+def get_bytes(url: str) -> bytes:
+    return _send("GET", url, None, "application/xml,application/gzip;q=0.9,*/*;q=0.8").content
+
+
+def get_range(url: str, start: int, end: int) -> tuple[bytes, int]:
+    """Bytes start..end (inclusive) of a file, and the file's total size."""
+    resp = _send("GET", url, None, "*/*", {"Range": f"bytes={start}-{end}"})
+    total = resp.headers.get("Content-Range", "").rpartition("/")[2]
+    if resp.status_code != 206 or not total.isdigit():
+        raise FetchError(f"no range support at {url}")
+    return resp.content, int(total)
+
+
 # ---------- conditional requests ----------
 
 

@@ -31,6 +31,7 @@ class Rules:
     disallow_all: bool = False
     rules: list[tuple[bool, str, re.Pattern]] = field(default_factory=list)  # (allow, raw, regex)
     crawl_delay: float | None = None  # seconds
+    sitemaps: list[str] = field(default_factory=list)  # Sitemap: lines, which apply to every agent
 
     def allowed(self, path: str) -> bool:
         if self.allow_all:
@@ -59,6 +60,7 @@ def parse(text: str, agent: str) -> Rules:
     current_agents: list[str] = []
     current_rules: list[tuple[bool, str]] = []
     current_delay: float | None = None
+    sitemaps: list[str] = []
     in_rules = False
 
     for raw_line in text.splitlines():
@@ -76,6 +78,11 @@ def parse(text: str, agent: str) -> Rules:
             in_rules = True
             if value:  # an empty Disallow means "allow everything"
                 current_rules.append((key == "allow", value))
+        elif key == "sitemap":
+            # the value is a URL, so it holds a ":" of its own
+            url = line.split(":", 1)[1].strip()
+            if url.startswith(("http://", "https://")) and url not in sitemaps:
+                sitemaps.append(url)
         elif key == "crawl-delay":
             in_rules = True
             try:
@@ -93,6 +100,7 @@ def parse(text: str, agent: str) -> Rules:
     return Rules(
         rules=[(allow, p, _pattern_to_regex(p)) for allow, p in merged],
         crawl_delay=max(delays) if delays else None,
+        sitemaps=sitemaps,
     )
 
 
@@ -134,6 +142,10 @@ class RobotsCache:
         if path == "/robots.txt":
             return True
         return self._rules_for(parts.scheme, parts.netloc).allowed(path)
+
+    def sitemaps(self, url: str) -> list[str]:
+        parts = urlsplit(url)
+        return list(self._rules_for(parts.scheme, parts.netloc).sitemaps)
 
     def crawl_delay(self, url: str) -> float | None:
         parts = urlsplit(url)

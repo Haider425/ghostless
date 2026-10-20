@@ -8,6 +8,7 @@
     ghostless discover               read public job lists and crawl discovered boards
     ghostless migrate                create or upgrade the database tables (no fetching)
     ghostless health                 what the last ingest run did, per source
+    ghostless seed-boards --dry-run  find job boards in Common Crawl's URL index (needs the index extra)
     ghostless admin add EMAIL        give an account access to the admin dashboard
     ghostless gap --have "Python, SQL"   compare your skills with what postings ask for
     ghostless serve                   run the web API on http://127.0.0.1:8000
@@ -85,6 +86,16 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser(
         "dedupe", help="merge postings and boards that were stored twice (also part of ingest)"
     )
+    seed = commands.add_parser(
+        "seed-boards",
+        help="find job boards in Common Crawl's URL index and register them as candidates "
+        "(monthly; needs GHOSTLESS_INDEX_SEEDING=1 and pip install '.[index]')",
+    )
+    seed.add_argument("--dry-run", action="store_true", help="only count what would be registered")
+    seed.add_argument(
+        "--files", type=int, default=None, metavar="N", help="read only the first N index files"
+    )
+    seed.add_argument("-v", "--verbose", action="store_true", help="show progress")
     admin = commands.add_parser("admin", help="manage admin accounts")
     admin.add_argument("action", choices=["add", "remove", "list"])
     admin.add_argument("email", nargs="?", help="the account's email (for add and remove)")
@@ -132,6 +143,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "health":
         _health()
+        return
+    if args.command == "seed-boards":
+        _seed_boards(args)
         return
     if args.command == "dedupe":
         _dedupe()
@@ -225,6 +239,55 @@ def _health() -> None:
         return
     for started_at, report in rows:
         print(render(report, f"Run started {started_at:%Y-%m-%d %H:%M} UTC"))
+
+
+def _seed_boards(args: argparse.Namespace) -> None:
+    from collections import Counter
+
+    from tracker import db, settings
+    from tracker.config import database_url
+
+    if not args.dry_run and not settings.index_seeding():
+        print("Index seeding is off. Set GHOSTLESS_INDEX_SEEDING=1 to register boards, or use --dry-run.")
+        return
+    try:
+        import pyarrow  # noqa: F401
+    except ImportError:
+        raise SystemExit("seed-boards needs the optional index extra: pip install '.[index]'") from None
+    from tracker.discovery import index, snowball
+    from tracker.sources.common import slug_to_title
+
+    logging.basicConfig(
+        level=logging.INFO if args.verbose else logging.WARNING,
+        format="%(asctime)s %(message)s",
+        stream=sys.stdout,
+    )
+    crawl, files = index.latest_crawl()
+    boards, counts = index.find_boards(files, args.files)
+    with db.connect(database_url()) as conn:
+        conn.read_only = args.dry_run
+        known = {
+            (p, s.lower()) for p, s in conn.execute("SELECT platform, board_slug FROM discovered_boards")
+        }
+        known |= {(p, s.lower()) for p, s in conn.execute("SELECT platform, board_slug FROM companies")}
+        conn.rollback()
+    new = {key: link for key, link in boards.items() if key not in known}
+    print(
+        f"{crawl}: read {counts.get('files', 0)} index files ({counts.get('row_groups_read', 0)} row groups)"
+    )
+    print(f"boards in the index: {dict(Counter(p for p, _ in boards))}")
+    print(f"new to Ghostless:    {dict(Counter(p for p, _ in new))}")
+    if args.dry_run:
+        print("Dry run: nothing registered.")
+        return
+    for (platform, slug), link in new.items():
+        board = index.board_from_url(link) or (platform, slug)  # the link's own spelling of the slug
+        name = slug_to_title(board[1].split("/")[-1])
+        snowball.noted.add(snowball.Candidate(board[0], board[1], name, f"common-crawl:{crawl}", link))
+    added = snowball.register(database_url())
+    print(
+        f"Registered {added} candidate boards; each is checked (GHOSTLESS_VERIFY_PER_RUN a run) before it's read."
+    )
 
 
 def _dedupe() -> None:

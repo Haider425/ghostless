@@ -76,6 +76,7 @@ An AI review is available as an extra for one job at a time: it rewrites suggest
 | `ghostless discover [--boards N]` | Reads the job lists, registers new job boards they link to, crawls the discovered boards that are due (at most `N`) and stores list-only postings. `ghostless ingest` does this after the configured companies; run it alone to grow coverage without a full ingest. |
 | `ghostless ingest --shard K/N` | Collects only part `K` of `N`: one of several machines running at once (the daily workflow uses 4). Every site belongs to exactly one part. |
 | `ghostless finish` | After every part of a sharded ingest: reads the job lists, refreshes the ghost signals and cleans up. Takes seconds. |
+| `ghostless seed-boards [--dry-run]` | Finds job boards in Common Crawl's URL index and registers new ones as candidates (needs `pip install '.[index]'` and `GHOSTLESS_INDEX_SEEDING=1`; `--dry-run` only counts). Run monthly by `discover.yml`. |
 | `ghostless health` | Prints the last run's health report: per source, boards read, failed and unchanged (304), seconds, and postings seen, new and closed, plus boards that returned suspiciously few postings. Each run also stores it in `ingest_runs.health` and, on GitHub Actions, writes it to the run summary. |
 | `ghostless gap --have "..."` | Ranks the skills that active postings ask for and marks which ones you have. Defaults to intern and new grad software roles in Canada or remote; change with `--role`, `--level` (both repeatable) and `--anywhere`. |
 | `ghostless reprocess` | Re-derives pay, disclosures, fingerprints and repost links for every stored posting, and syncs company names and domains from `companies.yaml`. Fetches nothing. Run it once after upgrading so improved parsing applies to existing data. |
@@ -96,6 +97,12 @@ An AI review is available as an extra for one job at a time: it rewrites suggest
 | `GHOSTLESS_API_POOL_SIZE` | API host | Maximum database connections the API opens (default 4) |
 | `GHOSTLESS_WORKERS` | `.env` or workflow | Threads collecting at once (default 16). The real limits are per site, below. |
 | `GHOSTLESS_DISCOVERED_PER_RUN` | `.env` or workflow | A cap on discovered boards crawled per run (default 5000, so every board that's due) |
+| `GHOSTLESS_SNOWBALL` | `.env` or workflow | Off by default. `1` registers Greenhouse, Lever, Ashby and Workday boards linked from postings as candidates, and checks them (one request each) before they're read |
+| `GHOSTLESS_JSONLD` | `.env` or workflow | Off by default. `1` finds company career sites from job list links, checks them, and reads the ones that publish JSON-LD job postings |
+| `GHOSTLESS_INDEX_SEEDING` | repository variable | Off by default. `1` runs the monthly `discover.yml` workflow, which finds Greenhouse, Ashby and Workday boards in Common Crawl's URL index (its Hugging Face mirror) and registers them as candidates; the daily ingest checks them. Needs the optional `index` extra (pyarrow), which only that workflow installs |
+| `GHOSTLESS_VERIFY_PER_RUN` | `.env` or workflow | Candidates checked per run when either switch is on (default 100) |
+| `GHOSTLESS_JSONLD_PAGES_PER_SITE` | `.env` or workflow | Job pages read per career site per run (default 25; each page is read once, then only when its sitemap entry changes) |
+| `GHOSTLESS_JSONLD_SITEMAPS` / `GHOSTLESS_JSONLD_URLS` | `.env` or workflow | Sitemap files read (default 3) and job links considered (default 2000) per career site |
 | `companies.yaml` | repo root | Which employers to track, and which public job lists to read (`lists:`; `lists: []` turns discovery off) |
 
 To track a new employer, add it to `companies.yaml`; [CONTRIBUTING.md](CONTRIBUTING.md) shows how to find its platform and slug in under a minute.

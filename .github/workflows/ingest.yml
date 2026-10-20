@@ -14,6 +14,13 @@ env:
   DATABASE_URL: ${{ secrets.DATABASE_URL }}  # your Neon / Supabase URL, as a repo secret
   GHOSTLESS_CONTACT: https://github.com/${{ github.repository }}
   SHARDS: 4
+  # Growth beyond companies.yaml and the job lists, off unless set to 1 under
+  # Settings > Secrets and variables > Actions > Variables (see README, Configuration)
+  GHOSTLESS_SNOWBALL: ${{ vars.GHOSTLESS_SNOWBALL }}
+  GHOSTLESS_JSONLD: ${{ vars.GHOSTLESS_JSONLD }}
+  GHOSTLESS_INDEX_SEEDING: ${{ vars.GHOSTLESS_INDEX_SEEDING }}  # checks boards from discover.yml
+  GHOSTLESS_VERIFY_PER_RUN: ${{ vars.GHOSTLESS_VERIFY_PER_RUN }}
+  GHOSTLESS_JSONLD_PAGES_PER_SITE: ${{ vars.GHOSTLESS_JSONLD_PAGES_PER_SITE }}
 
 jobs:
   # 1. create or upgrade the tables once, so the parts below don't race

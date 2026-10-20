@@ -12,6 +12,7 @@
 | apple      | Apple                                   | HTML result and job pages        |
 | sitemap    | Shopify                                 | careers XML sitemap              |
 | rss        | Scotiabank (SAP SuccessFactors)         | RSS job feed                     |
+| jsonld     | company career sites (discovered)       | sitemaps + JSON-LD JobPosting    |
 
 Every request goes through `http`, which checks robots.txt first.
 """
@@ -28,6 +29,7 @@ from tracker.sources.eightfold import fetch_eightfold, parse_eightfold_position,
 from tracker.sources.feeds import fetch_rss, fetch_sitemap, parse_rss, parse_sitemap
 from tracker.sources.google import fetch_google, parse_google_detail, parse_google_listing
 from tracker.sources.http import FetchError, Validators
+from tracker.sources.jsonld import fetch_jsonld
 from tracker.sources.workday import (
     fetch_workday,
     parse_workday_age,
@@ -46,6 +48,7 @@ FETCHERS: dict[str, Callable[..., list[Job]]] = {
     "apple": fetch_apple,
     "sitemap": fetch_sitemap,
     "rss": fetch_rss,
+    "jsonld": fetch_jsonld,
 }
 
 # Platforms whose fetch returns only part of the open postings. Jobs missing
@@ -67,7 +70,7 @@ def listing_is_complete(company: Company) -> bool:
 # Platforms that need one extra request per posting for its description.
 # They accept `known`: ids already stored with a description, which are not
 # fetched again.
-INCREMENTAL_DETAILS = {"workday", "eightfold", "apple"}
+INCREMENTAL_DETAILS = {"workday", "eightfold", "apple", "jsonld"}
 
 # Where a listing already carries part of the text (Apple's summary), a stored
 # description only counts as known once it is the full posting.
@@ -106,7 +109,9 @@ def fetch_jobs(
     fetcher = FETCHERS.get(company.platform)
     if fetcher is None:
         raise FetchError(f"unknown platform: {company.platform}")
-    if company.platform in INCREMENTAL_DETAILS:
+    if company.platform == "jsonld":  # pages are read again when their sitemap entry changes
+        result = fetcher(company, details=details, known=known, stored=stored)
+    elif company.platform in INCREMENTAL_DETAILS:
         result = fetcher(company, details=details, known=known)
     elif company.platform in CONDITIONAL:
         result = fetcher(company, details=details, cached=cached, stored=stored)
@@ -118,6 +123,7 @@ def fetch_jobs(
         total=getattr(result, "total", None),
         not_modified=getattr(result, "not_modified", False),
         validators=getattr(result, "validators", None),
+        listed=getattr(result, "listed", None),
     )
     if company.region:
         for job in jobs:

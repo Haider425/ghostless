@@ -30,6 +30,7 @@ import psycopg
 
 from tracker import db, health
 from tracker.classify import enrich, keep_relevant
+from tracker.discovery import snowball
 from tracker.discovery.boards import board_from_url, company_key
 from tracker.discovery.lists import JobList, ListedJob, clean_url, fetch_list
 from tracker.models import Company, Job
@@ -37,6 +38,7 @@ from tracker.parallel import in_shard, run_by_site, site_of
 from tracker.skills import extract_skills
 from tracker.sources import FetchError
 from tracker.sources.boards import fetch_board
+from tracker.sources.jsonld import fetch_jsonld
 from tracker.sources.workday import fetch_workday, list_workday
 
 log = logging.getLogger("tracker.discovery")
@@ -84,6 +86,12 @@ def run(
     health.current.boards_registered(registered)
     if registered:
         log.info("discovered %d new job boards", registered)
+    for item in items:  # entries on a company's own career site (GHOSTLESS_JSONLD)
+        snowball.note_list_entry(item.company, item.url, item.list_name)
+    snowball.register(dsn, configured_names)
+    checked = snowball.verify(dsn)
+    if checked["checked"]:
+        health.current.record("candidate boards checked", seen=checked["checked"], new=checked["active"])
 
     if crawl:
         crawl_boards(dsn, run_started, stats)
@@ -163,7 +171,7 @@ def _due_boards(conn: psycopg.Connection, limit: int) -> list[tuple[str, str, st
     # an hour of slack: a run that starts a little early still reads yesterday's boards
     return conn.execute(
         """SELECT platform, board_slug, company_name FROM discovered_boards
-           WHERE next_due IS NULL OR next_due <= now() + interval '1 hour'
+           WHERE state = 'active' AND (next_due IS NULL OR next_due <= now() + interval '1 hour')
            ORDER BY next_due NULLS FIRST, first_seen
            LIMIT %s""",
         (limit,),
@@ -221,6 +229,7 @@ def crawl_boards(
         stats["jobs_closed"] += closed
     log.info("discovered boards: %d crawled in %.0fs", len(companies), time.perf_counter() - started)
     full_read_workday(dsn, run_started, stats, shard=shard)
+    snowball.register(dsn)  # boards linked from what was just read, checked on the next run
 
 
 def _crawl_one(
@@ -245,6 +254,11 @@ def _crawl_one(
                 per_query=WORKDAY_PER_QUERY,
                 max_details=WORKDAY_DETAILS,
             )
+        elif platform == "jsonld":
+            with db.connect(dsn) as conn:
+                known = frozenset(db.stored_details(conn, company))
+                versions = db.stored_versions(conn, company)
+            jobs = fetch_jsonld(company, known=known, stored=versions)
         else:
             cached, versions = board_state(dsn, company)
             jobs = fetch_board(company, cached=cached, stored=versions)
@@ -267,6 +281,7 @@ def _crawl_one(
             unchanged.add((platform, slug))
         log.info("discovered %s: unchanged (%d open jobs)", name, seen)
         return seen, 0, 0
+    snowball.note_postings(company, jobs)
     if platform == "workday":
         # reuse descriptions already stored, as for configured companies
         from tracker.ingest import reuse_details
@@ -370,7 +385,7 @@ def full_read_workday(
             """SELECT b.board_slug, b.company_name, b.last_full_read, c.id
                FROM discovered_boards b
                JOIN companies c ON c.platform = b.platform AND c.board_slug = b.board_slug
-               WHERE b.platform = 'workday' AND b.last_ok IS NOT NULL"""
+               WHERE b.platform = 'workday' AND b.state = 'active' AND b.last_ok IS NOT NULL"""
         ).fetchall()
     due = [
         (Company(name=name, platform="workday", board_slug=slug, origin="discovered"), company_id)
