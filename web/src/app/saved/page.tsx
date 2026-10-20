@@ -18,11 +18,11 @@ export default async function SavedPage() {
   const entries = user ? await api.savedJobs(await visitorClient()).catch(() => null) : null;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-5xl px-4 pt-10 pb-20 sm:px-6">
       <div className="mb-6 space-y-2">
-        <h1 className="text-3xl font-semibold text-ink">{user ? "Applications" : "Saved jobs"}</h1>
+        <h1 className="page-title">{user ? "Applications" : "Saved jobs"}</h1>
         {user ? (
-          <p className="text-ink-soft">
+          <p className="page-lead">
             Every job you&apos;ve saved, and where each application stands. Notes are private to you.
           </p>
         ) : (

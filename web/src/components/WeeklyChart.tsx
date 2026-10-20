@@ -45,13 +45,13 @@ export function WeeklyChart({ weeks, title }: { weeks: WeekCount[]; title: strin
     <figure className="space-y-3">
       <figcaption className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <span className="panel-title">{title}</span>
-        <span className="flex gap-4 text-sm text-ink-soft tabular-nums">
+        <span className="flex gap-4 text-ui text-ink-soft tabular-nums">
           <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-2.5 rounded-sm bg-bar-new" />
+            <span aria-hidden="true" className="size-2.5 rounded-[3px] bg-bar-new" />
             New <span className="font-medium text-ink">{totalNew.toLocaleString("en-CA")}</span>
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-2.5 rounded-sm bg-bar-closed" />
+            <span aria-hidden="true" className="size-2.5 rounded-[3px] bg-bar-closed" />
             Closed <span className="font-medium text-ink">{totalClosed.toLocaleString("en-CA")}</span>
           </span>
         </span>
@@ -90,7 +90,7 @@ export function WeeklyChart({ weeks, title }: { weeks: WeekCount[]; title: strin
         <line x1={PAD.left} x2={W - PAD.right} y1={y(0)} y2={y(0)} stroke="var(--line-strong)" strokeWidth="1" />
       </svg>
       <details className="text-sm">
-        <summary className="inline-block text-xs text-ink-faint hover:text-ink">Show the numbers</summary>
+        <summary className="link inline-block text-sm">Show the numbers</summary>
         <table className="mt-2 w-full max-w-sm text-left">
           <thead>
             <tr className="text-ink-soft">

@@ -52,9 +52,9 @@ export default async function JobPage({ params }: Props) {
   const others = more.items.filter((j) => j.id !== job.id).slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-[80rem] px-4 pt-6 pb-20 sm:px-6 lg:px-10 lg:pt-7">
       <nav aria-label="Breadcrumb" className="mb-6">
-        <ol className="flex flex-wrap items-center gap-1 text-sm text-ink-soft">
+        <ol className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink-soft">
           <li>
             <Link href="/jobs" className="hover:text-accent hover:underline">
               Jobs
@@ -64,7 +64,7 @@ export default async function JobPage({ params }: Props) {
             <ChevronRightIcon className="size-3.5 text-ink-faint" />
           </li>
           <li>
-            <Link href={`/companies/${job.company_slug}`} className="hover:text-accent hover:underline">
+            <Link href={`/companies/${job.company_slug}`} className="text-ink hover:text-accent hover:underline">
               {job.company}
             </Link>
           </li>
@@ -75,26 +75,26 @@ export default async function JobPage({ params }: Props) {
         <JobHeader job={job} />
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-12">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_26rem] lg:gap-14">
         {/* the record first: it's what Ghostless adds; the personal match follows */}
         <aside className="space-y-4 lg:order-2" aria-label="Posting record and disclosures">
           <PostingRecord job={job} />
           <MatchPanel jobId={job.id} hasDescription={Boolean(job.description)} />
           <PostingHistory job={job} />
           <Disclosures job={job} />
-          <p className="px-1 text-sm text-ink-soft">
+          <p className="px-1 text-ui text-ink-soft">
             Something wrong with this posting? <ReportDialog jobId={job.id} label="Report it" className="link" />
           </p>
         </aside>
 
-        <article className="min-w-0 space-y-8 lg:order-1">
+        <article className="min-w-0 space-y-10 lg:order-1">
           <SkillChips skills={job.skills} />
           <JobDescription job={job} />
           {others.length > 0 && (
-            <section className="border-t border-line pt-8">
+            <section>
               <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-xl font-semibold text-ink">More open roles at {job.company}</h2>
-                <Link href={`/companies/${job.company_slug}`} className="link text-sm">
+                <h2 className="text-lg font-semibold text-ink">More roles at {job.company}</h2>
+                <Link href={`/companies/${job.company_slug}`} className="link text-ui">
                   See {possessive(job.company)} hiring record
                 </Link>
               </div>

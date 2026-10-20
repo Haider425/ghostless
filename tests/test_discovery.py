@@ -110,7 +110,7 @@ def fake_sources(monkeypatch, items, boards=None):
     monkeypatch.setattr(discovery, "fetch_list", lambda job_list: list(items))
     boards = boards or {}
 
-    def board(company, details=True):
+    def board(company, details=True, **kwargs):
         if company.board_slug not in boards:
             from tracker.sources import FetchError
 

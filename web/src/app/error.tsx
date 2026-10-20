@@ -10,8 +10,8 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
 
   return (
     <div className="mx-auto max-w-xl px-4 py-20 text-center sm:px-6">
-      <h1 className="text-3xl font-semibold text-ink">This page couldn&apos;t load</h1>
-      <p className="mt-3 text-ink-soft">
+      <h1 className="page-title">This page couldn&apos;t load</h1>
+      <p className="page-lead">
         Ghostless couldn&apos;t reach its job data. This is usually brief. Try again in a moment.
       </p>
       {error.digest && <p className="mt-2 text-xs text-ink-faint">Reference: {error.digest}</p>}

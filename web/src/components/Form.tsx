@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 import type { FormState } from "@/app/actions/auth";
 
 export const inputClass =
-  "field h-10";
+  "field";
 
 export function Field({
   label,
@@ -15,13 +15,13 @@ export function Field({
   ...input
 }: { label: string; hint?: ReactNode; id: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-ink">
+    <div className="space-y-2">
+      <label htmlFor={id} className="block text-sm font-semibold text-ink">
         {label}
       </label>
       <input id={id} className={inputClass} aria-describedby={hint ? `${id}-hint` : undefined} {...input} />
       {hint && (
-        <p id={`${id}-hint`} className="text-xs text-ink-soft">
+        <p id={`${id}-hint`} className="text-sm text-ink-soft">
           {hint}
         </p>
       )}
@@ -30,14 +30,11 @@ export function Field({
 }
 
 export function SubmitButton({ children, pending, tone = "primary" }: { children: ReactNode; pending?: string; tone?: "primary" | "danger" | "secondary" }) {
+  // primary buttons fill their form (sign in, sign up); secondary and danger actions stay their own size
   const status = useFormStatus();
-  const styles = {
-    primary: "bg-accent-solid text-on-accent hover:bg-accent-hover",
-    danger: "bg-brick text-white hover:opacity-90",
-    secondary: "border border-line-strong bg-surface text-ink hover:border-ink-faint",
-  }[tone];
+  const styles = { primary: "btn-primary", danger: "btn-danger", secondary: "btn-secondary" }[tone];
   return (
-    <button type="submit" disabled={status.pending} className={`inline-flex h-11 items-center justify-center rounded-lg px-5 font-medium transition-colors disabled:opacity-60 ${styles}`}>
+    <button type="submit" disabled={status.pending} className={`btn ${tone === "primary" ? "btn-lg w-full" : ""} ${styles}`}>
       {status.pending ? (pending ?? "Working...") : children}
     </button>
   );
@@ -46,14 +43,14 @@ export function SubmitButton({ children, pending, tone = "primary" }: { children
 export function FormMessage({ state }: { state: FormState }) {
   if (state.error) {
     return (
-      <p role="alert" className="rounded-lg bg-brick-tint px-3 py-2 text-sm text-brick">
+      <p role="alert" className="notice notice-danger">
         {state.error}
       </p>
     );
   }
   if (state.message) {
     return (
-      <p role="status" className="rounded-lg bg-good-tint px-3 py-2 text-sm text-good">
+      <p role="status" className="notice">
         {state.message}
       </p>
     );
@@ -63,13 +60,11 @@ export function FormMessage({ state }: { state: FormState }) {
 
 export function AuthCard({ title, lead, children, footer }: { title: string; lead?: ReactNode; children: ReactNode; footer?: ReactNode }) {
   return (
-    <div className="mx-auto max-w-md px-4 py-12 sm:py-16">
-      <div className="panel p-6 sm:p-8">
-        <h1 className="text-3xl font-semibold text-ink">{title}</h1>
-        {lead && <p className="mt-2 text-ink-soft">{lead}</p>}
-        <div className="mt-6">{children}</div>
-      </div>
-      {footer && <div className="mt-5 text-center text-sm text-ink-soft">{footer}</div>}
+    <div className="mx-auto max-w-[25rem] px-4 pt-14 pb-24 sm:pt-24">
+      <h1 className="text-4xl font-bold tracking-[-0.03em] text-ink">{title}</h1>
+      {lead && <p className="mt-2.5 text-base text-ink-soft">{lead}</p>}
+      <div className="mt-7">{children}</div>
+      {footer && <div className="mt-6 text-center text-ui text-ink-soft">{footer}</div>}
     </div>
   );
 }

@@ -13,10 +13,9 @@ export function Pagination({
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   if (pages <= 1) return null;
-  const linkClass =
-    "inline-flex h-9 items-center rounded-md border border-line-strong bg-surface px-3 text-sm font-medium text-ink hover:border-accent hover:text-accent";
+  const linkClass = "btn btn-secondary";
   return (
-    <nav aria-label="Pages" className="flex items-center justify-between gap-4 pt-6">
+    <nav aria-label="Pages" className="flex items-center justify-between gap-4 pt-8">
       {page > 1 ? (
         <Link href={href(page - 1)} className={linkClass} rel="prev">
           Previous
@@ -24,7 +23,7 @@ export function Pagination({
       ) : (
         <span />
       )}
-      <p className="text-sm text-ink-soft">
+      <p className="text-ui text-ink-soft">
         Page {page.toLocaleString("en-CA")} of {Math.min(pages, 400).toLocaleString("en-CA")}
       </p>
       {page < Math.min(pages, 400) ? (

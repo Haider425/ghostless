@@ -71,21 +71,21 @@ function BulletList({ label, items, onChange, placeholder, tips = true, current 
                 aria-label={`${label} ${i + 1}`}
                 className="field min-h-10 resize-y py-2 text-sm"
               />
-              <button type="button" onClick={() => onChange(list.filter((_, j) => j !== i))} className="h-9 shrink-0 rounded-md px-2 text-ink-faint hover:bg-sunken hover:text-brick" aria-label={`Remove ${label.toLowerCase()} ${i + 1}`}>
+              <button type="button" onClick={() => onChange(list.filter((_, j) => j !== i))} className="h-9 shrink-0 rounded-md px-2 text-ink-faint hover:bg-sunken hover:text-danger" aria-label={`Remove ${label.toLowerCase()} ${i + 1}`}>
                 ×
               </button>
             </div>
             {advice.length > 0 ? (
               <ul className="ml-5 space-y-0.5 text-xs">
                 {advice.slice(0, 3).map((a) => (
-                  <li key={a.text} className={a.kind === "fix" ? "text-ochre" : "text-ink-soft"}>
+                  <li key={a.text} className={a.kind === "fix" ? "text-ink" : "text-ink-soft"}>
                     {a.text}
                   </li>
                 ))}
               </ul>
             ) : (
               tips &&
-              bullet.trim().split(/\s+/).length >= 6 && <p className="ml-5 text-xs text-good">Reads well: a clear action with a measurable result.</p>
+              bullet.trim().split(/\s+/).length >= 6 && <p className="ml-5 text-xs text-ink-soft">Reads well: a clear action with a measurable result.</p>
             )}
           </div>
         );
@@ -107,7 +107,7 @@ function Entry({ title, children, onRemove, onUp, onDown }: { title: string; chi
         <div className="flex shrink-0 gap-1 text-sm">
           {onUp && <button type="button" onClick={onUp} className="rounded-md px-2 py-1 text-ink-soft hover:bg-sunken" aria-label={`Move ${title} up`}>↑</button>}
           {onDown && <button type="button" onClick={onDown} className="rounded-md px-2 py-1 text-ink-soft hover:bg-sunken" aria-label={`Move ${title} down`}>↓</button>}
-          <button type="button" onClick={onRemove} className="rounded-md px-2 py-1 text-ink-soft hover:bg-brick-tint hover:text-brick">Remove</button>
+          <button type="button" onClick={onRemove} className="rounded-md px-2 py-1 text-ink-soft hover:bg-danger-tint hover:text-danger">Remove</button>
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">{children}</div>
@@ -150,12 +150,12 @@ const LINE = 19; // one line of body text, roughly
 function PageFit({ height }: { height: number }) {
   const over = height - PAGE_HEIGHT;
   if (over <= 2) {
-    return <p className="mb-2 text-sm text-good">Fits on one page.</p>;
+    return <p className="mb-2 text-sm text-ink-soft">Fits on one page.</p>;
   }
   const lines = Math.max(1, Math.round(over / LINE));
   const pages = Math.ceil(height / PAGE_HEIGHT);
   return (
-    <p className="mb-2 text-sm text-ochre">
+    <p className="mb-2 text-sm text-danger">
       {pages > 2 ? `Runs to ${pages} pages.` : `Runs onto a second page by about ${lines} line${lines === 1 ? "" : "s"}.`} Students and new grads do best
       with one page: try the Compact template, or cut the oldest or weakest bullets.
     </p>
@@ -183,8 +183,8 @@ function ScaledPreview({ doc }: { doc: ResumeDoc }) {
       <PageFit height={height} />
       <div style={{ height: height * scale }} className="relative overflow-hidden rounded-lg shadow-pop ring-1 ring-line">
         {Array.from({ length: Math.max(0, Math.ceil(height / PAGE_HEIGHT) - 1) }, (_, i) => (
-          <div key={i} aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-dashed border-brick/60" style={{ top: PAGE_HEIGHT * (i + 1) * scale }}>
-            <span className="absolute right-2 -translate-y-full bg-brick-tint px-1.5 text-[10px] font-medium text-brick">Page {i + 2}</span>
+          <div key={i} aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-dashed border-danger/60" style={{ top: PAGE_HEIGHT * (i + 1) * scale }}>
+            <span className="absolute right-2 -translate-y-full bg-danger-tint px-1.5 text-[10px] font-medium text-danger">Page {i + 2}</span>
           </div>
         ))}
         <div ref={inner} className="origin-top-left" style={{ transform: `scale(${scale})`, width: PAGE_WIDTH }}>
@@ -401,7 +401,7 @@ export function Builder({
           <div key={i} className="grid gap-2 sm:grid-cols-[10rem_1fr_auto]">
             <input value={g.label} onChange={(e) => set("skills", doc.skills.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="Languages" aria-label={`Skill group ${i + 1} name`} className={`${inputClass} h-10`} />
             <input value={g.items} onChange={(e) => set("skills", doc.skills.map((x, j) => (j === i ? { ...x, items: e.target.value } : x)))} placeholder="Python, SQL, TypeScript" aria-label={`Skill group ${i + 1} skills`} className={`${inputClass} h-10`} />
-            <button type="button" onClick={() => set("skills", doc.skills.filter((_, j) => j !== i))} className="h-10 rounded-md px-2 text-sm text-ink-soft hover:bg-brick-tint hover:text-brick">Remove</button>
+            <button type="button" onClick={() => set("skills", doc.skills.filter((_, j) => j !== i))} className="h-10 rounded-md px-2 text-sm text-ink-soft hover:bg-danger-tint hover:text-danger">Remove</button>
           </div>
         ))}
         {doc.skills.length < 8 && <button type="button" onClick={() => set("skills", [...doc.skills, blankSkills()])} className="text-sm link">Add a skill group</button>}
@@ -437,7 +437,7 @@ export function Builder({
 
   return (
     <div ref={frame}>
-      <div ref={bar} className="sticky top-(--header-h) z-20 -mx-4 mb-6 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+      <div ref={bar} className="sticky top-(--header-h) z-20 -mx-4 mb-6 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
         <div className="flex flex-wrap items-center gap-3">
           <label className="min-w-0 flex-1">
             <span className="sr-only">Resume name</span>
@@ -515,7 +515,7 @@ export function Builder({
           {analysis.checks.length ? (
             <ul className="mt-3 space-y-2 text-sm">
               {analysis.checks.slice(0, 5).map((c) => (
-                <li key={c.id} className={`border-l-2 pl-3 ${c.severity === "high" ? "border-brick" : c.severity === "medium" ? "border-ochre" : "border-line-strong"}`}>
+                <li key={c.id} className={`border-l-2 pl-3 ${c.severity === "low" ? "border-line-strong" : "border-accent-solid"}`}>
                   <span className="font-medium text-ink">{c.title}.</span> <span className="text-ink-soft">{c.detail}</span>
                 </li>
               ))}
@@ -550,7 +550,7 @@ export function Builder({
             <button type="button" onClick={() => window.confirm("Replace what you've written with an example resume?") && setDoc(exampleDoc())} className="text-accent hover:underline">
               Load an example
             </button>
-            <button type="button" onClick={() => window.confirm("Clear everything and start over?") && setDoc(emptyDoc())} className="text-ink-soft hover:text-brick hover:underline">
+            <button type="button" onClick={() => window.confirm("Clear everything and start over?") && setDoc(emptyDoc())} className="text-ink-soft hover:text-danger hover:underline">
               Start over
             </button>
           </div>
@@ -684,7 +684,7 @@ function TailorPanel({ doc, initialJob }: { doc: ResumeDoc; initialJob: JobPick 
               <ul className="space-y-1 text-sm">
                 {gaps.slice(0, 6).map((r) => (
                   <li key={`${r.kind}:${r.text}`} className="flex gap-2">
-                    <span aria-hidden="true" className={r.status === "missing" ? "text-brick" : "text-accent"}>{r.status === "missing" ? "✕" : "◐"}</span>
+                    <span aria-hidden="true" className={r.status === "missing" ? "text-ink-faint" : "text-accent"}>{r.status === "missing" ? "✕" : "◐"}</span>
                     <span>
                       <span className="font-medium text-ink">{r.text}</span> <span className="text-ink-soft">{r.detail.toLowerCase()}</span>
                     </span>

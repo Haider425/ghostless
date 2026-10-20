@@ -7,6 +7,7 @@
     ghostless reprocess              re-derive flags and pay for stored postings after an upgrade
     ghostless discover               read public job lists and crawl discovered boards
     ghostless migrate                create or upgrade the database tables (no fetching)
+    ghostless health                 what the last ingest run did, per source
     ghostless admin add EMAIL        give an account access to the admin dashboard
     ghostless gap --have "Python, SQL"   compare your skills with what postings ask for
     ghostless serve                   run the web API on http://127.0.0.1:8000
@@ -79,6 +80,9 @@ def _parser() -> argparse.ArgumentParser:
 
     commands.add_parser("migrate", help="create or upgrade the database tables")
     commands.add_parser(
+        "health", help="what the last ingest run did per source (every part of a sharded run)"
+    )
+    commands.add_parser(
         "dedupe", help="merge postings and boards that were stored twice (also part of ingest)"
     )
     admin = commands.add_parser("admin", help="manage admin accounts")
@@ -125,6 +129,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "migrate":
         _migrate()
+        return
+    if args.command == "health":
+        _health()
         return
     if args.command == "dedupe":
         _dedupe()
@@ -197,6 +204,27 @@ def _migrate() -> None:
     with db.connect(database_url()) as conn:
         db.apply_schema(conn)
     print("Database is up to date.")
+
+
+def _health() -> None:
+    from tracker import db
+    from tracker.config import database_url
+    from tracker.health import render
+
+    with db.connect(database_url()) as conn:
+        # the parts of a sharded run start within minutes of each other
+        rows = conn.execute(
+            """SELECT started_at AT TIME ZONE 'UTC', health FROM ingest_runs
+               WHERE health IS NOT NULL
+                 AND started_at > (SELECT max(started_at) FROM ingest_runs WHERE health IS NOT NULL)
+                                  - interval '30 minutes'
+               ORDER BY started_at"""
+        ).fetchall()
+    if not rows:
+        print("No run has a health report yet (they start with the next ingest).")
+        return
+    for started_at, report in rows:
+        print(render(report, f"Run started {started_at:%Y-%m-%d %H:%M} UTC"))
 
 
 def _dedupe() -> None:

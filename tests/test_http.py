@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-import requests
 
 from tracker.sources import http
 from tracker.sources.http import FetchError, Throttle, parse_retry_after
@@ -73,21 +72,21 @@ def test_parse_retry_after():
 
 def test_429_slows_host_and_honours_retry_after(clock, monkeypatch):
     responses = [FakeResponse(429, headers={"Retry-After": "5"}), FakeResponse(200, '{"ok": true}')]
-    monkeypatch.setattr(requests, "request", lambda *a, **k: responses.pop(0))
+    monkeypatch.setattr(http, "_request", lambda *a, **k: responses.pop(0))
     assert http.get_json("https://api.example.com/jobs") == {"ok": True}
     assert 5.0 in clock.sleeps  # waited as told
     assert http.throttle.interval("api.example.com") == 2.0  # and slowed future requests
 
 
 def test_gives_up_after_max_attempts(clock, monkeypatch):
-    monkeypatch.setattr(requests, "request", lambda *a, **k: FakeResponse(503))
+    monkeypatch.setattr(http, "_request", lambda *a, **k: FakeResponse(503))
     with pytest.raises(FetchError, match="gave up after 5 attempts"):
         http.get_json("https://api.example.com/jobs")
 
 
 def test_client_errors_fail_fast(clock, monkeypatch):
     calls = []
-    monkeypatch.setattr(requests, "request", lambda *a, **k: calls.append(1) or FakeResponse(403))
+    monkeypatch.setattr(http, "_request", lambda *a, **k: calls.append(1) or FakeResponse(403))
     with pytest.raises(FetchError, match="HTTP 403"):
         http.get_json("https://api.example.com/jobs")
     assert len(calls) == 1
@@ -95,8 +94,8 @@ def test_client_errors_fail_fast(clock, monkeypatch):
 
 def test_dump_saves_responses(clock, monkeypatch, tmp_path):
     monkeypatch.setattr(
-        requests,
-        "request",
+        http,
+        "_request",
         lambda *a, **k: FakeResponse(200, "<html>hi</html>", {"Content-Type": "text/html"}),
     )
     monkeypatch.setattr(http, "dump_dir", tmp_path)
@@ -135,3 +134,70 @@ def test_rate_limit_resets_recovery_progress():
     t.slow_down("a")  # 8s, and the 9 successes no longer count
     t.recover("a")
     assert t.interval("a") == 8.0
+
+
+# ---------- connections, Crawl-delay, conditional requests ----------
+
+
+def test_each_thread_reuses_one_session():
+    import threading
+
+    first, again = http._session(), http._session()
+    other = []
+    t = threading.Thread(target=lambda: other.append(http._session()))
+    t.start()
+    t.join()
+    assert first is again and other[0] is not first
+
+
+def test_crawl_delay_sets_the_gap_and_one_request_at_a_time(clock, monkeypatch):
+    monkeypatch.setattr(
+        http, "robots", RobotsCache("t", lambda url: (200, "User-agent: *\nCrawl-delay: 2\n"))
+    )
+    monkeypatch.setattr(http, "_request", lambda *a, **k: FakeResponse(200))
+    for _ in range(3):
+        http.get_json("https://api.lever.co/v0/postings/x")
+    assert clock.sleeps == [2.0, 2.0]
+    assert http.throttle.gates_for("api.lever.co")[-1].limit == 1
+    http.throttle.slow_down("api.lever.co")  # a 429 can't bring the gap under the Crawl-delay later
+    assert http.throttle.interval("api.lever.co") >= 2.0
+
+
+def test_a_huge_crawl_delay_skips_the_site(clock, monkeypatch):
+    monkeypatch.setattr(
+        http, "robots", RobotsCache("t", lambda url: (200, "User-agent: *\nCrawl-delay: 600\n"))
+    )
+    monkeypatch.setattr(http, "_request", lambda *a, **k: pytest.fail("no request should be sent"))
+    with pytest.raises(FetchError, match="600s"):
+        http.get_json("https://slow-site.example/jobs")
+
+
+def test_conditional_request_sends_validators_and_understands_304(clock, monkeypatch):
+    sent = []
+
+    def fake(method, url, **kwargs):
+        sent.append(kwargs["headers"])
+        if kwargs["headers"].get("If-None-Match") == '"v1"':
+            return FakeResponse(304, "")
+        return FakeResponse(200, '{"jobs": []}', {"ETag": '"v1"'})
+
+    monkeypatch.setattr(http, "_request", fake)
+    url = "https://boards-api.greenhouse.io/v1/boards/x/jobs"
+    data, validators = http.get_json_if_changed(url)
+    assert data == {"jobs": []} and validators == http.Validators(url, '"v1"', None)
+    assert "If-None-Match" not in sent[0]
+
+    data, again = http.get_json_if_changed(url, validators)
+    assert data is http.NOT_MODIFIED and again == validators
+    assert sent[1]["If-None-Match"] == '"v1"'
+    assert http.traffic.by_host["boards-api.greenhouse.io"][2] >= 1  # counted as not modified
+
+    # validators for another URL are never sent
+    http.get_json_if_changed(url + "?x=1", validators)
+    assert "If-None-Match" not in sent[2]
+
+
+def test_304_without_asking_is_an_error(clock, monkeypatch):
+    monkeypatch.setattr(http, "_request", lambda *a, **k: FakeResponse(304, ""))
+    with pytest.raises(FetchError, match="304"):
+        http.get_json("https://a.example/jobs")

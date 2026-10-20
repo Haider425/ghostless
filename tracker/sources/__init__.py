@@ -27,7 +27,7 @@ from tracker.sources.boards import fetch_board, parse_ashby, parse_greenhouse, p
 from tracker.sources.eightfold import fetch_eightfold, parse_eightfold_position, parse_eightfold_slug
 from tracker.sources.feeds import fetch_rss, fetch_sitemap, parse_rss, parse_sitemap
 from tracker.sources.google import fetch_google, parse_google_detail, parse_google_listing
-from tracker.sources.http import FetchError
+from tracker.sources.http import FetchError, Validators
 from tracker.sources.workday import (
     fetch_workday,
     parse_workday_age,
@@ -55,6 +55,10 @@ PARTIAL_LISTINGS = {"google"}
 
 PLATFORMS = set(FETCHERS)
 
+# Platforms whose servers answer conditional requests with 304 (checked for
+# each in docs/crawler-research.md; Workday, Workable and Rippling don't)
+CONDITIONAL = {"greenhouse", "lever", "ashby"}
+
 
 def listing_is_complete(company: Company) -> bool:
     return company.platform not in PARTIAL_LISTINGS
@@ -78,7 +82,13 @@ def complete_descriptions(platform: str, stored: dict[str, tuple[str, str]]) -> 
     )
 
 
-def fetch_jobs(company: Company, details: bool = True, known: frozenset[str] = frozenset()) -> JobList:
+def fetch_jobs(
+    company: Company,
+    details: bool = True,
+    known: frozenset[str] = frozenset(),
+    cached: Validators | None = None,
+    stored: dict | None = None,
+) -> JobList:
     """Fetch current postings for a company.
 
     Returns a JobList whose `complete` flag is False when the platform only
@@ -87,18 +97,27 @@ def fetch_jobs(company: Company, details: bool = True, known: frozenset[str] = f
     slow per-job requests on platforms that need them (used by verify), and
     `known` lists postings whose description is already stored, so it is not
     fetched again. Jobs with no location get the company's configured `region`.
+
+    On the public job-board APIs (CONDITIONAL), `cached` asks the server
+    whether the board changed since it was last read: if not, the result is
+    empty with `not_modified` set. `stored` (Greenhouse) holds the stored
+    postings' versions, so unchanged postings aren't downloaded again.
     """
     fetcher = FETCHERS.get(company.platform)
     if fetcher is None:
         raise FetchError(f"unknown platform: {company.platform}")
     if company.platform in INCREMENTAL_DETAILS:
         result = fetcher(company, details=details, known=known)
+    elif company.platform in CONDITIONAL:
+        result = fetcher(company, details=details, cached=cached, stored=stored)
     else:
         result = fetcher(company, details=details)
     jobs = JobList(
         result,
         complete=listing_is_complete(company) and getattr(result, "complete", True),
         total=getattr(result, "total", None),
+        not_modified=getattr(result, "not_modified", False),
+        validators=getattr(result, "validators", None),
     )
     if company.region:
         for job in jobs:

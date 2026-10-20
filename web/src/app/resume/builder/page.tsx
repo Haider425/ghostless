@@ -45,7 +45,7 @@ export default async function BuilderPage({ searchParams }: { searchParams: Prom
   }
   const tailorJob = job && Number.isSafeInteger(Number(job)) ? await api.job(Number(job)).catch(() => null) : null;
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-10 sm:px-6">
+    <div className="mx-auto max-w-[90rem] px-4 pb-16 sm:px-6 lg:px-10">
       <h1 className="sr-only">Resume builder</h1>
       <BuilderClient
         key={resumeId ?? (imported ? `from-${from}` : fresh ? "new" : "draft")}

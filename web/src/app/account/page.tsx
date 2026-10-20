@@ -45,9 +45,9 @@ export default async function AccountPage({
   const problem = oauthErrorMessage(error);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <h1 className="text-3xl font-semibold text-ink">Your account</h1>
-      <p className="mt-2 text-ink-soft">
+    <div className="mx-auto max-w-4xl px-4 pt-10 pb-20 sm:px-6">
+      <h1 className="page-title">Your account</h1>
+      <p className="page-lead">
         Signed in as <span className="font-medium text-ink">{user.email}</span>. Member since {formatDate(user.created_at)}.
       </p>
 
@@ -60,13 +60,13 @@ export default async function AccountPage({
           </p>
         </div>
       )}
-      {reset && <p className="mt-6 rounded-lg bg-good-tint px-4 py-3 text-sm text-good">Your password was changed and other devices were signed out.</p>}
+      {reset && <p className="mt-6 rounded-lg bg-sunken px-4 py-3 text-sm text-ink">Your password was changed and other devices were signed out.</p>}
       {linked && linked in PROVIDER_INFO && (
-        <p className="mt-6 rounded-lg bg-good-tint px-4 py-3 text-sm text-good">
+        <p className="mt-6 rounded-lg bg-sunken px-4 py-3 text-sm text-ink">
           {PROVIDER_INFO[linked as keyof typeof PROVIDER_INFO].label} is connected. You can now sign in with it.
         </p>
       )}
-      {problem && <p role="alert" className="mt-6 rounded-lg bg-brick-tint px-4 py-3 text-sm text-brick">{problem}</p>}
+      {problem && <p role="alert" className="mt-6 notice notice-danger">{problem}</p>}
 
       <div className="mt-8">
         <Section title="Profile" description="Your name is only shown to you.">
@@ -76,9 +76,9 @@ export default async function AccountPage({
           <p className="text-ink">
             {user.email}{" "}
             {user.email_verified ? (
-              <span className="ml-1 rounded-full bg-good-tint px-2 py-0.5 text-xs font-medium text-good">Confirmed</span>
+              <span className="ml-1 rounded-full bg-sunken px-2 py-0.5 text-xs font-semibold text-ink-soft">Confirmed</span>
             ) : (
-              <span className="ml-1 rounded-full bg-ochre-tint px-2 py-0.5 text-xs font-medium text-ochre">Not confirmed</span>
+              <span className="ml-1 rounded-full bg-sunken px-2 py-0.5 text-xs font-semibold text-ink">Not confirmed</span>
             )}
           </p>
           {!user.email_verified && <VerifyNotice />}
@@ -91,7 +91,7 @@ export default async function AccountPage({
                   <span className="flex items-center gap-3 font-medium text-ink">
                     {PROVIDER_INFO[p].mark}
                     {PROVIDER_INFO[p].label}
-                    {linkedNow.has(p) && <span className="rounded-full bg-good-tint px-2 py-0.5 text-xs font-medium text-good">Connected</span>}
+                    {linkedNow.has(p) && <span className="rounded-full bg-sunken px-2 py-0.5 text-xs font-semibold text-ink-soft">Connected</span>}
                   </span>
                   {linkedNow.has(p) ? (
                     <UnlinkProvider provider={p} label={PROVIDER_INFO[p].label} />

@@ -79,8 +79,8 @@ export function UnlinkProvider({ provider, label }: { provider: "google" | "gith
 export function DangerZone({ hasPassword = true }: { hasPassword?: boolean }) {
   const [state, action] = useActionState<FormState, FormData>(deleteAccount, {});
   return (
-    <details className="group rounded-xl border border-brick/30 p-4">
-      <summary className="font-medium text-brick">I want to delete my account</summary>
+    <details className="group rounded-xl border border-danger/30 p-4">
+      <summary className="font-medium text-danger">I want to delete my account</summary>
       <form action={action} className="mt-4 space-y-3">
         <p className="text-sm text-ink-soft">
           This can&apos;t be undone. Reports you sent stay, without your email, so the team can still fix what you found.

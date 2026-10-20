@@ -91,7 +91,7 @@ function Upload({ signedIn, onDone }: { signedIn: boolean; onDone: (title: strin
           dragging ? "border-accent bg-accent-tint" : "border-line-strong bg-surface"
         }`}
       >
-        <p className="font-display text-xl font-semibold text-ink">
+        <p className="text-xl font-bold text-ink">
           {state === "reading" ? "Reading your resume..." : "Drop your resume here"}
         </p>
         <p className="mt-1 text-sm text-ink-soft">PDF or Word (.docx), up to 5 MB.</p>
@@ -105,7 +105,7 @@ function Upload({ signedIn, onDone }: { signedIn: boolean; onDone: (title: strin
         </button>
         <input ref={input} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="sr-only" onChange={onPick} aria-label="Resume file" />
       </div>
-      {state === "error" && <p role="alert" className="rounded-lg bg-brick-tint px-3 py-2 text-sm text-brick">{error}</p>}
+      {state === "error" && <p role="alert" className="notice notice-danger">{error}</p>}
       {signedIn ? (
         <label className="flex items-center gap-2 text-sm text-ink-soft">
           <input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} className="size-4 accent-[var(--accent)]" />
@@ -175,7 +175,7 @@ function Report({ title, analysis }: { title: string; analysis: Analysis }) {
                     {checks.map((c) => (
                       <li
                         key={c.id}
-                        className={`border-l-2 pl-3.5 ${severity === "high" ? "border-brick" : severity === "medium" ? "border-ochre" : "border-line-strong"}`}
+                        className={`border-l-2 pl-3.5 ${severity === "low" ? "border-line-strong" : "border-accent-solid"}`}
                       >
                         <p className="font-medium text-ink">{c.title}</p>
                         <p className="mt-0.5 text-sm text-ink-soft">{c.detail}</p>
@@ -264,7 +264,7 @@ function SavedResumes({ resumes, activeId }: { resumes: ResumeSummary[]; activeI
                   Use for matching
                 </button>
               )}
-              <button type="button" disabled={busy === r.id} onClick={() => act(r.id, "delete")} className="rounded-md px-2.5 py-1.5 text-ink-soft hover:bg-brick-tint hover:text-brick">
+              <button type="button" disabled={busy === r.id} onClick={() => act(r.id, "delete")} className="rounded-md px-2.5 py-1.5 text-ink-soft hover:bg-danger-tint hover:text-danger">
                 Delete<span className="sr-only"> {r.title}</span>
               </button>
             </div>
@@ -296,6 +296,9 @@ export function ResumeHub({ signedIn, resumes }: { signedIn: boolean; resumes: R
   }
 
   const shown = fresh ?? (resume ? { title: resume.title, analysis: resume.analysis } : null);
+  // The resume on screen, when it's on the account: the builder opens it (an upload opens as a builder copy).
+  // In this browser only the analysis is kept, not the text, so the builder starts from its own draft.
+  const shownId = fresh ? (fresh.analysis.resume_id ?? null) : (resume?.id ?? null);
 
   if (!ready) return <div className="panel h-64 animate-pulse" aria-busy="true" />;
 
@@ -307,11 +310,11 @@ export function ResumeHub({ signedIn, resumes }: { signedIn: boolean; resumes: R
             <button type="button" onClick={() => setReplacing(true)} className="btn btn-secondary">
               Upload a new version
             </button>
-            <Link href="/resume/builder" className="btn btn-secondary">
-              Open the resume builder
+            <Link href={shownId ? `/resume/builder?id=${shownId}` : "/resume/builder"} className="btn btn-secondary">
+              {shownId ? "Edit in the resume builder" : "Open the resume builder"}
             </Link>
             {!signedIn && (
-              <button type="button" onClick={() => { clearLocalResume(); setFresh(null); }} className="text-sm text-ink-soft hover:text-brick hover:underline">
+              <button type="button" onClick={() => { clearLocalResume(); setFresh(null); }} className="text-sm text-ink-soft hover:text-danger hover:underline">
                 Remove from this browser
               </button>
             )}
