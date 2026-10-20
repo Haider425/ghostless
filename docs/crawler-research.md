@@ -79,7 +79,7 @@ Other costs per run:
 ## 2. How aggregators find employers and stay fresh
 
 - **Link mining from what's already read.** A posting's apply link, a list entry or a company careers page names the board it lives on. Ghostless already does this for list entries; it's the cheapest growth path. Other collectors use the same technique, for example [jobforge](https://pkg.go.dev/github.com/0xcryptj/jobforge), which treats public board APIs as the "stable import surface".
-- **Web-scale URL indexes.** Common Crawl publishes a URL index of each monthly crawl:
+- **Web-scale URL indexes.** Common Crawl publishes a URL index of each monthly crawl: 
   - a CDXJ index at `index.commoncrawl.org`;
   - a columnar Parquet "URL index", which is large ([CDXJ index](https://commoncrawl.org/cdxj-index), [URL index](https://blog.commoncrawl.org/url-index)).
 

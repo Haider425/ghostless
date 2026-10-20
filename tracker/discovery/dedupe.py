@@ -35,7 +35,9 @@ def merge_duplicates(conn: psycopg.Connection) -> dict[str, int]:
             SELECT platform, board_slug,
                    row_number() OVER (
                        PARTITION BY platform, lower(board_slug)
-                       ORDER BY last_ok DESC NULLS LAST, first_seen, board_slug
+                       -- byte order on a tie, whatever the database's locale: the
+                       -- capitalised spelling Workday's own links use ("External") wins
+                       ORDER BY last_ok DESC NULLS LAST, first_seen, board_slug COLLATE "C"
                    ) AS rank,
                    platform = 'workday' AND split_part(board_slug, '/', 2) ~* '^[a-z]{2}-[a-z]{2}$' AS bogus
             FROM discovered_boards
