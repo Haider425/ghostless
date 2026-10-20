@@ -17,9 +17,9 @@ export function GhostMark({ className = "" }: { className?: string }) {
 
 export function Wordmark() {
   return (
-    <span className="inline-flex items-center gap-2 text-accent">
-      <GhostMark className="size-6" />
-      <span className="font-display text-xl font-semibold tracking-tight text-ink">ghostless</span>
+    <span className="inline-flex items-center gap-2 text-ink">
+      <GhostMark className="size-[22px]" />
+      <span className="text-lg font-bold tracking-[-0.02em]">Ghostless</span>
     </span>
   );
 }

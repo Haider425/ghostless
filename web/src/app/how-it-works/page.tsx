@@ -33,10 +33,10 @@ const FLAG_DETAIL: Record<string, string> = {
 
 export default function HowItWorksPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-3xl px-4 pt-10 pb-20 sm:px-6">
       <header className="mb-10 space-y-3">
-        <h1 className="text-3xl font-semibold text-ink">How Ghostless works</h1>
-        <p className="text-lg text-ink-soft">
+        <h1 className="page-title">How Ghostless works</h1>
+        <p className="page-lead">
           Job sites show a posting date that resets every time a role is reposted. Ghostless keeps its own record of
           every posting instead, and the signals come from that record.
         </p>
@@ -120,7 +120,7 @@ export default function HowItWorksPage() {
           </ul>
           <dl className="space-y-5 pt-2">
             {Object.entries(FLAG_TEXT).map(([key, flag]) => (
-              <div key={key} className="border-l-2 border-brick pl-4">
+              <div key={key} className="border-l-[3px] border-line-strong pl-4">
                 <dt className="font-semibold text-ink">{flag.short}</dt>
                 <dd className="mt-1">{FLAG_DETAIL[key]}</dd>
               </div>

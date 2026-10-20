@@ -34,13 +34,13 @@ function Glyph({ risk }: { risk: GhostRisk }) {
 
 export function RiskBadge({ risk, size = "sm" }: { risk: GhostRisk | null | undefined; size?: "sm" | "md" }) {
   if (!risk) {
-    return <span className="text-xs text-ink-faint">Signals pending</span>;
+    return <span className="text-meta text-ink-faint">Signals pending</span>;
   }
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-md font-medium ${STYLES[risk]} ${
-        size === "md" ? "h-7 text-sm" : "h-5.5 text-xs"
-      } ${risk === "low" ? "" : size === "md" ? "px-2.5" : "px-1.5"}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full font-medium ${STYLES[risk]} ${
+        size === "md" ? "h-7 text-sm" : "h-6 text-meta"
+      } ${risk === "low" ? "" : size === "md" ? "pr-3 pl-2.5" : "pr-2.5 pl-2"}`}
     >
       <Glyph risk={risk} />
       {RISK_LABELS[risk]}

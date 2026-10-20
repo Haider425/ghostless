@@ -12,7 +12,7 @@ from tracker.models import Company, Job, JobList
 COMPANIES = [Company("Alpha", "greenhouse", "alpha"), Company("Beta", "greenhouse", "beta")]
 
 
-def jobs_for(company, details=True, known=frozenset()):
+def jobs_for(company, details=True, known=frozenset(), **kwargs):
     return JobList([Job(external_id=f"{company.board_slug}-1", title="Software Engineer", url="u")])
 
 
@@ -20,6 +20,7 @@ def jobs_for(company, details=True, known=frozenset()):
 def pipeline(monkeypatch):
     monkeypatch.setattr(ingest, "load_companies", lambda: COMPANIES)
     monkeypatch.setattr(ingest, "fetch_jobs", jobs_for)
+    monkeypatch.setattr(ingest, "board_state", lambda dsn, company: (None, {}))
 
 
 DSN = os.environ.get("TEST_DATABASE_URL")
@@ -33,7 +34,7 @@ def test_server_killing_connections_mid_run_is_survived(pipeline, monkeypatch):
     with db.connect(DSN) as c:
         reset_database(c)
 
-    def fetch_and_kill_connections(company, details=True, known=frozenset()):
+    def fetch_and_kill_connections(company, details=True, known=frozenset(), **kwargs):
         if company.name == "Beta":
             with psycopg.connect(DSN, autocommit=True) as admin:
                 admin.execute(
@@ -76,9 +77,10 @@ def test_write_retries_once_then_counts_company_as_failed(pipeline, monkeypatch)
     monkeypatch.setattr(ingest.db, "connect", lambda dsn: FakeConn(False))
     monkeypatch.setattr(ingest.db, "apply_schema", lambda conn: None)
     monkeypatch.setattr(ingest.db, "start_run", lambda conn, started: 1)
-    monkeypatch.setattr(ingest.db, "finish_run", lambda conn, run_id, stats: None)
+    monkeypatch.setattr(ingest.db, "finish_run", lambda conn, run_id, stats, report=None: None)
     monkeypatch.setattr(ingest.db, "refresh_signals", lambda conn: None)
     monkeypatch.setattr(ingest.db, "upsert_company", lambda conn, company: company.name)
+    monkeypatch.setattr(ingest.db, "open_count", lambda conn, company_id: 0)
 
     def save(conn, company_name, jobs, run_started, close_missing=True):
         attempts[company_name] += 1

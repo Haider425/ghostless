@@ -4,7 +4,7 @@ import os
 import re
 from datetime import datetime
 
-from tracker.classify import classify_role, is_canada, is_remote
+from tracker.classify import classify_role, is_canada, is_remote, title_worth_storing
 
 _MULTI_LOCATION = re.compile(r"\b\d+\s+locations?\b", re.I)
 
@@ -46,7 +46,8 @@ def plan_details(
 
     `items` are (id, title, location). Postings already stored with a
     description (`known`) are skipped, since their text is reused, so each
-    posting is fetched once in its life. The rest are taken in priority order
+    posting is fetched once in its life. So are postings Ghostless won't
+    store (non-tech roles above student level). The rest are taken in priority order
     up to `limit` per run; anything left over is fetched on later runs. This
     keeps request volume polite on sites with thousands of postings.
     """
@@ -54,7 +55,7 @@ def plan_details(
     todo = [
         (detail_priority(title, location), i, key)
         for i, (key, title, location) in enumerate(items)
-        if key not in known
+        if key not in known and title_worth_storing(title)
     ]
     return {key for _, _, key in sorted(todo)[:limit]}
 

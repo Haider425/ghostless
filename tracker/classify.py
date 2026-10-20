@@ -8,9 +8,30 @@ import re
 from datetime import date, datetime, timezone
 
 from tracker.disclosures import fingerprint, parse_ai_screening, parse_salary, parse_vacancy
-from tracker.models import Job
+from tracker.models import Job, JobList
 
-_INTERN = re.compile(r"\b(intern(ship)?|co-?op|student|placement)\b", re.I)
+_INTERN = re.compile(
+    r"\b(intern(ship)?|co-?op|student|placement"
+    # banks' and law firms' internships
+    r"|summer\s+(associate|analyst|engineer|program(me)?)"
+    # French, German, Spanish and Italian: stage, stagiaire, alternance,
+    # Praktikum, Werkstudent, prácticas, becario, tirocinio
+    r"|stagiaire|alternan(ce|t|te)|praktikum|praktikant(in)?|werkstudent(in)?|pr[aá]cticas|becari[oa]"
+    r"|tirocinio|stagista)\b"
+    # "Stage" is also an English word: only as French titles use it
+    r"|^\s*stage\b(?!\s+(manager|hand|technician|crew|director|designer|door))"
+    r"|\bstage\s*[-–—:(]|\bstage\s+(de|d['’]|en|pfe)\b",
+    re.I,
+)
+# A cohort for the coming year: "2027 Invest in Success Program", "Finance Rotational
+# Program", "Sales Development Program" (not "Drug Development Program Manager":
+# checked after senior titles, and only the kinds of development program that hire graduates)
+_PROGRAM = re.compile(
+    r"^\s*20\d\d\b.*\bprogram(me)?\b|\b(graduate|rotational)\s+program(me)?\b"
+    r"|\b(leadership|career|management|associate|analyst|sales|operations|engineering|technical|"
+    r"finance|commercial)\s+development\s+program(me)?\b",
+    re.I,
+)
 _NEW_GRAD = re.compile(
     r"\b(new\s*grad(uate)?|university\s*grad(uate)?|recent\s*grad(uate)?|"
     r"early\s*career|entry[\s-]*level|junior|jr\.?|graduate)\b"
@@ -51,6 +72,9 @@ _ML = re.compile(
     r"\b(machine\s+learning|ml\s*(engineer|ops|platform|infrastructure|scientist|researcher)|mlops|"
     r"deep\s+learning|artificial\s+intelligence|ai\s+(engineer|researcher|scientist|research|"
     r"infrastructure|platform|developer|software)|generative\s+ai|gen\s*ai|llms?|"
+    # words between: "AI Applied Engineer", "AI Product Engineer" (not customer-facing
+    # "AI Support Engineer", or "AI Benchmark Engineer", a language rating job)
+    r"ai(\s+(?!(sales|solutions?|support|customer|field|benchmark)\b)[a-z]+){1,2}\s+(engineer|developer|scientist)|"
     r"applied\s+scientist|research\s+scientist|research\s+engineer|computer\s+vision|nlp|"
     r"natural\s+language|perception|speech\s+recognition|reinforcement\s+learning|"
     r"inference\s+engineer|ai/ml)\b",
@@ -117,7 +141,7 @@ def classify_level(title: str) -> str:
         return "intern"
     if _SENIOR.search(title):
         return "senior"
-    if _NEW_GRAD.search(title):
+    if _PROGRAM.search(title) or _NEW_GRAD.search(title):
         return "new_grad"
     return "mid"
 
@@ -302,3 +326,34 @@ def enrich(job: Job, skills: list[str]) -> Job:
         job.ai_screening = ai_screening
     job.fingerprint = fingerprint(job.title, job.location, job.description)
     return job
+
+
+# ---------- What Ghostless stores ----------
+#
+# Tech roles at every level, and intern and new grad roles in any field.
+# Other non-tech roles (sales, finance, operations, ...) are left out: they
+# aren't what Ghostless is for, and they were most of the database.
+
+STUDENT_LEVELS = ("intern", "new_grad")
+
+
+def worth_storing(job: Job) -> bool:
+    """A classified posting Ghostless keeps: tech at any level, or any student role."""
+    return job.role_type != "other" or job.level in STUDENT_LEVELS
+
+
+def title_worth_storing(title: str) -> bool:
+    """The same test from a title alone (level and role come only from the
+    title), so sources can skip downloading descriptions of postings that
+    won't be stored."""
+    return classify_role(title) != "other" or classify_level(title) in STUDENT_LEVELS
+
+
+def keep_relevant(jobs: list[Job]) -> JobList:
+    """The postings worth storing. The result keeps the fetch's flags and
+    records every id the source listed (`listed`), so a stored posting the
+    filter drops but the source still lists is never taken for closed."""
+    source = jobs if isinstance(jobs, JobList) else JobList(jobs)
+    kept = source.like([job for job in source if worth_storing(job)])
+    kept.listed = source.listed_ids()
+    return kept

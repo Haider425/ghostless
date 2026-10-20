@@ -136,7 +136,8 @@ def test_fetch_eightfold_paginates_by_count(monkeypatch):
     jobs = fetch_jobs(microsoft)
     assert len(jobs) == 15
     assert sum("/search" in c for c in calls) == 2
-    assert sum("position_details" in c for c in calls) == 15
+    # descriptions only for postings Ghostless stores: the Account Executives are left out
+    assert sum("position_details" in c for c in calls) == 1
     assert "location=Canada" in calls[0]
 
     # descriptions already stored are not fetched again
@@ -415,13 +416,14 @@ def test_fetch_apple_fetches_each_posting_page_once(monkeypatch):
     monkeypatch.setattr(http, "get_text", fake)
     apple = Company("Apple", "apple", "en-ca/search?location=canada-CANC", region="Canada")
     jobs = {j.external_id: j for j in fetch_jobs(apple)}
-    assert sum("/details/" in u for u in urls) == 3
-    assert all(is_full_description(j.description) for j in jobs.values())
+    # only the posting Ghostless stores is read in full, not the two retail roles
+    assert sum("/details/" in u for u in urls) == 1
+    assert is_full_description(jobs["200679759-3350"].description)
 
     # stored in full: not fetched again, and no summary to overwrite the stored text
     urls.clear()
     jobs = {j.external_id: j for j in fetch_jobs(apple, known=frozenset({"200679759-3350"}))}
-    assert sum("/details/" in u for u in urls) == 2
+    assert sum("/details/" in u for u in urls) == 0
     assert jobs["200679759-3350"].description == ""
 
 

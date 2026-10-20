@@ -16,22 +16,15 @@ import { htmlAttributes } from "@/lib/prefs";
 import { currentPrefs, currentUser } from "@/lib/session";
 
 /*
-  Self-hosted variable fonts (Latin). next/font preloads them and sizes the
-  fallback to match, so text doesn't reflow when they arrive.
+  Inter, self-hosted (Latin). next/font preloads it, so text doesn't reflow
+  when it arrives.
 */
-const publicSans = localFont({
-  src: "../../node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2",
+const inter = localFont({
+  src: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",
   weight: "100 900",
-  variable: "--font-public-sans",
+  variable: "--font-inter",
   display: "swap",
-  adjustFontFallback: false,
-});
-const familjen = localFont({
-  src: "../../node_modules/@fontsource-variable/familjen-grotesk/files/familjen-grotesk-latin-wght-normal.woff2",
-  weight: "400 700",
-  variable: "--font-familjen",
-  display: "swap",
-  adjustFontFallback: false,
+  adjustFontFallback: "Arial",
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -55,7 +48,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#14171c" },
+    { media: "(prefers-color-scheme: dark)", color: "#191919" },
   ],
 };
 
@@ -65,7 +58,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     ? { id: user.id, name: user.name ?? null, email: user.email, role: user.role, emailVerified: user.email_verified }
     : null;
   return (
-    <html lang="en-CA" {...htmlAttributes(prefs)} className={`${publicSans.variable} ${familjen.variable}`} suppressHydrationWarning>
+    <html lang="en-CA" {...htmlAttributes(prefs)} className={inter.variable} suppressHydrationWarning>
       <body className="flex min-h-dvh flex-col antialiased">
         <SiteProvider value={{ viewer, prefs, aiEnabled }}>
           <Suspense>

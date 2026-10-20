@@ -17,15 +17,15 @@ export function SavedList() {
 
   return (
     <>
-      <h2 className="mb-3 font-sans text-sm font-semibold text-ink">
+      <h2 className="mb-3 text-ui font-semibold text-ink">
         {local.length} saved {local.length === 1 ? "job" : "jobs"}
       </h2>
-      <ul className="space-y-3">
+      <ul className="panel divide-y divide-line overflow-hidden">
         {local.map((job) => (
-          <li key={job.id} className="flex items-start gap-3 rounded-xl border border-line bg-surface p-4">
+          <li key={job.id} className="flex items-start gap-4 p-5 sm:px-6">
             <CompanyLogo name={job.company} domain={job.companyDomain} />
             <div className="min-w-0 flex-1">
-              <h3 className="font-sans text-base font-semibold text-ink">
+              <h3 className="text-base font-semibold text-ink">
                 <Link href={`/jobs/${job.id}`} className="hover:text-accent hover:underline">
                   {job.title}
                 </Link>
@@ -47,7 +47,7 @@ export function SavedList() {
             <button
               type="button"
               onClick={() => removeLocal(job.id)}
-              className="grid size-9 shrink-0 place-items-center rounded-lg text-ink-faint hover:bg-sunken hover:text-brick"
+              className="grid size-9 shrink-0 place-items-center rounded-lg text-ink-faint hover:bg-sunken hover:text-danger"
             >
               <CloseIcon className="size-4" />
               <span className="sr-only">Remove {job.title} from saved jobs</span>

@@ -47,7 +47,7 @@ test("sign up, sign out and sign back in", async ({ page }) => {
   const email = await signUp(page, "auth");
   await page.locator("summary", { hasText: "Account menu" }).click();
   await page.locator("details[open]").getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Log in", exact: true })).toBeVisible();
 
   await go(page, "/login");
   await page.getByLabel("Email", { exact: true }).fill(email);
@@ -222,7 +222,7 @@ test("a guest resume moves into the account, and never shows for anyone else", a
   // sign out, without reloading the page: no resume is left behind
   await page.locator("summary", { hasText: "Account menu" }).click();
   await page.locator("details[open]").getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Log in", exact: true })).toBeVisible();
   await go(page, "/resume");
   await expect(page.getByText(/Resume strength/)).toHaveCount(0);
 

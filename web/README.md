@@ -66,7 +66,7 @@ tests/                 Playwright specs
 
 ## Design
 
-Neutral surfaces with one cobalt accent for actions and links. Colour is kept for meaning: the risk scale (no flags neutral, some flags ochre, high risk brick) and charts. Public Sans for text and Familjen Grotesk for headings, both self-hosted. Chart colours are validated (lightness, chroma, colour-blind separation and contrast), and every chart has a legend and a table of its numbers.
+Warm neutral surfaces with one blue accent for actions and links. Colour is kept for meaning: the risk scale (no flags neutral, some flags ochre, high risk brick), errors (a separate danger colour) and charts. Inter for all text, self-hosted. Dark mode is layered warm greys, not an inversion, and every text colour passes WCAG AA in both themes. Every chart has a legend and a table of its numbers. The design is summarised in [DESIGN.md](DESIGN.md).
 
 Colours are CSS variables in `src/app/globals.css`. Display settings (theme, text size, density, motion, underlined links) are attributes on `<html>`, set by the server from a cookie or the account, so pages render right the first time with no flash. The signature element is the age strip in `src/components/AgeStrip.tsx`: how long a posting has really been open, against how long the employer usually takes.
 

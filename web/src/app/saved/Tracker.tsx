@@ -20,17 +20,17 @@ const STATUSES: { value: ApplicationStatus; label: string }[] = [
 ];
 
 const STATUS_STYLE: Record<ApplicationStatus, string> = {
-  saved: "bg-neutral-tint text-ink-soft",
-  applied: "bg-accent-tint text-accent",
-  interviewing: "bg-ochre-tint text-ochre",
-  offer: "bg-good-tint text-good",
+  saved: "bg-sunken text-ink",
+  applied: "bg-sunken text-ink",
+  interviewing: "bg-sunken text-ink",
+  offer: "bg-accent-tint text-accent",
   rejected: "bg-sunken text-ink-faint",
 };
 
 export function EmptySaved() {
   return (
-    <div className="rounded-2xl border border-dashed border-line-strong bg-surface px-6 py-12 text-center">
-      <h2 className="font-display text-xl font-semibold text-ink">Nothing saved yet</h2>
+    <div className="card px-6 py-14 text-center">
+      <h2 className="text-xl font-bold text-ink">Nothing saved yet</h2>
       <p className="mx-auto mt-2 max-w-sm text-sm text-ink-soft">
         Use the bookmark on any job to keep it here while you decide where to apply.
       </p>
@@ -129,11 +129,11 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
   return (
     <div className="space-y-4">
       {error && (
-        <p role="alert" className="rounded-lg bg-brick-tint px-4 py-2.5 text-sm text-brick">
+        <p role="alert" className="notice notice-danger">
           {error}
         </p>
       )}
-      <div role="tablist" aria-label="Filter by status" className="flex flex-wrap gap-2">
+      <div role="tablist" aria-label="Filter by status" className="scroll-quiet flex gap-x-7 overflow-x-auto border-b border-line">
         {[{ value: "all" as const, label: "All" }, ...STATUSES].map(({ value, label }) => (
           <button
             key={value}
@@ -141,28 +141,28 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
             role="tab"
             aria-selected={filter === value}
             onClick={() => setFilter(value)}
-            className="btn btn-secondary btn-sm aria-selected:border-accent aria-selected:bg-accent-tint aria-selected:text-accent"
+            className="-mb-px inline-flex shrink-0 items-center gap-1.5 border-b-2 border-transparent pb-3 text-ui font-medium whitespace-nowrap text-ink-soft hover:text-ink aria-selected:border-ink aria-selected:font-semibold aria-selected:text-ink"
           >
             {label}
-            <span className="text-xs text-ink-faint">{counts[value] ?? 0}</span>
+            <span className="text-sm font-medium text-ink-faint">{counts[value] ?? 0}</span>
           </button>
         ))}
       </div>
 
       {shown.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-line-strong p-6 text-sm text-ink-soft">
+        <p className="card p-6 text-ui text-ink-soft">
           No applications with this status.
         </p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="panel divide-y divide-line overflow-hidden">
           {shown.map((entry) => {
             const job = entry.job;
             return (
-              <li key={job.id} className="rounded-xl border border-line bg-surface p-4">
-                <div className="flex items-start gap-3">
+              <li key={job.id} className="p-5 sm:px-6">
+                <div className="flex items-start gap-4">
                   <CompanyLogo name={job.company} domain={job.company_domain} />
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <h2 className="font-sans text-base font-semibold text-ink">
+                    <h2 className="text-base font-semibold text-ink">
                       <Link href={`/jobs/${job.id}`} className="hover:text-accent hover:underline">
                         {job.title}
                       </Link>
@@ -174,7 +174,7 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
                         {shortLocation(job.location)}
                       </span>
                       <span>Saved {ago(entry.saved_at)}</span>
-                      {!job.is_active && <span className="font-medium text-brick">Posting closed</span>}
+                      {!job.is_active && <span className="font-medium text-ink-faint">Posting closed</span>}
                     </p>
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       <label className="sr-only" htmlFor={`status-${job.id}`}>
@@ -184,7 +184,7 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
                         id={`status-${job.id}`}
                         value={entry.status}
                         onChange={(e) => setStatus(entry, e.target.value as ApplicationStatus)}
-                        className={`h-8 rounded-full border-0 px-3 text-sm font-medium ${STATUS_STYLE[entry.status]}`}
+                        className={`h-9 cursor-pointer rounded-full border-0 pr-2 pl-3.5 text-sm font-semibold ${STATUS_STYLE[entry.status]}`}
                       >
                         {STATUSES.map((s) => (
                           <option key={s.value} value={s.value}>
@@ -202,7 +202,7 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
                             max={dateInputValue(new Date().toISOString())}
                             onChange={(e) => setAppliedDate(entry, e.target.value)}
                             aria-label={`Date you applied to ${job.title}`}
-                            className="field h-8 w-auto px-2 text-sm"
+                            className="field h-9 w-auto px-2.5 text-sm"
                           />
                           {!entry.applied_at && <span className="text-xs text-ink-faint">not recorded</span>}
                         </label>
@@ -229,14 +229,14 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
                   <button
                     type="button"
                     onClick={() => remove(entry)}
-                    className="grid size-9 shrink-0 place-items-center rounded-lg text-ink-faint hover:bg-sunken hover:text-brick"
+                    className="grid size-9 shrink-0 place-items-center rounded-lg text-ink-faint hover:bg-sunken hover:text-danger"
                   >
                     <CloseIcon className="size-4" />
                     <span className="sr-only">Remove {job.title} from saved jobs</span>
                   </button>
                 </div>
-                <details className="mt-3 border-t border-line pt-3" open={Boolean(entry.notes)}>
-                  <summary className="text-sm font-medium text-ink-soft hover:text-ink">
+                <details className="mt-3 pl-15" open={Boolean(entry.notes)}>
+                  <summary className="inline-block text-sm font-medium text-ink-soft hover:text-ink">
                     {entry.notes ? "Notes" : "Add notes"}
                   </summary>
                   <label htmlFor={`notes-${job.id}`} className="sr-only">
@@ -249,9 +249,9 @@ export function Tracker({ initial, failed }: { initial: SavedEntry[]; failed: bo
                     rows={3}
                     placeholder="Recruiter's name, interview dates, what to prepare..."
                     onBlur={(e) => saveNotes(entry, e.target.value)}
-                    className="field mt-2 py-2 text-sm"
+                    className="field field-soft mt-2 py-2.5 text-ui"
                   />
-                  <p className="text-xs text-ink-faint">Saved when you click away.</p>
+                  <p className="mt-1 text-xs text-ink-faint">Saved when you click away.</p>
                 </details>
               </li>
             );

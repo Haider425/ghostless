@@ -11,18 +11,24 @@ async function openDropdown(page: Page, label: string) {
   await page.locator("summary", { hasText: label }).first().click();
 }
 
-test("home shows a live example, stats and fresh student roles", async ({ page }) => {
+test("home shows a live example, live figures and one way into the jobs", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("actually hiring");
   await expect(page.getByText("A real posting from today's data")).toBeVisible();
-  await expect(page.getByText("Open tech roles")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "New this week for students" })).toBeVisible();
-  await expect(page.getByRole("img", { name: /Tech postings opened and closed/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "See this posting's full record" })).toHaveAttribute("href", /^\/jobs\/\d+$/);
+  await expect(page.getByText("open tech roles", { exact: true })).toBeVisible();
+  await expect(page.getByText("first seen this week", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What job boards don't tell you." })).toBeVisible();
+  const cta = page.getByRole("link", { name: /^Search [\d,]+ open tech roles$/ });
+  await expect(cta).toHaveAttribute("href", "/jobs");
+  await cta.click();
+  await expect(page).toHaveURL(/\/jobs$/);
+  await expect(resultsCount(page)).toBeVisible();
 });
 
 test("searching from the home page lands on filtered results", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("searchbox", { name: "Search jobs" }).fill("intern");
+  await page.getByRole("combobox", { name: "Search jobs" }).fill("intern");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page).toHaveURL(/\/jobs\?q=intern/);
   await expect(page.getByRole("heading", { name: /jobs? matching/ })).toBeVisible();
@@ -31,24 +37,47 @@ test("searching from the home page lands on filtered results", async ({ page }) 
   for (const title of titles) expect(title.toLowerCase()).toContain("intern");
 });
 
+test("the home search suggests up to five matches as you type", async ({ page }) => {
+  await page.goto("/");
+  const box = page.getByRole("combobox", { name: "Search jobs" });
+  await box.fill("intern");
+  const list = page.getByRole("listbox", { name: "Suggestions" });
+  await expect(list).toBeVisible();
+  const options = list.getByRole("option");
+  await expect(options.last()).toHaveText(/intern/i);
+  // five matches at most, plus "See all results"
+  expect(await options.count()).toBeLessThanOrEqual(6);
+  await box.press("Escape");
+  await expect(list).toBeHidden();
+
+  // the arrow keys reach the first match and Enter opens it
+  await box.press("ArrowDown");
+  const first = options.first();
+  const href = await first.getAttribute("href");
+  await box.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`${href}$`));
+});
+
 test("filters update the URL and results, and clear", async ({ page }) => {
   await page.goto("/jobs");
   const count = resultsCount(page);
   const before = await count.textContent();
 
-  await openDropdown(page, "Ghost risk");
+  await openDropdown(page, "More filters"); // ghost risk is under More filters
   await page.getByRole("checkbox", { name: "High ghost risk" }).check();
   await expect(page).toHaveURL(/risk=high/);
   await expect(count).not.toHaveText(before ?? "");
+  // rows without flags show no risk tag at all, so check that every row carries the high-risk one
   const results = page.getByRole("region", { name: /jobs?/ }).getByRole("article");
-  await expect(results.getByText("No flags")).toHaveCount(0);
+  await expect(results.first()).toBeVisible();
+  for (const row of await results.all()) await expect(row).toContainText("High ghost risk");
   // a checkbox dropdown stays open, so several options can be picked
   await expect(page.getByRole("checkbox", { name: "Some flags" })).toBeVisible();
 
   await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Clear all" }).click();
   await expect(page).toHaveURL(/\/jobs$/);
-  await openDropdown(page, "Ghost risk");
+  await openDropdown(page, "More filters"); // ghost risk is under More filters
   await expect(page.getByRole("checkbox", { name: "High ghost risk" })).not.toBeChecked();
 });
 

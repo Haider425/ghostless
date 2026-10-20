@@ -35,17 +35,17 @@ export default async function SkillsPage({ searchParams }: Props) {
   const haveCount = topTen.filter((s) => s.have).length;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-[80rem] px-4 pt-10 pb-20 sm:px-6 lg:px-20">
       <div className="mb-8 max-w-2xl space-y-2">
-        <h1 className="text-3xl font-semibold text-ink">Skills gap</h1>
-        <p className="text-ink-soft">
+        <h1 className="page-title">Skills gap</h1>
+        <p className="page-lead">
           See which skills open postings ask for most, and which of them you&apos;re missing. Counts come from the
           descriptions of postings that are open right now.
         </p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[20rem_1fr]">
-        <form action="/skills" method="get" className="space-y-5 self-start panel p-5">
+        <form action="/skills" method="get" className="space-y-5 self-start card p-6">
           <div className="space-y-1.5">
             <label htmlFor="have" className="text-sm font-semibold text-ink">
               Your skills
@@ -91,7 +91,7 @@ export default async function SkillsPage({ searchParams }: Props) {
           </button>
         </form>
 
-        <section aria-labelledby="skills-heading" className="min-w-0 panel p-5">
+        <section aria-labelledby="skills-heading" className="min-w-0 panel p-6">
           {gap ? (
             <div className="mb-5 space-y-2">
               <h2 id="skills-heading" className="text-xl font-semibold text-ink">

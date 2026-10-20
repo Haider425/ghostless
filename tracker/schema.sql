@@ -57,6 +57,23 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS reposted_from   BIGINT REFERENCES jobs
 -- v2.2: seasons ("Summer 2027") and, for jobs found in a public list, which one
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS terms     TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS listed_in TEXT;
+-- v2.3: when the source last changed the posting (Greenhouse's updated_at), so
+-- an unchanged posting's description isn't downloaded again
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
+
+-- v2.3: conditional requests. What a job board's server said identifies the
+-- version it last sent (ETag, Last-Modified). Sent back, an unchanged board
+-- answers 304 with no body. `rules` is the version of the parsing and
+-- classifying code that read it: when that changes, boards are read in full
+-- again. `fetched_at` is the last full read; after a week one is forced.
+CREATE TABLE IF NOT EXISTS http_cache (
+    url            TEXT PRIMARY KEY,
+    etag           TEXT,
+    last_modified  TEXT,
+    rules          TEXT NOT NULL DEFAULT '',
+    fetched_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    checked_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- Job boards found through public job lists, crawled on a rotation.
 CREATE TABLE IF NOT EXISTS discovered_boards (
@@ -76,6 +93,9 @@ ALTER TABLE discovered_boards ADD COLUMN IF NOT EXISTS last_changed TIMESTAMPTZ;
 ALTER TABLE discovered_boards ADD COLUMN IF NOT EXISTS quiet_visits INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE discovered_boards ADD COLUMN IF NOT EXISTS next_due TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS discovered_boards_due ON discovered_boards (next_due NULLS FIRST);
+-- v2.3: discovered Workday boards are searched for student roles only, so once a
+-- week their whole listing is read to close postings that have gone (any level)
+ALTER TABLE discovered_boards ADD COLUMN IF NOT EXISTS last_full_read TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_jobs_active_filters
     ON jobs (is_active, level, role_type) WHERE is_active;
@@ -106,6 +126,8 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
     jobs_closed        INTEGER NOT NULL DEFAULT 0,
     duration_seconds   NUMERIC(10, 2)
 );
+-- v2.3: what each source did and what looked wrong (see tracker/health.py)
+ALTER TABLE ingest_runs ADD COLUMN IF NOT EXISTS health JSONB;
 
 -- ---------------------------------------------------------------------------
 -- Views. Recreated on every run, so they always match the code.

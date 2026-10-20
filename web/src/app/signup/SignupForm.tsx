@@ -22,7 +22,7 @@ export function SignupForm({ next, oauth, notice }: { next: string; oauth?: Reac
       }
     >
       {notice && (
-        <p role="alert" className="mb-4 rounded-lg bg-brick-tint px-3 py-2.5 text-sm text-brick">
+        <p role="alert" className="mb-4 notice notice-danger">
           {notice}
         </p>
       )}

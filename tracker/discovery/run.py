@@ -22,13 +22,14 @@ from __future__ import annotations
 import logging
 import os
 import time
+import zlib
 from collections import defaultdict
 from datetime import datetime
 
 import psycopg
 
-from tracker import db
-from tracker.classify import enrich
+from tracker import db, health
+from tracker.classify import enrich, keep_relevant
 from tracker.discovery.boards import board_from_url, company_key
 from tracker.discovery.lists import JobList, ListedJob, clean_url, fetch_list
 from tracker.models import Company, Job
@@ -36,7 +37,7 @@ from tracker.parallel import in_shard, run_by_site, site_of
 from tracker.skills import extract_skills
 from tracker.sources import FetchError
 from tracker.sources.boards import fetch_board
-from tracker.sources.workday import fetch_workday
+from tracker.sources.workday import fetch_workday, list_workday
 
 log = logging.getLogger("tracker.discovery")
 
@@ -68,8 +69,10 @@ def run(
             found = fetch_list(job_list)
         except FetchError as exc:
             all_lists_read = False
+            health.current.record("job lists", ok=False)
             log.error("list %s: could not read it, skipping (nothing closed): %s", job_list.name, exc)
             continue
+        health.current.record("job lists", seen=len(found))
         log.info("list %s: %d open entries", job_list.name, len(found))
         items.extend(found)
     if not items:
@@ -78,6 +81,7 @@ def run(
     configured_boards = {(c.platform, c.board_slug.lower()) for c in configured}
     configured_names = {company_key(c.name) for c in configured}
     registered = register_boards(dsn, items, configured_boards, configured_names)
+    health.current.boards_registered(registered)
     if registered:
         log.info("discovered %d new job boards", registered)
 
@@ -181,7 +185,30 @@ def crawl_boards(
         for platform, slug, name in due
     ]
     companies = [c for c in companies if in_shard(c, shard)]
-    for company, result in run_by_site(companies, site_of, lambda c: _crawl_one(dsn, c, run_started)):
+    timings: dict[tuple[str, str], float] = {}
+    unchanged: set[tuple[str, str]] = set()
+
+    def work(company: Company):
+        began = time.perf_counter()
+        try:
+            return _crawl_one(dsn, company, run_started, stats, unchanged)
+        finally:
+            timings[(company.platform, company.board_slug)] = time.perf_counter() - began
+
+    for company, result in run_by_site(companies, site_of, work):
+        key = (company.platform, company.board_slug)
+        source, seconds = f"discovered {company.platform}", timings.get(key, 0.0)
+        if isinstance(result, BaseException) or result is None:
+            health.current.record(source, ok=False, seconds=seconds)
+        else:
+            health.current.record(
+                source,
+                not_modified=key in unchanged,
+                seconds=seconds,
+                seen=result[0],
+                new=result[1],
+                closed=result[2],
+            )
         if isinstance(result, BaseException):
             log.error("discovered %s: %s", company.name, result)
             continue
@@ -193,10 +220,19 @@ def crawl_boards(
         stats["jobs_new"] += new
         stats["jobs_closed"] += closed
     log.info("discovered boards: %d crawled in %.0fs", len(companies), time.perf_counter() - started)
+    full_read_workday(dsn, run_started, stats, shard=shard)
 
 
-def _crawl_one(dsn: str, company: Company, run_started: datetime) -> tuple[int, int, int] | None:
+def _crawl_one(
+    dsn: str,
+    company: Company,
+    run_started: datetime,
+    stats: dict | None = None,
+    unchanged: set[tuple[str, str]] | None = None,
+) -> tuple[int, int, int] | None:
     """Fetch and save one discovered board: (jobs, new, closed), or None if it couldn't be read."""
+    from tracker.ingest import board_state, remember_board, save_unchanged
+
     platform, slug, name = company.platform, company.board_slug, company.name
     try:
         if platform == "workday":
@@ -210,11 +246,27 @@ def _crawl_one(dsn: str, company: Company, run_started: datetime) -> tuple[int, 
                 max_details=WORKDAY_DETAILS,
             )
         else:
-            jobs = fetch_board(company)
+            cached, versions = board_state(dsn, company)
+            jobs = fetch_board(company, cached=cached, stored=versions)
     except FetchError as exc:
         _mark(dsn, platform, slug, ok=False)
         log.warning("discovered %s (%s %s): fetch failed: %s", name, platform, slug, exc)
         return None
+    if getattr(jobs, "not_modified", False):
+        seen = save_unchanged(dsn, company, run_started)
+        with db.connect(dsn) as conn:
+            students = conn.execute(
+                """SELECT count(*) FROM jobs j JOIN companies c ON c.id = j.company_id
+                   WHERE c.platform = %s AND c.board_slug = %s AND j.is_active AND j.level = ANY(%s)""",
+                (platform, slug, list(STUDENT_LEVELS)),
+            ).fetchone()[0]
+        _mark(dsn, platform, slug, ok=True, jobs=seen, changed=False, students=students)  # a quiet visit
+        if stats is not None:
+            stats["discovered_not_modified"] = stats.get("discovered_not_modified", 0) + 1
+        if unchanged is not None:
+            unchanged.add((platform, slug))
+        log.info("discovered %s: unchanged (%d open jobs)", name, seen)
+        return seen, 0, 0
     if platform == "workday":
         # reuse descriptions already stored, as for configured companies
         from tracker.ingest import reuse_details
@@ -223,9 +275,11 @@ def _crawl_one(dsn: str, company: Company, run_started: datetime) -> tuple[int, 
             reuse_details(jobs, db.stored_details(conn, company))
     for job in jobs:
         enrich(job, extract_skills(f"{job.title} {job.description}"))
+    jobs = keep_relevant(jobs)  # tech roles and student roles only
     try:
         with db.connect(dsn) as conn:
             company_id = db.upsert_company(conn, company)
+            open_before = db.open_count(conn, company_id)
             new, closed = db.save_company_jobs(
                 conn,
                 company_id,
@@ -235,6 +289,7 @@ def _crawl_one(dsn: str, company: Company, run_started: datetime) -> tuple[int, 
                 # a search for student roles is complete for those levels only
                 close_levels=STUDENT_LEVELS if platform == "workday" else None,
             )
+            remember_board(conn, company, jobs, open_before)
     except psycopg.Error:
         log.exception("discovered %s: database write failed", name)
         return None
@@ -281,6 +336,96 @@ def _mark(
                 "WHERE platform = %s AND board_slug = %s",
                 (days * 86400, platform, slug),
             )
+
+
+# ---------- 3b. the weekly full read of discovered Workday boards ----------
+#
+# Discovered Workday boards are searched for student roles only, and a search
+# can only close postings at the levels it looks for. Once a week each board's
+# whole listing is read (no descriptions) so postings at any level that have
+# gone are closed. Boards are spread over the week by a hash of their slug.
+
+FULL_READ_EVERY_DAYS = 7
+
+
+def full_read_due(slug: str, last_full_read: datetime | None, today: datetime) -> bool:
+    """On the board's weekday, unless read in the last 6 days; or any day once
+    it's overdue (a missed run)."""
+    age = None if last_full_read is None else (today - last_full_read).total_seconds() / 86400
+    if age is not None and age > FULL_READ_EVERY_DAYS + 1:
+        return True
+    on_its_day = (
+        zlib.crc32(slug.lower().encode()) % FULL_READ_EVERY_DAYS
+        == today.date().toordinal() % FULL_READ_EVERY_DAYS
+    )
+    return on_its_day and (age is None or age > FULL_READ_EVERY_DAYS - 1)
+
+
+def full_read_workday(
+    dsn: str, run_started: datetime, stats: dict, shard: tuple[int, int] | None = None
+) -> None:
+    started = time.perf_counter()
+    with db.connect(dsn) as conn:
+        rows = conn.execute(
+            """SELECT b.board_slug, b.company_name, b.last_full_read, c.id
+               FROM discovered_boards b
+               JOIN companies c ON c.platform = b.platform AND c.board_slug = b.board_slug
+               WHERE b.platform = 'workday' AND b.last_ok IS NOT NULL"""
+        ).fetchall()
+    due = [
+        (Company(name=name, platform="workday", board_slug=slug, origin="discovered"), company_id)
+        for slug, name, last, company_id in rows
+        if full_read_due(slug, last, run_started)
+    ]
+    due = [(c, company_id) for c, company_id in due if in_shard(c, shard)]
+    if not due:
+        return
+    ids = {c.board_slug: company_id for c, company_id in due}
+    timings: dict[str, float] = {}
+
+    def work(company: Company) -> int | None:
+        began = time.perf_counter()
+        try:
+            return _full_read_one(dsn, company, ids[company.board_slug], run_started)
+        finally:
+            timings[company.board_slug] = time.perf_counter() - began
+
+    closed_total = 0
+    for company, result in run_by_site([c for c, _ in due], site_of, work):
+        seconds = timings.get(company.board_slug, 0.0)
+        if isinstance(result, BaseException) or result is None:
+            if isinstance(result, BaseException):
+                log.error("full read of %s: %s", company.name, result)
+            health.current.record("discovered workday, weekly full read", ok=False, seconds=seconds)
+            continue
+        closed_total += result
+        health.current.record("discovered workday, weekly full read", seconds=seconds, closed=result)
+    stats["jobs_closed"] += closed_total
+    log.info(
+        "weekly full read: %d Workday boards, %d postings closed in %.0fs",
+        len(due),
+        closed_total,
+        time.perf_counter() - started,
+    )
+
+
+def _full_read_one(dsn: str, company: Company, company_id: int, run_started: datetime) -> int | None:
+    """Closed postings, or None if the board couldn't be read."""
+    try:
+        listed, complete = list_workday(company)
+    except FetchError as exc:
+        log.warning("full read of %s: fetch failed, nothing closed: %s", company.name, exc)
+        return None
+    with db.connect(dsn) as conn:
+        closed = db.close_missing_postings(conn, company_id, listed, run_started) if complete else 0
+        # a partial listing closes nothing, and waits a week like a complete one
+        conn.execute(
+            "UPDATE discovered_boards SET last_full_read = now() WHERE platform = 'workday' AND board_slug = %s",
+            (company.board_slug,),
+        )
+    if not complete:
+        log.warning("full read of %s: the listing came back partial, nothing closed", company.name)
+    return closed
 
 
 # ---------- 4. list-only jobs ----------
@@ -354,19 +499,27 @@ def save_list_jobs(
         seen_slugs = set()
         new_total = closed_total = 0
         for key, group in groups.items():
-            jobs, ids = [], set()
+            listed, ids = [], set()
             for item in group:
                 if item.id in ids:
                     continue
                 ids.add(item.id)
-                jobs.append(classify_listed(enrich(to_job(item), extract_skills(item.title)), item))
+                listed.append(classify_listed(enrich(to_job(item), extract_skills(item.title)), item))
+            jobs = keep_relevant(listed)  # tech roles and student roles only
             company = Company(name=names[key], platform="list", board_slug=f"list:{key}", origin="list")
+            seen_slugs.add(company.board_slug)
+            if not jobs:
+                existing = conn.execute(
+                    "SELECT id FROM companies WHERE platform = 'list' AND board_slug = %s",
+                    (company.board_slug,),
+                ).fetchone()
+                if existing is None:
+                    continue  # nothing worth storing: no empty company is created
             company_id = db.upsert_company(conn, company)
             # a list company really can drop to nothing: no guard
             new, closed = db.save_company_jobs(
                 conn, company_id, jobs, run_started, close_missing=close, guard=False
             )
-            seen_slugs.add(company.board_slug)
             new_total += new
             closed_total += closed
             stats["jobs_seen"] += len(jobs)
@@ -384,6 +537,9 @@ def save_list_jobs(
     stats["jobs_new"] += new_total
     stats["jobs_closed"] += closed_total
     stats["list_companies"] = len(groups)
+    health.current.record(
+        "list-only postings", seen=sum(len(g) for g in groups.values()), new=new_total, closed=closed_total
+    )
     log.info(
         "lists: %d companies only known from the lists, %d new and %d closed postings",
         len(groups),

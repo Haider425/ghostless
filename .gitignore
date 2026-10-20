@@ -9,3 +9,6 @@ venv/
 build/
 dist/
 *.egg-info/
+
+# local database exports (never commit: they contain stored postings and user rows)
+backups/

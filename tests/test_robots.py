@@ -77,3 +77,30 @@ def test_http_layer_refuses_disallowed_urls(monkeypatch):
     monkeypatch.setattr(http, "robots", RobotsCache(AGENT, lambda url: (200, "User-agent: *\nDisallow: /\n")))
     with pytest.raises(FetchError, match="robots.txt"):
         http.get_json("https://blocked.example.com/api/jobs")
+
+
+# ---------- Crawl-delay ----------
+
+
+@pytest.mark.parametrize(
+    "text, delay",
+    [
+        ("User-agent: *\nCrawl-delay: 1\nDisallow: /private", 1.0),  # Lever's
+        ("User-agent: *\nDisallow:\n", None),
+        ("User-agent: *\nCrawl-delay: soon\n", None),  # unreadable: default pacing
+        (
+            "User-agent: *\nCrawl-delay: 5\n\nUser-agent: ghostless\nDisallow: /x\n",
+            None,
+        ),  # our group has none
+        ("User-agent: ghostless\nCrawl-delay: 2.5\n\nUser-agent: *\nCrawl-delay: 10\n", 2.5),
+        ("User-agent: other\nCrawl-delay: 9\nUser-agent: *\nDisallow: /a\n", None),  # a new group
+    ],
+)
+def test_crawl_delay_comes_from_our_group(text, delay):
+    assert parse(text, AGENT).crawl_delay == delay
+
+
+def test_cache_reports_crawl_delay():
+    cache = RobotsCache(AGENT, lambda url: (200, "User-agent: *\nCrawl-delay: 1\n"))
+    assert cache.crawl_delay("https://api.lever.co/v0/postings/x") == 1.0
+    assert RobotsCache(AGENT, lambda url: (404, "")).crawl_delay("https://a.example/x") is None

@@ -9,6 +9,8 @@ implements the matching rules itself:
   * the longest matching pattern wins; on a tie, Allow wins
   * robots.txt missing (4xx): everything allowed
   * robots.txt unreachable (5xx / network error): everything disallowed
+  * Crawl-delay (not in RFC 9309, but widely used) is read from the same
+    group; the HTTP layer keeps at least that gap between requests
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ class Rules:
     allow_all: bool = False
     disallow_all: bool = False
     rules: list[tuple[bool, str, re.Pattern]] = field(default_factory=list)  # (allow, raw, regex)
+    crawl_delay: float | None = None  # seconds
 
     def allowed(self, path: str) -> bool:
         if self.allow_all:
@@ -52,9 +55,10 @@ def _pattern_to_regex(pattern: str) -> re.Pattern:
 
 def parse(text: str, agent: str) -> Rules:
     """Parse robots.txt and return the rules that apply to `agent`."""
-    groups: list[tuple[list[str], list[tuple[bool, str]]]] = []
+    groups: list[tuple[list[str], list[tuple[bool, str]], float | None]] = []
     current_agents: list[str] = []
     current_rules: list[tuple[bool, str]] = []
+    current_delay: float | None = None
     in_rules = False
 
     for raw_line in text.splitlines():
@@ -65,21 +69,31 @@ def parse(text: str, agent: str) -> Rules:
         key, value = key.strip().lower(), value.strip()
         if key == "user-agent":
             if in_rules:  # a new group starts
-                groups.append((current_agents, current_rules))
-                current_agents, current_rules, in_rules = [], [], False
+                groups.append((current_agents, current_rules, current_delay))
+                current_agents, current_rules, current_delay, in_rules = [], [], None, False
             current_agents.append(value.lower())
         elif key in ("allow", "disallow"):
             in_rules = True
             if value:  # an empty Disallow means "allow everything"
                 current_rules.append((key == "allow", value))
+        elif key == "crawl-delay":
+            in_rules = True
+            try:
+                current_delay = max(0.0, float(value))
+            except ValueError:
+                pass  # unreadable: keep the default pacing
     if current_agents:
-        groups.append((current_agents, current_rules))
+        groups.append((current_agents, current_rules, current_delay))
 
     agent = agent.lower()
-    specific = [r for agents, r in groups if any(a != "*" and a in agent for a in agents)]
-    chosen = specific or [r for agents, r in groups if "*" in agents]
-    merged = [rule for rules in chosen for rule in rules]
-    return Rules(rules=[(allow, p, _pattern_to_regex(p)) for allow, p in merged])
+    specific = [(r, d) for agents, r, d in groups if any(a != "*" and a in agent for a in agents)]
+    chosen = specific or [(r, d) for agents, r, d in groups if "*" in agents]
+    merged = [rule for rules, _ in chosen for rule in rules]
+    delays = [d for _, d in chosen if d]
+    return Rules(
+        rules=[(allow, p, _pattern_to_regex(p)) for allow, p in merged],
+        crawl_delay=max(delays) if delays else None,
+    )
 
 
 class RobotsCache:
@@ -120,3 +134,7 @@ class RobotsCache:
         if path == "/robots.txt":
             return True
         return self._rules_for(parts.scheme, parts.netloc).allowed(path)
+
+    def crawl_delay(self, url: str) -> float | None:
+        parts = urlsplit(url)
+        return self._rules_for(parts.scheme, parts.netloc).crawl_delay

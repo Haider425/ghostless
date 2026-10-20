@@ -33,44 +33,40 @@ export function StaticMatches({ scores, children }: { scores: Record<number, Mat
   return <MatchContext.Provider value={scores}>{children}</MatchContext.Provider>;
 }
 
-const TONES = {
-  strong: "text-good",
-  good: "text-accent",
-  fair: "text-ink-soft",
-  low: "text-ink-faint",
-};
-
-/** The score in a job row's side slot: a number under the save button, so it never shifts the row. */
+/** The score in a job row's side slot: a small ring under the save button, so it never shifts the row. */
 export function MatchBadge({ jobId }: { jobId: number }) {
   const match = useContext(MatchContext)[jobId];
   if (!match) return null;
   return (
-    <span title={`${match.score}% match: ${match.label}`} className={`text-xs font-semibold tabular-nums ${TONES[scoreTone(match.score)]}`}>
-      {match.score}%<span className="sr-only"> match: {match.label}</span>
+    <span title={`${match.score}% match: ${match.label}`} className="block">
+      <Ring score={match.score} size="sm" />
+      <span className="sr-only">{match.score}% match: {match.label}</span>
     </span>
   );
 }
 
-export function Ring({ score, label }: { score: number; label?: string }) {
-  const r = 26;
+/** A score from 0 to 100 as a ring with the number inside. */
+export function Ring({ score, label, size = "md" }: { score: number; label?: string; size?: "sm" | "md" | "lg" }) {
+  const r = 27;
   const c = 2 * Math.PI * r;
   const tone = scoreTone(score);
-  const stroke = tone === "strong" ? "var(--good)" : tone === "good" ? "var(--accent)" : "var(--ink-faint)";
+  const stroke = tone === "strong" || tone === "good" ? "var(--accent-solid)" : "var(--ink-faint)";
+  const box = { sm: "size-10", md: "size-14", lg: "size-20" }[size];
   return (
-    <svg viewBox="0 0 64 64" className="size-16 shrink-0" role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
-      <circle cx="32" cy="32" r={r} fill="none" stroke="var(--sunken)" strokeWidth="7" />
+    <svg viewBox="0 0 64 64" className={`${box} shrink-0`} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
+      <circle cx="32" cy="32" r={r} fill="none" stroke="var(--hover)" strokeWidth="5" />
       <circle
         cx="32"
         cy="32"
         r={r}
         fill="none"
         stroke={stroke}
-        strokeWidth="7"
+        strokeWidth="5"
         strokeLinecap="round"
         strokeDasharray={`${(score / 100) * c} ${c}`}
         transform="rotate(-90 32 32)"
       />
-      <text x="32" y="32" dy="0.35em" textAnchor="middle" fontSize="17" fontWeight="700" fill="var(--ink)">
+      <text x="32" y="32" dy="0.36em" textAnchor="middle" fontSize={size === "sm" ? 20 : 19} fontWeight="650" fill="var(--ink)">
         {score}
       </text>
     </svg>
@@ -78,9 +74,9 @@ export function Ring({ score, label }: { score: number; label?: string }) {
 }
 
 const STATUS = {
-  met: { mark: "✓", label: "Have it", tone: "text-good" },
+  met: { mark: "✓", label: "Have it", tone: "text-accent" },
   partial: { mark: "◐", label: "Partly", tone: "text-accent" },
-  missing: { mark: "✕", label: "Missing", tone: "text-brick" },
+  missing: { mark: "✕", label: "Missing", tone: "text-ink-faint" },
 } as const;
 
 type Requirement = NonNullable<Match["requirements"]>[number];
@@ -159,7 +155,7 @@ function Terms({ matched, missing }: { matched: string[]; missing: string[] }) {
       <p className="mb-2 text-xs text-ink-soft">Words it repeats for the work itself. Use them where they&apos;re true for you.</p>
       <ul className="flex flex-wrap gap-1.5 text-xs">
         {matched.map((t) => (
-          <li key={t} className="rounded-full bg-good-tint px-2.5 py-1 text-good">
+          <li key={t} className="rounded-full bg-accent-tint px-2.5 py-1 text-accent">
             <span className="sr-only">On your resume: </span>✓ {t}
           </li>
         ))}
@@ -339,7 +335,7 @@ function AIReview({ jobId }: { jobId: number }) {
           <p className="text-xs text-ink-faint">Sends your resume and this posting to an AI model to review. A few per day.</p>
         </>
       )}
-      {state === "error" && <p role="alert" className="rounded-lg bg-brick-tint px-3 py-2 text-sm text-brick">{error}</p>}
+      {state === "error" && <p role="alert" className="notice notice-danger">{error}</p>}
       {feedback && (
         <div className="space-y-3 text-sm">
           <p className="text-ink">{feedback.summary}</p>

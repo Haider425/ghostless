@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { CheckIcon, CrossIcon } from "./Icons";
+
 /*
   Ranked skill demand as a table with inline bars. Every value is printed, so
   the bars are a reading aid rather than the only carrier of information.
@@ -51,10 +53,10 @@ export function SkillBars({ skills, showHave = false }: { skills: SkillBar[]; sh
                 </Link>
               </th>
               <td className="py-2.5 pr-3" aria-hidden="true">
-                <div className="h-3 min-w-10 sm:min-w-24">
+                <div className="h-2.5 min-w-10 sm:min-w-24">
                   <div
-                    className={`h-full rounded-r ${
-                      missing ? "border-2 border-bar-missing bg-transparent" : "bg-bar-have"
+                    className={`h-full rounded-full ${
+                      missing ? "border-[1.5px] border-bar-missing bg-transparent" : "bg-bar-have"
                     }`}
                     style={{ width: `${Math.max(2, (item.share / max) * 100)}%` }}
                   />
@@ -67,9 +69,9 @@ export function SkillBars({ skills, showHave = false }: { skills: SkillBar[]; sh
               {showHave && (
                 <td className="py-2.5 pl-4 whitespace-nowrap">
                   {item.have ? (
-                    <span className="font-medium text-accent">You have it</span>
+                    <span className="inline-flex items-center gap-1.5 font-medium text-accent"><CheckIcon className="size-4" />You have it</span>
                   ) : (
-                    <span className="text-ink-soft">Missing</span>
+                    <span className="inline-flex items-center gap-1.5 text-ink-soft"><CrossIcon className="size-4 text-ink-faint" />Missing</span>
                   )}
                 </td>
               )}
