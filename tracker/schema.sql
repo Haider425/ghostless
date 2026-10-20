@@ -60,6 +60,15 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS listed_in TEXT;
 -- v2.3: when the source last changed the posting (Greenhouse's updated_at), so
 -- an unchanged posting's description isn't downloaded again
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
+-- v2.5: what a posting says about itself, from the source's fields or its text
+-- (crawler plan, stage C2; NULL means not stated). salary_period also takes month.
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS seniority            TEXT;     -- intern | new_grad | junior | mid | senior | staff
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS workplace            TEXT;     -- remote | hybrid | onsite
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS employment_type      TEXT;     -- full_time | part_time | contract | temporary | internship
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS sponsorship          TEXT;     -- available | not_available | unknown
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS min_years_experience NUMERIC(4, 1);
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS locations            JSONB NOT NULL DEFAULT '[]'::jsonb;  -- [{city, region, country}]
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS countries            TEXT[] NOT NULL DEFAULT '{}';         -- ISO codes
 
 -- v2.3: conditional requests. What a job board's server said identifies the
 -- version it last sent (ETag, Last-Modified). Sent back, an unchanged board

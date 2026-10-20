@@ -41,10 +41,18 @@ def conn():
         yield c
 
 
+# the jobs columns the real backup has (taken before later columns were added)
+BACKUP_COLUMNS = (
+    "id,company_id,external_id,title,location,department,url,description,level,role_type,is_canada,"
+    "is_remote,posted_at,first_seen,last_seen,is_active,closed_at,salary_min,salary_max,salary_period,"
+    "salary_currency,vacancy,ai_screening,fingerprint,reposted_from,terms,listed_in"
+)
+
+
 def export(conn, directory: Path, ids: list[int]) -> None:
     """The backup, written the way the real one was (COPY ... TO CSV)."""
     queries = {
-        "jobs": "SELECT * FROM jobs WHERE id = ANY({ids})",
+        "jobs": f"SELECT {BACKUP_COLUMNS} FROM jobs WHERE id = ANY({{ids}})",
         "job_skills": "SELECT * FROM job_skills WHERE job_id = ANY({ids})",
         "saved_jobs": "SELECT * FROM saved_jobs WHERE job_id = ANY({ids})",
         "application_events": "SELECT * FROM application_events WHERE job_id = ANY({ids})",
@@ -56,18 +64,6 @@ def export(conn, directory: Path, ids: list[int]) -> None:
             with conn.cursor().copy(f"COPY ({query}) TO STDOUT WITH (FORMAT csv, HEADER true)") as copy:
                 for chunk in copy:
                     out.write(chunk)
-    # remove the columns added after the real backup was taken
-    path = directory / "jobs.csv.gz"
-    lines = gzip.open(path, "rt", encoding="utf-8", newline="").read()
-    header, _, body = lines.partition("\n")
-    columns = header.split(",")
-    keep = [i for i, c in enumerate(columns) if c != "source_updated_at"]
-    if len(keep) != len(columns):  # source_updated_at is the last column, and NULL here
-        assert columns[-1] == "source_updated_at"
-        body = "".join(r[: r.rstrip("\n").rfind(",")] + "\n" for r in restore_backup._records(body))
-        header = ",".join(columns[:-1])
-    with gzip.open(path, "wt", encoding="utf-8", newline="") as out:
-        out.write(header + "\n" + body)
 
 
 @needs_db

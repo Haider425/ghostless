@@ -89,7 +89,7 @@ def read_backup(directory: Path = DEFAULT_DIR) -> Backup:
 def _load(conn: psycopg.Connection, backup: Backup) -> None:
     """The selected records into temporary tables shaped like the real ones."""
     for table in ("jobs", "job_skills", "saved_jobs", "application_events"):
-        conn.execute(f"CREATE TEMP TABLE restore_{table} (LIKE {table}) ON COMMIT DROP")
+        conn.execute(f"CREATE TEMP TABLE restore_{table} (LIKE {table} INCLUDING DEFAULTS) ON COMMIT DROP")
         text = backup.csv.get(table, "")
         if not text:
             continue

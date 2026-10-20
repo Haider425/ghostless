@@ -10,7 +10,7 @@ from tracker.sources.http import FetchError, Validators
 
 GREENHOUSE = Company("Acme", "greenhouse", "acme")
 LIST_URL = "https://boards-api.greenhouse.io/v1/boards/acme/jobs"
-FULL_URL = LIST_URL + "?content=true"
+FULL_URL = LIST_URL + "?content=true&pay_transparency=true"
 OLD = "2026-10-01T10:00:00-04:00"
 NEW = "2026-10-15T15:24:46-04:00"
 

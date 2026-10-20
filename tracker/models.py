@@ -75,10 +75,19 @@ class Job:
     is_remote: bool = False
     skills: list[str] = field(default_factory=list)
 
+    # From the source's own fields (stage C1) or the text (C2); None means "not stated"
+    seniority: str | None = None  # intern | new_grad | junior | mid | senior | staff
+    workplace: str | None = None  # remote | hybrid | onsite
+    employment_type: str | None = None  # full_time | part_time | contract | temporary | internship
+    sponsorship: str | None = None  # available | not_available | unknown
+    min_years_experience: float | None = None
+    locations: list[dict] = field(default_factory=list)  # [{city, region, country}], in the order given
+    countries: list[str] = field(default_factory=list)  # ISO codes, in the order given
+
     # Disclosures parsed from the description (None means "not stated")
     salary_min: float | None = None
     salary_max: float | None = None
-    salary_period: str | None = None  # year | hour
+    salary_period: str | None = None  # year | month | hour
     salary_currency: str | None = None  # CAD | USD
     vacancy: str | None = None  # existing | not_existing
     ai_screening: bool | None = None

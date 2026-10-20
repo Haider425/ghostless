@@ -1,4 +1,6 @@
-"""Re-derive classification, seasons, disclosures and fingerprints for every stored posting.
+"""Re-derive classification, seasons, disclosures, fingerprints and the fields read
+from text (seniority, workplace, job type, sponsorship, years, places) for every
+stored posting.
 
 Run `ghostless reprocess` after upgrading, so improved parsing applies to
 postings already in the database (including closed ones) right away instead
@@ -10,10 +12,11 @@ from __future__ import annotations
 import logging
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 from tracker import db
-from tracker.classify import classify_level, classify_role, is_canada, is_remote, parse_terms
-from tracker.disclosures import fingerprint, parse_ai_screening, parse_salary, parse_vacancy
+from tracker.classify import enrich, parse_terms
+from tracker.models import Job
 from tracker.skills import extract_skills
 
 log = logging.getLogger(__name__)
@@ -22,34 +25,58 @@ BATCH = 1000
 
 
 def _derive(row: tuple) -> tuple:
-    job_id, platform, title, location, description, was_remote, vacancy, first_seen, listed_in, terms = row
+    (
+        job_id, platform, title, location, description, was_remote, vacancy, first_seen, listed_in, terms,
+        salary_min, salary_max, salary_period, salary_currency, workplace, employment_type, stored_level,
+        stored_role,
+    ) = row  # fmt: skip
     text = description or ""
-    level = classify_level(title)
+    # the same steps as a freshly fetched posting; Apple reports its own pipeline status
+    job = Job(
+        external_id=str(job_id),
+        title=title,
+        url="",
+        location=location or "",
+        description=text,
+        # the platform's own remote flag isn't stored separately, so a remote job stays remote
+        source_remote=bool(was_remote),
+        vacancy=vacancy if platform == "apple" else None,
+    )
+    enrich(job, [])
+    if listed_in:
+        # a job list's own level and category fill what a plain title doesn't say
+        # ("Software Engineer" on a new grad list), as when the list was read
+        if job.level == "mid" and stored_level in ("intern", "new_grad"):
+            job.level = stored_level
+        if job.role_type == "other" and stored_role != "other":
+            job.role_type = stored_role
     # a job list's own season labels stay; title and description add to them
-    found = parse_terms(title, text, level, first_seen.year if first_seen else None)
+    found = parse_terms(title, text, job.level, first_seen.year if first_seen else None)
     seasons = list(dict.fromkeys([*(terms or [])] + found)) if listed_in else found
-    canada = is_canada(location or "")
-    # the platform's own remote flag isn't stored separately, so a remote job stays remote
-    remote = is_remote(location or "") or bool(was_remote)
-    salary = parse_salary(text)
-    currency = None
-    if salary:
-        currency = salary.currency or ("CAD" if canada and not remote else None)
-    # Apple reports its own pipeline status, which the text may not repeat
-    new_vacancy = parse_vacancy(text) or (vacancy if platform == "apple" else None)
+    if job.salary_min is None and salary_min is not None:
+        # pay a source gave in its own fields isn't in the text: keep it
+        job.salary_min, job.salary_max = salary_min, salary_max
+        job.salary_period, job.salary_currency = salary_period, salary_currency
     return (
-        level,
-        classify_role(title),
-        canada,
-        remote,
-        salary.minimum if salary else None,
-        salary.maximum if salary else None,
-        salary.period if salary else None,
-        currency,
-        new_vacancy,
-        parse_ai_screening(text),
-        fingerprint(title, location or "", text),
+        job.level,
+        job.role_type,
+        job.is_canada,
+        job.is_remote,
+        job.salary_min,
+        job.salary_max,
+        job.salary_period,
+        job.salary_currency,
+        job.vacancy,
+        job.ai_screening,
+        job.fingerprint,
         seasons,
+        job.seniority,
+        job.workplace or workplace,  # likewise a source's own workplace and job type
+        job.employment_type or employment_type,
+        job.sponsorship,
+        job.min_years_experience,
+        Jsonb(job.locations),
+        job.countries,
         job_id,
     )
 
@@ -68,7 +95,8 @@ def run(dsn: str, companies: list | None = None) -> dict:
             read.itersize = BATCH
             read.execute(
                 """SELECT j.id, c.platform, j.title, j.location, j.description, j.is_remote, j.vacancy,
-                          j.first_seen, j.listed_in, j.terms
+                          j.first_seen, j.listed_in, j.terms, j.salary_min, j.salary_max, j.salary_period,
+                          j.salary_currency, j.workplace, j.employment_type, j.level, j.role_type
                    FROM jobs j JOIN companies c ON c.id = j.company_id ORDER BY j.id"""
             )
             while rows := read.fetchmany(BATCH):
@@ -77,7 +105,8 @@ def run(dsn: str, companies: list | None = None) -> dict:
                         """UPDATE jobs SET level = %s, role_type = %s, is_canada = %s, is_remote = %s,
                                   salary_min = %s, salary_max = %s, salary_period = %s,
                                   salary_currency = %s, vacancy = %s, ai_screening = %s, fingerprint = %s,
-                                  terms = %s
+                                  terms = %s, seniority = %s, workplace = %s, employment_type = %s,
+                                  sponsorship = %s, min_years_experience = %s, locations = %s, countries = %s
                            WHERE id = %s""",
                         [_derive(row) for row in rows],
                     )

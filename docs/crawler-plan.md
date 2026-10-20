@@ -297,6 +297,63 @@ Board links for stage E's platforms are added in stage E, together with their ad
 - `ghostless evaluate` prints accuracy per field.
 - Run once on today's code (before) and after each change in C. The before and after table goes in the stage summary.
 
+### Stage C results (built 21 October 2026)
+
+**The labelled sets** are in `tests/fixtures/labelled`. Every label is a draft (`"reviewed": false`) and should be spot-checked. The conventions are in that folder's README.
+- **The 200:** sampled across all platforms. The extraction rules were developed while reading these, so their scores are optimistic.
+- **The 50 held-out:** a second sample with no overlap, labelled before any rule was tuned on it. It gives the honest estimate.
+- **What's committed:** excerpts only. Full text stays in a git-ignored `private/` folder, rebuilt with `scripts/build_labelled_set.py`.
+
+**Accuracy, before and after** (committed excerpts; `ghostless evaluate`, `--holdout`, `--full`):
+
+| Field | 200, before | 200, after | 50 held-out, before | 50 held-out, after |
+|---|---|---|---|---|
+| level | 92% | 100% | 92% | 100% |
+| seniority (new) | not extracted | 98% | not extracted | 100% |
+| role_type | 88% | 95% | 80% | 82% |
+| employment_type (new) | not extracted | 96% | not extracted | 90% |
+| workplace (new) | not extracted | 98% | not extracted | 86% |
+| countries (new) | not extracted | 98% | not extracted | 88% |
+| sponsorship (new) | not extracted | 99% | not extracted | 94% |
+| min_years_experience (new) | not extracted | 94% | not extracted | 90% |
+| pay (all four parts right) | 76% | 96% | 82% | 96% |
+
+The full text gives the same results within a point.
+
+**Built:**
+- **C1, structured fields first.** The text fills only what a source doesn't state in its own fields:
+  - Ashby compensation, `workplaceType` and `employmentType` (its API is now called with `includeCompensation=true`);
+  - Greenhouse `pay_input_ranges` (`pay_transparency=true`, choosing the Canadian range for a posting in Canada);
+  - Lever `salaryRange`, `workplaceType` and `commitment`;
+  - Workday `remoteType` and `timeType`;
+  - JSON-LD `employmentType` and `experienceRequirements`.
+- **C2, new fields.** `tracker/extract.py` uses built-in tables of countries, provinces, states and cities, with no new dependency. New columns: `seniority`, `workplace`, `employment_type`, `sponsorship`, `min_years_experience`, `locations` and `countries`, added by one migration that's safe to run twice. Pay gains a monthly period. An unlabelled `$` follows the posting's country, and when ranges are given per country, the posting's own country's range is used.
+- **`level` is derived from `seniority`.** The title decides first, then the years asked for. Only title words make a posting new grad, so asking for few years of experience never makes a role a student one.
+- **`role_type` fixes from the test set:**
+  - "Blob Placement" is no longer an internship;
+  - mortgage and faculty titles, physical security guards, and Field Application, Solution and Developer Relations roles are other;
+  - ML Software Engineer, Applied AI and ML Systems titles are ml;
+  - SDET titles are software, even for firmware;
+  - Forward Deployed and full-stack titles are software;
+  - AI Data Developer is data engineering;
+  - RF titles are hardware;
+  - "Early Careers" counts as new grad.
+- **`ghostless reprocess`** fills the new fields for stored postings. It keeps a source's structured pay, workplace and job type when the text says nothing, and a job list's own level and category.
+
+**Dry run** (2,000 random open postings from Neon, read-only, through the new parsing):
+- **Fields filled:**
+  - countries 90%;
+  - employment type 44%;
+  - years of experience 44%;
+  - workplace 27%;
+  - sponsorship stated 17%;
+  - pay found where none was stored 0.9%.
+- **Level changes, 7.4% of postings:** mostly mid to senior (5+ years asked for). Every new grad to mid move was on a job list, and those keep the list's level.
+- **Role changes, 3.7%:** of these, 19 non-list postings would no longer pass the storage filter, all intended (mortgage specialists, security guards, developer relations, field application engineers). They stay open while listed.
+- **Storage:** about 105 bytes per posting, roughly 5 MB for today's postings.
+
+**Before the new fields show for stored postings:** they fill in as postings are read again, or all at once with `ghostless reprocess`, which rewrites every stored posting. Both write to Neon.
+
 ## Stage E: new sources
 
 One adapter per hiring system that passed the checks, in this order:

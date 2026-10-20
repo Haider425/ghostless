@@ -31,7 +31,7 @@ from urllib.parse import urlsplit
 from tracker import settings
 from tracker.models import Company, Job, JobList
 from tracker.sources import http
-from tracker.sources.common import parse_iso
+from tracker.sources.common import employment_type_of, parse_iso
 from tracker.sources.http import FetchError
 from tracker.text import html_to_text
 
@@ -154,9 +154,32 @@ def posting_to_job(posting: dict, url: str) -> Job:
         description=_description(_text(posting.get("description"))),
         posted_at=parse_iso(_text(posting.get("datePosted"))),
         source_remote=remote,
+        workplace="remote" if remote else None,
+        employment_type=_employment(posting.get("employmentType")),
     )
     _salary(posting, job)
+    months = _months(posting.get("experienceRequirements"))
+    if months is not None:
+        job.min_years_experience = round(months / 12, 1)
     return job
+
+
+def _employment(value) -> str | None:
+    """employmentType is one value or a list (FULL_TIME, PART_TIME, CONTRACTOR, INTERN, ...)."""
+    values = value if isinstance(value, list) else [value]
+    kinds = [employment_type_of(v) for v in values if v]
+    return next((k for k in kinds if k), None)
+
+
+def _months(requirement) -> float | None:
+    if isinstance(requirement, list):
+        requirement = requirement[0] if requirement else None
+    if not isinstance(requirement, dict):
+        return None
+    try:
+        return float(requirement["monthsOfExperience"])
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def parse_job_page(page: str, url: str) -> tuple[list[Job], bool]:

@@ -8,6 +8,7 @@
     ghostless discover               read public job lists and crawl discovered boards
     ghostless migrate                create or upgrade the database tables (no fetching)
     ghostless health                 what the last ingest run did, per source
+    ghostless evaluate [--full]      accuracy of extracted fields on the labelled postings
     ghostless seed-boards --dry-run  find job boards in Common Crawl's URL index (needs the index extra)
     ghostless admin add EMAIL        give an account access to the admin dashboard
     ghostless gap --have "Python, SQL"   compare your skills with what postings ask for
@@ -80,6 +81,10 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     commands.add_parser("migrate", help="create or upgrade the database tables")
+    evaluate = commands.add_parser("evaluate", help="accuracy of extracted fields on the labelled test set")
+    evaluate.add_argument("--full", action="store_true", help="use the full local text, not the excerpts")
+    evaluate.add_argument("--misses", metavar="FIELD", help="list the postings a field gets wrong")
+    evaluate.add_argument("--holdout", action="store_true", help="score the 50 held-out postings")
     commands.add_parser(
         "health", help="what the last ingest run did per source (every part of a sharded run)"
     )
@@ -140,6 +145,11 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "migrate":
         _migrate()
+        return
+    if args.command == "evaluate":
+        from tracker.evaluate import main as evaluate
+
+        evaluate(full=args.full, misses=args.misses, holdout=args.holdout)
         return
     if args.command == "health":
         _health()
