@@ -17,7 +17,7 @@ import {
 import { AgeStrip } from "./AgeStrip";
 import { ApplyLink } from "./ApplyLink";
 import { CompanyLogo } from "./CompanyLogo";
-import { ExternalIcon, PinIcon, QuoteIcon } from "./Icons";
+import { CalendarIcon, ExternalIcon, LevelIcon, PayIcon, PinIcon, QuoteIcon, RoleIcon } from "./Icons";
 import { RiskBadge } from "./RiskBadge";
 import { SaveButton } from "./SaveButton";
 
@@ -31,31 +31,43 @@ export function JobHeader({ job, titleAs = "h1", showPageLink = false }: { job: 
   const places = allLocations(job.location);
   return (
     <header className="space-y-5">
-      <div className="flex items-start gap-4">
+      <div className="flex items-center gap-3.5">
         <CompanyLogo name={job.company} domain={job.company_domain} size="lg" />
-        <div className="min-w-0 space-y-1">
-          <Link href={`/companies/${job.company_slug}`} className="text-sm font-medium text-ink-soft hover:text-accent">
-            {job.company}
-          </Link>
-          <Title
-            className={`leading-tight font-semibold text-ink ${titleAs === "h1" ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl"}`}
-          >
-            {job.title}
-          </Title>
-        </div>
+        <Link href={`/companies/${job.company_slug}`} className="min-w-0 text-base font-semibold text-ink hover:text-accent">
+          {job.company}
+        </Link>
       </div>
+      <Title
+        className={`font-bold text-ink ${titleAs === "h1" ? "text-4xl tracking-[-0.025em] sm:text-5xl" : "text-3xl tracking-[-0.02em]"}`}
+      >
+        {job.title}
+      </Title>
 
-      <ul className="flex flex-wrap gap-1.5">
-        {job.salary && <li className="tag h-7 border-transparent bg-sunken px-2.5 text-[0.8125rem] text-ink">{formatSalary(job.salary)}</li>}
-        <li className="tag h-7 max-w-full px-2.5 text-[0.8125rem]">
-          <PinIcon className="size-3.5 shrink-0 text-ink-faint" />
+      <ul className="flex flex-wrap gap-x-7 gap-y-2.5 text-ui font-medium text-ink">
+        <li className="flex max-w-full items-center gap-2">
+          <PinIcon className="size-4.5 shrink-0 text-ink-soft" />
           <span className="truncate">{places.length ? places.join(", ") : "Location not listed"}</span>
         </li>
-        <li className="tag h-7 px-2.5 text-[0.8125rem]">{LEVEL_LABELS[job.level]}</li>
-        {job.role_type !== "other" && <li className="tag h-7 px-2.5 text-[0.8125rem]">{ROLE_LABELS[job.role_type]}</li>}
-        {(job.terms ?? []).map((term) => (
-          <li key={term} className="tag h-7 px-2.5 text-[0.8125rem]">{term}</li>
-        ))}
+        <li className="flex items-center gap-2">
+          <LevelIcon className="size-4.5 shrink-0 text-ink-soft" />
+          {LEVEL_LABELS[job.level]}
+        </li>
+        {job.role_type !== "other" && (
+          <li className="flex items-center gap-2">
+            <RoleIcon className="size-4.5 shrink-0 text-ink-soft" />
+            {ROLE_LABELS[job.role_type]}
+          </li>
+        )}
+        <li className="flex items-center gap-2">
+          <PayIcon className="size-4.5 shrink-0 text-ink-soft" />
+          {job.salary ? formatSalary(job.salary) : "Pay not listed"}
+        </li>
+        {(job.terms ?? []).length > 0 && (
+          <li className="flex items-center gap-2">
+            <CalendarIcon className="size-4.5 shrink-0 text-ink-soft" />
+            {(job.terms ?? []).join(", ")}
+          </li>
+        )}
       </ul>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -76,7 +88,7 @@ export function JobHeader({ job, titleAs = "h1", showPageLink = false }: { job: 
             <span className="sr-only"> (opens in a new tab)</span>
           </ApplyLink>
         ) : (
-          <p className="inline-flex h-11 items-center rounded-lg bg-sunken px-4 text-sm font-medium text-ink-soft">
+          <p className="inline-flex h-12 items-center rounded-xl bg-sunken px-5 text-ui font-medium text-ink-soft">
             This posting closed{job.closed_at ? ` on ${formatDate(job.closed_at)}` : ""}
           </p>
         )}
@@ -92,7 +104,7 @@ export function JobHeader({ job, titleAs = "h1", showPageLink = false }: { job: 
           }}
         />
         {showPageLink && (
-          <Link href={`/jobs/${job.id}`} className="link text-sm">
+          <Link href={`/jobs/${job.id}`} className="link px-2 text-ui">
             Open full page
           </Link>
         )}
@@ -103,7 +115,7 @@ export function JobHeader({ job, titleAs = "h1", showPageLink = false }: { job: 
 
 function Evidence({ children }: { children: ReactNode }) {
   return (
-    <blockquote className="mt-2 flex gap-2 rounded-lg bg-sunken px-3 py-2 text-sm text-ink">
+    <blockquote className="mt-2 flex gap-2.5 rounded-lg bg-surface px-3.5 py-2.5 text-ui text-ink">
       <QuoteIcon className="mt-0.5 size-4 shrink-0 text-ink-faint" />
       <span>
         {children}
@@ -166,14 +178,14 @@ export function PostingRecord({ job, headingAs = "h2" }: { job: JobDetail; headi
     job.source_posted_at && job.signals.age_known ? daysSince(job.first_seen) - daysSince(job.source_posted_at) : 0;
 
   return (
-    <section aria-label="Posting record" className="record-box space-y-4">
+    <section aria-label="Posting record" data-soft className="record-box space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <Heading className="panel-title">Posting record</Heading>
+        <Heading className="panel-title text-ink-soft">Posting record</Heading>
         <RiskBadge risk={job.signals.risk} size="md" />
       </div>
       <AgeStrip signals={job.signals} company={job.company} isActive={job.is_active} />
       {job.listed_in && (
-        <p className="text-sm text-ink-soft">
+        <p className="text-ui text-ink-soft">
           Found in the{" "}
           <a href={listUrl(job.listed_in)} target="_blank" rel="noopener noreferrer" className="link">
             {job.listed_in}
@@ -183,27 +195,27 @@ export function PostingRecord({ job, headingAs = "h2" }: { job: JobDetail; headi
         </p>
       )}
       {job.signals.age_known === false && (
-        <p className="text-sm text-ink-faint">
+        <p className="text-ui text-ink-soft">
           This posting was already up when Ghostless started tracking {job.company}, so its true age is longer.
         </p>
       )}
       {sourceGap > 1 && (
-        <p className="rounded-lg bg-ochre-tint px-3 py-2 text-sm text-ochre">
+        <p className="border-l-[3px] border-ochre pl-3 text-ui text-ink-soft">
           {possessive(job.company)} site dates this posting {formatDate(job.source_posted_at!)}, but Ghostless first saw it{" "}
           {pluralize(sourceGap, "day")} earlier. The date on the site was refreshed.
         </p>
       )}
       {flags.length > 0 ? (
-        <ul className="space-y-4 border-t border-line pt-4">
+        <ul className="space-y-3.5 pt-1">
           {flags.map((flag) => (
-            <li key={flag} className="border-l-2 border-brick pl-3 text-sm">
+            <li key={flag} className={`border-l-[3px] pl-3 text-ui ${job.signals.risk === "high" ? "border-brick" : "border-ochre"}`}>
               <p className="font-semibold text-ink">{FLAG_TEXT[flag]!.short}</p>
               {flagDetail(flag, job)}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="border-t border-line pt-4 text-sm text-ink-soft">
+        <p className="text-ui text-ink-soft">
           No ghost signals. It hasn&apos;t been reposted, duplicated, or left up unusually long, and the posting doesn&apos;t
           say it&apos;s a talent pool.
         </p>
@@ -221,13 +233,13 @@ export function PostingHistory({ job, headingAs = "h2" }: { job: JobDetail; head
   if (history.length < 2) return null;
   return (
     <section className="record-box">
-      <Heading className="panel-title mb-3">Posted {pluralize(history.length, "time")}</Heading>
-      <ol className="space-y-3 border-l border-line-strong pl-4 text-sm">
+      <Heading className="panel-title mb-4 text-ink-soft">Posted {pluralize(history.length, "time")}</Heading>
+      <ol className="space-y-3.5 border-l border-line-strong pl-4 text-ui">
         {history.map((entry) => (
           <li key={entry.id} className="relative">
             <span
               aria-hidden="true"
-              className={`absolute top-1.5 -left-[1.3rem] size-2 rounded-full ${entry.id === job.id ? "bg-accent-solid" : "bg-line-strong"}`}
+              className={`absolute top-1.5 -left-5.5 size-2.5 rounded-full ring-4 ring-surface ${entry.id === job.id ? "bg-accent-solid" : "bg-line-strong"}`}
             />
             <p className="font-medium text-ink">
               {formatDate(entry.first_seen)}
@@ -243,12 +255,12 @@ export function PostingHistory({ job, headingAs = "h2" }: { job: JobDetail; head
 
 function Row({ label, value, quote, note }: { label: string; value: string; quote?: string | null; note?: string }) {
   return (
-    <div className="py-3 text-sm sm:grid sm:grid-cols-[7.5rem_1fr] sm:gap-3">
-      <dt className="text-ink-faint">{label}</dt>
+    <div className="py-3 text-ui sm:grid sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+      <dt className="text-ink-soft">{label}</dt>
       <dd className="min-w-0">
         <span className="font-medium text-ink">{value}</span>
         {quote && <Evidence>{quote}</Evidence>}
-        {note && <span className="mt-0.5 block text-ink-faint">{note}</span>}
+        {note && <span className="mt-0.5 block text-sm text-ink-faint">{note}</span>}
       </dd>
     </div>
   );
@@ -261,7 +273,7 @@ export function Disclosures({ job, headingAs = "h2" }: { job: JobDetail; heading
   const hasText = Boolean(job.description);
   return (
     <section className="record-box">
-      <Heading className="panel-title">What the posting discloses</Heading>
+      <Heading className="panel-title mb-1 text-ink-soft">What the posting discloses</Heading>
       <dl className="divide-y divide-line">
         <Row
           label="Pay"
@@ -352,16 +364,16 @@ export function JobDescription({ job, headingAs = "h2" }: { job: JobDetail; head
   const Sub = headingAs === "h2" ? "h3" : "h4";
   return (
     <section>
-      <Heading className="panel-title mb-3">Job description</Heading>
+      <Heading className={headingAs === "h2" ? "section-title mb-4" : "panel-title mb-3 text-lg"}>About the role</Heading>
       {job.description ? (
-        <div className="max-w-[68ch] space-y-3 leading-relaxed text-ink-soft">
+        <div className="max-w-[68ch] space-y-4 text-base leading-7 text-ink-soft">
           {descriptionBlocks(job.description).map((block, i) =>
             block.kind === "heading" ? (
-              <Sub key={i} className="pt-2 font-sans text-base font-semibold tracking-normal text-ink">
+              <Sub key={i} className="pt-3 text-lg font-semibold text-ink">
                 {block.text}
               </Sub>
             ) : block.kind === "list" ? (
-              <ul key={i} className="list-disc space-y-1.5 pl-5 marker:text-line-strong">
+              <ul key={i} className="list-disc space-y-2 pl-5 marker:text-ink-faint">
                 {block.items.map((item, j) => (
                   <li key={j}>{item}</li>
                 ))}
@@ -372,7 +384,7 @@ export function JobDescription({ job, headingAs = "h2" }: { job: JobDetail; head
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-line-strong p-5 text-sm text-ink-soft in-data-flat:p-4">
+        <div className="card p-5 text-ui text-ink-soft">
           <p>
             {job.listed_in
               ? "This posting comes from a public job list, which doesn't include descriptions. Read it on the employer's site."
@@ -399,13 +411,13 @@ export function SkillChips({ skills, headingAs = "h2" }: { skills: string[]; hea
   if (!skills.length) return null;
   return (
     <section>
-      <Heading className="panel-title mb-3">Skills mentioned</Heading>
-      <ul className="flex flex-wrap gap-1.5">
+      <Heading className={headingAs === "h2" ? "mb-3 text-lg font-semibold text-ink" : "panel-title mb-3"}>Skills mentioned</Heading>
+      <ul className="flex flex-wrap gap-2">
         {skills.map((skill) => (
           <li key={skill}>
             <Link
               href={`/jobs?skill=${encodeURIComponent(skill)}`}
-              className="tag h-7 px-2.5 text-[0.8125rem] text-ink transition-colors hover:border-accent hover:text-accent"
+              className="tag transition-colors hover:bg-accent-tint hover:text-accent"
             >
               {skill}
             </Link>

@@ -29,7 +29,7 @@ const SORTS = {
   },
 } as const;
 type SortKey = keyof typeof SORTS;
-const PER_PAGE = 60;
+const PER_PAGE = 20;
 const SOURCES = { all: "All", boards: "Career sites", lists: "From job lists" } as const;
 type Source = keyof typeof SOURCES;
 
@@ -63,25 +63,25 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
   const shown = companies.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <header className="mb-6 max-w-3xl">
-        <h1 className="text-3xl font-semibold text-ink">Companies</h1>
-        <p className="mt-2 text-ink-soft">
+    <div className="mx-auto max-w-[80rem] px-4 pt-10 pb-20 sm:px-6 lg:px-20">
+      <header className="mb-8 max-w-3xl">
+        <h1 className="page-title">Companies</h1>
+        <p className="page-lead">
           {pluralize(everyone.length, "employer")} and {totalOpen.toLocaleString("en-CA")} open tech roles.{" "}
           {(everyone.length - fromLists).toLocaleString("en-CA")} are read every day from their own career sites; the rest
           come from public internship and new grad lists until Ghostless finds their job board.
         </p>
       </header>
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <form action="/companies" method="get" role="search" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {sort !== "open" && <input type="hidden" name="sort" value={sort} />}
           <label className="relative min-w-0 flex-1 sm:max-w-xs">
             <span className="sr-only">Search companies</span>
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-faint" />
-            <input type="search" name="q" defaultValue={q} placeholder="Search companies" className="field pl-9" />
+            <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-ink-faint" />
+            <input type="search" name="q" defaultValue={q} placeholder="Search companies" className="field field-soft pl-10" />
           </label>
-          <select name="source" defaultValue={source} aria-label="Where the jobs come from" className="field w-auto text-sm">
+          <select name="source" defaultValue={source} aria-label="Where the jobs come from" className="field w-auto rounded-full text-ui font-medium">
             {(Object.keys(SOURCES) as Source[]).map((key) => (
               <option key={key} value={key}>{SOURCES[key]}</option>
             ))}
@@ -89,13 +89,13 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
           <button type="submit" className="btn btn-secondary">Search</button>
         </form>
         <nav aria-label="Sort companies" className="max-w-full overflow-x-auto">
-          <ul className="flex rounded-lg border border-line bg-sunken/60 p-0.5 text-sm">
+          <ul className="flex rounded-xl bg-sunken p-1 text-sm">
             {(Object.keys(SORTS) as SortKey[]).map((key) => (
               <li key={key}>
                 <Link
                   href={href({ sort: key, q, source })}
                   aria-current={sort === key ? "true" : undefined}
-                  className="inline-flex h-7 items-center rounded-md px-2.5 font-medium whitespace-nowrap text-ink-soft transition-colors hover:text-ink aria-[current=true]:bg-surface aria-[current=true]:text-ink aria-[current=true]:shadow-[0_0_0_1px_var(--line-strong)]"
+                  className="inline-flex h-9 items-center rounded-[9px] px-3.5 font-medium whitespace-nowrap text-ink-soft transition-colors hover:text-ink aria-[current=true]:bg-surface aria-[current=true]:font-semibold aria-[current=true]:text-ink aria-[current=true]:shadow-[0_1px_3px_rgb(0_0_0/0.08)]"
                 >
                   {SORTS[key].label}
                 </Link>
@@ -106,7 +106,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
       </div>
 
       {!shown.length ? (
-        <p className="panel border-dashed p-6 text-sm text-ink-soft">
+        <p className="card p-6 text-ui text-ink-soft">
           No companies match. <Link href="/companies" className="link">Show all</Link>.
         </p>
       ) : (
@@ -116,8 +116,8 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
               Companies, sorted by {SORTS[sort].label.toLowerCase()}. {pluralize(companies.length, "company", "companies")}.
             </caption>
             <thead>
-              <tr className="border-b border-line bg-sunken/50 text-left text-xs text-ink-soft">
-                <th scope="col" className="w-full px-3 py-2.5 sm:px-4 font-medium">Company</th>
+              <tr className="border-b border-line bg-sunken text-left text-meta text-ink-soft">
+                <th scope="col" className="w-full px-3 py-3 font-semibold sm:px-6">Company</th>
                 <Th active={sort === "open"}>
                   <span className="sm:hidden">Open</span>
                   <span className="hidden sm:inline">Open tech roles</span>
@@ -136,37 +136,37 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
               {shown.map((company) => {
                 const share = company.active_jobs ? company.high_risk_jobs / company.active_jobs : 0;
                 return (
-                  <tr key={company.slug} className="group transition-colors hover:bg-sunken/50">
-                    <th scope="row" className="w-full max-w-0 px-3 py-2.5 sm:px-4 text-left font-normal">
+                  <tr key={company.slug} className="group transition-colors hover:bg-sunken">
+                    <th scope="row" className="w-full max-w-0 px-3 py-3.5 text-left font-normal sm:px-6">
                       <div className="flex items-center gap-3">
                         <CompanyLogo name={company.name} domain={company.domain} size="sm" />
                         <div className="min-w-0">
-                          <Link href={`/companies/${company.slug}`} className="block truncate font-medium text-ink group-hover:text-accent">
+                          <Link href={`/companies/${company.slug}`} className="block truncate text-ui font-semibold text-ink group-hover:text-accent">
                             {company.name}
                           </Link>
-                          {company.origin === "list" && <span className="block truncate text-xs text-ink-faint">From job lists</span>}
+                          {company.origin === "list" && <span className="block truncate text-meta text-ink-faint">From job lists</span>}
                         </div>
                       </div>
                     </th>
-                    <td className="px-3 py-2.5 sm:px-4 text-right font-medium whitespace-nowrap text-ink">{company.tech_active_jobs.toLocaleString("en-CA")}</td>
-                    <td className="hidden px-3 py-2.5 sm:px-4 text-right text-ink sm:table-cell">
+                    <td className="px-3 py-3.5 text-right text-ui font-semibold whitespace-nowrap text-ink sm:px-6">{company.tech_active_jobs.toLocaleString("en-CA")}</td>
+                    <td className="hidden px-3 py-3.5 text-right text-ui text-ink sm:table-cell sm:px-6">
                       {company.new_last_7_days ? company.new_last_7_days.toLocaleString("en-CA") : <span className="text-ink-faint">0</span>}
                     </td>
-                    <td className="hidden px-3 py-2.5 sm:px-4 text-right md:table-cell">
+                    <td className="hidden px-3 py-3.5 text-right text-ui md:table-cell md:px-6">
                       {company.typical_days_open ? (
                         <span className="text-ink">{pluralize(company.typical_days_open, "day")}</span>
                       ) : (
-                        <span className="text-ink-faint">Not enough data</span>
+                        <span className="text-ink-faint" title="Not enough closed postings yet">—<span className="sr-only">Not enough data</span></span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 sm:px-4 text-right whitespace-nowrap">
+                    <td className="px-3 py-3.5 text-right text-ui whitespace-nowrap sm:px-6">
                       {company.high_risk_jobs ? (
                         <span className={share >= 0.2 ? "font-semibold text-brick" : "text-ink"}>
                           {percent(company.high_risk_jobs, company.active_jobs)}
-                          <span className="ml-1.5 text-xs font-normal text-ink-faint">{company.high_risk_jobs.toLocaleString("en-CA")}</span>
+                          <span className="ml-1.5 text-meta font-normal text-ink-faint">{company.high_risk_jobs.toLocaleString("en-CA")}</span>
                         </span>
                       ) : (
-                        <span className="text-ink-faint">None</span>
+                        <span className="text-ink-faint">—<span className="sr-only">None</span></span>
                       )}
                     </td>
                   </tr>
@@ -176,9 +176,9 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
           </table>
         </div>
       )}
-      <p className="mt-3 text-xs text-ink-faint">
+      <p className="mt-4 text-sm text-ink-faint">
         High ghost risk is the share of each employer&apos;s open postings, all roles, with high-risk signals; the small number is the
-        count.
+        count. A dash means none yet, or too few closed postings to tell.
       </p>
       <Pagination page={page} total={companies.length} pageSize={PER_PAGE} href={(p) => href({ sort, q, source, page: p })} />
     </div>
@@ -198,7 +198,7 @@ function Th({
   className?: string;
 }) {
   return (
-    <th scope="col" aria-sort={active ? order : undefined} className={`px-3 py-2.5 sm:px-4 text-right font-medium whitespace-nowrap ${active ? "text-ink" : ""} ${className}`}>
+    <th scope="col" aria-sort={active ? order : undefined} className={`px-3 py-3 text-right font-semibold whitespace-nowrap sm:px-6 ${active ? "text-ink" : ""} ${className}`}>
       {children}
     </th>
   );

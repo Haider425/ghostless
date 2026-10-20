@@ -63,7 +63,7 @@ export default async function CompanyPage({ params }: Props) {
   const skillMax = Math.max(...company.top_skills.map((s) => s.postings), 1);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-[80rem] px-4 pt-10 pb-20 sm:px-6 lg:px-20">
       <nav aria-label="Breadcrumb" className="mb-6">
         <ol className="flex items-center gap-1 text-sm text-ink-soft">
           <li>
@@ -84,8 +84,8 @@ export default async function CompanyPage({ params }: Props) {
         <div className="flex items-center gap-4">
           <CompanyLogo name={company.name} domain={company.domain} size="lg" />
           <div>
-            <h1 className="text-3xl font-semibold text-ink">{company.name}</h1>
-            <p className="text-sm text-ink-soft">Tracked daily since {formatDate(company.tracking_since)}</p>
+            <h1 className="page-title">{company.name}</h1>
+            <p className="page-lead">Tracked daily since {formatDate(company.tracking_since)}</p>
           </div>
         </div>
         <Link
@@ -170,7 +170,7 @@ export default async function CompanyPage({ params }: Props) {
           {latest.items.length ? (
             <JobList jobs={latest.items} headingLevel="h3" />
           ) : (
-            <p className="panel border-dashed p-6 text-sm text-ink-soft">
+            <p className="card p-6 text-ui text-ink-soft">
               {company.name} has no open tech roles right now.
             </p>
           )}

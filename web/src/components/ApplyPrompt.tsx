@@ -13,7 +13,7 @@ import {
 } from "@/lib/applications";
 import { noteSavedOnAccount, saveLocally } from "@/lib/saved";
 
-import { CloseIcon } from "./Icons";
+import { CheckIcon, CloseIcon } from "./Icons";
 import { useSite } from "./SiteContext";
 
 type Phase =
@@ -131,55 +131,64 @@ export function ApplyPrompt() {
       aria-label="Did you apply?"
       aria-live="polite"
       onKeyDown={(event) => event.key === "Escape" && phase.kind !== "saving" && dismiss()}
-      className="panel fixed inset-x-3 bottom-3 z-40 p-4 shadow-pop sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-96"
+      className="apply-prompt fixed inset-x-3 bottom-3 z-50 overflow-hidden rounded-2xl border border-accent/50 bg-surface shadow-[0_24px_64px_-12px_rgb(0_0_0/0.45)] sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[26rem]"
     >
       <button
         type="button"
         onClick={dismiss}
         disabled={phase.kind === "saving"}
-        className="btn btn-ghost btn-sm absolute top-2 right-2 size-8 px-0"
+        className="btn btn-ghost btn-sm absolute top-3 right-3 z-10 size-8 px-0"
       >
         <CloseIcon className="size-4" />
         <span className="sr-only">Close</span>
       </button>
-      {phase.kind === "done" ? (
-        <p className="pr-8 text-sm text-ink">
-          {phase.text}{" "}
-          {phase.link && (
-            <Link href={phase.link.href} className="link" onClick={() => setJob(null)}>
-              {phase.link.label}
-            </Link>
-          )}
-        </p>
-      ) : (
-        <>
-          <p className="pr-8 text-sm font-semibold text-ink">Did you apply?</p>
-          <p className="mt-1 text-sm text-ink-soft">
-            <span className="font-medium text-ink">{job.title}</span> at {job.company}
+      <div className="flex items-start gap-3 bg-accent-tint px-5 pt-4 pb-3.5 pr-12">
+        <span aria-hidden="true" className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-accent-solid text-on-accent">
+          <CheckIcon className="size-4.5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-base font-bold text-ink">{phase.kind === "done" ? "Got it" : "Did you apply?"}</p>
+          <p className="mt-0.5 text-sm text-ink-soft">
+            <span className="font-semibold text-ink">{job.title}</span> at {job.company}
           </p>
-          {phase.kind === "error" && (
-            <p role="alert" className="mt-2 text-sm text-brick">
-              That didn&apos;t save. Check your connection and try again.
+        </div>
+      </div>
+      <div className="px-5 pt-3.5 pb-4">
+        {phase.kind === "done" ? (
+          <p className="text-ui text-ink">
+            {phase.text}{" "}
+            {phase.link && (
+              <Link href={phase.link.href} className="link" onClick={() => setJob(null)}>
+                {phase.link.label}
+              </Link>
+            )}
+          </p>
+        ) : (
+          <>
+            {phase.kind === "error" && (
+              <p role="alert" className="mb-3 text-sm text-danger">
+                That didn&apos;t save. Check your connection and try again.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => applied(job)}
+                disabled={phase.kind === "saving"}
+                className="btn btn-primary"
+              >
+                {phase.kind === "saving" ? "Saving..." : "Yes, I applied"}
+              </button>
+              <button type="button" onClick={dismiss} disabled={phase.kind === "saving"} className="btn btn-secondary">
+                Not yet
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-ink-faint">
+              Only you know: Ghostless can&apos;t see the employer&apos;s site, so it records what you tell it.
             </p>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => applied(job)}
-              disabled={phase.kind === "saving"}
-              className="btn btn-primary btn-sm"
-            >
-              {phase.kind === "saving" ? "Saving..." : "Yes, I applied"}
-            </button>
-            <button type="button" onClick={dismiss} disabled={phase.kind === "saving"} className="btn btn-secondary btn-sm">
-              Not yet
-            </button>
-          </div>
-          <p className="mt-2.5 text-xs text-ink-faint">
-            Only you know: Ghostless can&apos;t see the employer&apos;s site, so it records what you tell it.
-          </p>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </section>
   );
 }

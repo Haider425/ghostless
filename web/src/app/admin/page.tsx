@@ -55,11 +55,11 @@ export default async function AdminPage({ searchParams }: Props) {
   const c = await visitorClient();
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-[80rem] px-4 pt-10 pb-20 sm:px-6 lg:px-20">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-ink">Admin</h1>
-          <p className="text-ink-soft">How people use Ghostless, what they report, and whether the data is fresh.</p>
+          <h1 className="page-title">Admin</h1>
+          <p className="page-lead">How people use Ghostless, what they report, and whether the data is fresh.</p>
         </div>
       </div>
       <nav aria-label="Admin sections" className="mb-8 border-b border-line">
@@ -230,7 +230,7 @@ async function Reports({ c, status }: { c: Client; status?: ReportRow["status"] 
         ))}
       </ul>
       {reports.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-line-strong p-6 text-sm text-ink-soft">No reports here.</p>
+        <p className="card p-6 text-sm text-ink-soft">No reports here.</p>
       ) : (
         <ul className="space-y-3">
           {reports.map((r) => (
@@ -278,7 +278,7 @@ async function Reports({ c, status }: { c: Client; status?: ReportRow["status"] 
 
 async function Errors({ c }: { c: Client }) {
   const errors = await api.admin.errors(c);
-  if (!errors.length) return <p className="rounded-xl border border-dashed border-line-strong p-6 text-sm text-ink-soft">No errors reported. Pages that crash in visitors&apos; browsers show up here.</p>;
+  if (!errors.length) return <p className="card p-6 text-sm text-ink-soft">No errors reported. Pages that crash in visitors&apos; browsers show up here.</p>;
   return (
     <Table caption="Recent errors">
       <thead>
@@ -325,10 +325,10 @@ async function Ingest({ c }: { c: Client }) {
             <tr key={r.started_at} className="border-b border-line last:border-0">
               <th scope="row" className={`${cell} font-normal text-ink`}>
                 {formatDate(r.started_at)}
-                {!r.finished_at && <span className="ml-2 text-xs text-ochre">running or stopped</span>}
+                {!r.finished_at && <span className="ml-2 text-xs text-ink-faint">running or stopped</span>}
               </th>
               <td className={`${cell} text-right`}>{r.companies_ok}</td>
-              <td className={`${cell} text-right ${r.companies_failed ? "font-semibold text-brick" : ""}`}>{r.companies_failed}</td>
+              <td className={`${cell} text-right ${r.companies_failed ? "font-semibold text-danger" : ""}`}>{r.companies_failed}</td>
               <td className={`${cell} text-right`}>{r.jobs_seen.toLocaleString("en-CA")}</td>
               <td className={`${cell} text-right`}>{r.jobs_new.toLocaleString("en-CA")}</td>
               <td className={`${cell} text-right`}>{r.jobs_closed.toLocaleString("en-CA")}</td>

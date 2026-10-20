@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ComponentType, SVGProps } from "react";
 
 import { startingJobsHref } from "@/lib/nav";
 import { useSavedJobs } from "@/lib/saved";
 
-import { BookmarkIcon, ChevronDownIcon } from "./Icons";
+import { BookmarkIcon, CalendarIcon, ChartIcon, ChevronDownIcon, ChevronRightIcon, CloseIcon, InfoIcon, MenuIcon } from "./Icons";
 import { useSite } from "./SiteContext";
 
-const INSIGHTS = [
-  { href: "/companies", label: "Companies", note: "Who's hiring, how fast they fill roles" },
-  { href: "/skills", label: "Skills gap", note: "What postings ask for, and what you're missing" },
-  { href: "/calendar", label: "Hiring calendar", note: "When internships and new grad roles open" },
-  { href: "/how-it-works", label: "How it works", note: "Where the data comes from and what flags mean" },
+const INSIGHTS: { href: string; label: string; note: string; icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
+  { href: "/skills", label: "Skills gap", note: "What postings ask for, and what you're missing", icon: ChartIcon },
+  { href: "/calendar", label: "Hiring calendar", note: "When internships and new grad roles open", icon: CalendarIcon },
+  { href: "/how-it-works", label: "How it works", note: "Where the data comes from and what flags mean", icon: InfoIcon },
 ];
 
 export function isCurrent(pathname: string, href: string) {
@@ -22,9 +22,9 @@ export function isCurrent(pathname: string, href: string) {
 }
 
 const linkClass =
-  "block rounded-md px-2.5 py-1.5 font-medium text-ink-soft transition-colors hover:bg-sunken hover:text-ink aria-[current=page]:bg-sunken aria-[current=page]:text-ink";
+  "block rounded-lg px-1 py-1.5 text-ui font-medium text-ink-soft transition-colors hover:text-ink aria-[current=page]:font-semibold aria-[current=page]:text-ink";
 
-/** Desktop navigation. */
+/** Desktop navigation: Jobs, Companies, Resume, and the Insights menu. */
 export function NavLinks() {
   const pathname = usePathname();
   const { prefs } = useSite();
@@ -32,33 +32,37 @@ export function NavLinks() {
   const insightsActive = INSIGHTS.some((i) => isCurrent(pathname, i.href));
   return (
     <nav aria-label="Main" className="hidden lg:block">
-      <ul className="flex items-center gap-1 text-sm whitespace-nowrap">
-        <li>
-          <Link href={jobs} aria-current={isCurrent(pathname, "/jobs") ? "page" : undefined} className={linkClass}>
-            Jobs
-          </Link>
-        </li>
-        <li>
-          <Link href="/resume" aria-current={isCurrent(pathname, "/resume") ? "page" : undefined} className={linkClass}>
-            Resume
-          </Link>
-        </li>
+      <ul className="flex items-center gap-7 whitespace-nowrap">
+        {[
+          { href: jobs, label: "Jobs", match: "/jobs" },
+          { href: "/companies", label: "Companies", match: "/companies" },
+          { href: "/resume", label: "Resume", match: "/resume" },
+        ].map(({ href, label, match }) => (
+          <li key={label}>
+            <Link href={href} aria-current={isCurrent(pathname, match) ? "page" : undefined} className={linkClass}>
+              {label}
+            </Link>
+          </li>
+        ))}
         <li>
           <details data-popover className="group relative">
-            <summary className={`${linkClass} inline-flex items-center gap-1 group-open:bg-sunken ${insightsActive ? "bg-sunken text-ink" : ""}`}>
+            <summary className={`${linkClass} inline-flex items-center gap-1 ${insightsActive ? "font-semibold text-ink" : ""}`}>
               Insights
-              <ChevronDownIcon className="size-3.5 opacity-70 transition-transform group-open:rotate-180" />
+              <ChevronDownIcon className="size-3.5 opacity-60 transition-transform group-open:rotate-180" />
             </summary>
-            <ul className="absolute left-0 z-40 mt-1.5 w-72 rounded-xl border border-line bg-surface p-1.5 shadow-pop">
-              {INSIGHTS.map((item) => (
-                <li key={item.href}>
+            <ul className="absolute left-1/2 z-40 mt-2 w-80 -translate-x-1/2 rounded-2xl border border-line bg-surface p-2 shadow-pop">
+              {INSIGHTS.map(({ href, label, note, icon: Icon }) => (
+                <li key={href}>
                   <Link
-                    href={item.href}
-                    aria-current={isCurrent(pathname, item.href) ? "page" : undefined}
-                    className="block rounded-lg px-2.5 py-2 whitespace-normal hover:bg-sunken aria-[current=page]:bg-sunken"
+                    href={href}
+                    aria-current={isCurrent(pathname, href) ? "page" : undefined}
+                    className="flex gap-3 rounded-xl px-3 py-2.5 whitespace-normal hover:bg-sunken aria-[current=page]:bg-sunken"
                   >
-                    <span className="block font-medium text-ink">{item.label}</span>
-                    <span className="block text-xs text-ink-faint">{item.note}</span>
+                    <Icon className="mt-0.5 size-[18px] shrink-0 text-ink" />
+                    <span>
+                      <span className="block text-ui font-semibold text-ink">{label}</span>
+                      <span className="block text-sm text-ink-soft">{note}</span>
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -70,18 +74,19 @@ export function NavLinks() {
   );
 }
 
-/** The saved jobs link with its count. */
+/** Saved jobs, with their count. Signed in, the same page is the application tracker. */
 export function SavedLink({ className = "" }: { className?: string }) {
   const pathname = usePathname();
+  const { viewer } = useSite();
   const { count } = useSavedJobs();
   return (
     <Link
       href="/saved"
       aria-current={isCurrent(pathname, "/saved") ? "page" : undefined}
-      className={`inline-flex h-8 items-center gap-2 rounded-md px-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-sunken hover:text-ink aria-[current=page]:bg-sunken aria-[current=page]:text-ink ${className}`}
+      className={`inline-flex h-10 items-center gap-2 rounded-lg px-2 text-ui font-medium text-ink-soft transition-colors hover:text-ink aria-[current=page]:font-semibold aria-[current=page]:text-ink ${className}`}
     >
-      <BookmarkIcon className="size-4" filled={count > 0} />
-      <span>Saved</span>
+      <BookmarkIcon className="size-[18px]" filled={count > 0} />
+      <span>{viewer ? "Applications" : "Saved"}</span>
       {count > 0 && (
         <span className="min-w-5 rounded-full bg-accent-tint px-1.5 text-center text-xs leading-5 font-semibold text-accent tabular-nums">
           {count}
@@ -92,52 +97,72 @@ export function SavedLink({ className = "" }: { className?: string }) {
   );
 }
 
-/** Phone and tablet navigation: a disclosure, so it works without JavaScript. */
+/** Phones and tablets: a full-width menu under the bar. A disclosure, so it works without JavaScript. */
 export function MobileNav() {
   const pathname = usePathname();
   const { prefs, viewer } = useSite();
-  const links = [
-    { href: startingJobsHref(prefs), label: "Jobs" },
-    { href: "/resume", label: "Resume and matches" },
-    { href: "/resume/builder", label: "Resume builder" },
-    ...INSIGHTS,
-    { href: "/saved", label: "Saved jobs" },
+  const main = [
+    { href: startingJobsHref(prefs), label: "Jobs", match: "/jobs" },
+    { href: "/companies", label: "Companies", match: "/companies" },
+    { href: "/resume", label: "Resume", match: "/resume" },
+    { href: "/saved", label: viewer ? "Applications" : "Saved jobs", match: "/saved" },
+  ];
+  const account = [
     { href: "/settings", label: "Settings" },
     ...(viewer ? [{ href: "/account", label: "Account" }] : []),
     ...(viewer?.role === "admin" ? [{ href: "/admin", label: "Admin dashboard" }] : []),
   ];
+  const big =
+    "flex items-center justify-between rounded-xl px-3 py-3.5 text-lg font-semibold text-ink hover:bg-sunken aria-[current=page]:bg-sunken";
+  const small = "block rounded-xl px-3 py-3 text-base font-medium text-ink-soft hover:bg-sunken hover:text-ink aria-[current=page]:text-ink";
   return (
     <details className="group lg:hidden" key={pathname /* closes after navigating */}>
-      <summary className="grid size-9 place-items-center rounded-md text-ink hover:bg-sunken">
+      <summary className="grid size-10 place-items-center rounded-lg text-ink hover:bg-sunken">
         <span className="sr-only">Menu</span>
-        <svg viewBox="0 0 20 20" className="size-5 group-open:hidden" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-          <path d="M3.5 6h13M3.5 10h13M3.5 14h13" />
-        </svg>
-        <svg viewBox="0 0 20 20" className="hidden size-5 group-open:block" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-          <path d="m5 5 10 10M15 5 5 15" />
-        </svg>
+        <MenuIcon className="size-6 group-open:hidden" />
+        <CloseIcon className="hidden size-6 group-open:block" />
       </summary>
-      <nav aria-label="Main" className="absolute inset-x-0 top-full z-40 border-b border-line bg-surface px-4 pb-4 shadow-pop">
-        <ul className="grid gap-0.5 pt-2">
-          {links.map(({ href, label }) => (
+      <nav
+        aria-label="Main"
+        className="fixed inset-x-0 top-(--header-h) bottom-0 z-40 overflow-y-auto border-t border-line bg-paper px-4 pt-3 pb-8"
+      >
+        <ul className="grid gap-0.5">
+          {main.map(({ href, label, match }) => (
+            <li key={label}>
+              <Link href={href} aria-current={isCurrent(pathname, match) ? "page" : undefined} className={big}>
+                {label}
+                <ChevronRightIcon className="size-[18px] text-ink-faint" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-5 px-3 text-meta font-semibold text-ink-faint">Insights</p>
+        <ul className="mt-1 grid gap-0.5">
+          {INSIGHTS.map(({ href, label }) => (
             <li key={href}>
-              <Link
-                href={href}
-                aria-current={isCurrent(pathname, href) ? "page" : undefined}
-                className="block rounded-md px-3 py-2.5 text-ink-soft hover:bg-sunken hover:text-ink aria-[current=page]:bg-accent-tint aria-[current=page]:text-accent"
-              >
+              <Link href={href} aria-current={isCurrent(pathname, href) ? "page" : undefined} className={small}>
+                {label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-5 px-3 text-meta font-semibold text-ink-faint">Account</p>
+        <ul className="mt-1 grid gap-0.5">
+          {account.map(({ href, label }) => (
+            <li key={href}>
+              <Link href={href} aria-current={isCurrent(pathname, href) ? "page" : undefined} className={small}>
                 {label}
               </Link>
             </li>
           ))}
         </ul>
         {!viewer && (
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-line pt-3">
-            <Link href="/login" className="inline-flex h-10 items-center justify-center rounded-lg border border-line-strong font-medium text-ink">
-              Sign in
+          <div className="mt-6 grid grid-cols-2 gap-2.5">
+            <Link href="/login" className="btn btn-secondary btn-lg">
+              Log in
             </Link>
-            <Link href="/signup" className="btn btn-primary">
-              Create account
+            <Link href="/signup" className="btn btn-primary btn-lg">
+              Sign up
             </Link>
           </div>
         )}

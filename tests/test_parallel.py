@@ -77,7 +77,7 @@ def test_one_host_never_gets_two_requests_at_once(monkeypatch):
             in_flight[host] -= 1
         return Response()
 
-    monkeypatch.setattr(http.requests, "request", fake_request)
+    monkeypatch.setattr(http, "_request", fake_request)
     urls = [f"https://{host}/jobs/{i}" for host in ("a.example", "b.example") for i in range(8)]
     started = time.perf_counter()
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -129,7 +129,7 @@ def _count_in_flight(monkeypatch, urls, response_status=200):
             bump(cluster, -1)
         return Response()
 
-    monkeypatch.setattr(http.requests, "request", fake_request)
+    monkeypatch.setattr(http, "_request", fake_request)
     with ThreadPoolExecutor(max_workers=24) as pool:
         list(pool.map(lambda u: http.get_json(u), urls))
     return most

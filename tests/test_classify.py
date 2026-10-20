@@ -199,3 +199,78 @@ def test_enrich_reads_seasons_from_the_description():
         description=f"A 4-month work term beginning January {next_year}.",
     )
     assert enrich(job, []).terms == [f"Winter {next_year}"]
+
+
+# ---------- what Ghostless stores ----------
+
+from tracker.classify import keep_relevant, worth_storing  # noqa: E402
+from tracker.models import JobList  # noqa: E402
+
+
+def _job(title: str) -> Job:
+    return enrich(Job(external_id=title, title=title, url="https://example.com"), [])
+
+
+@pytest.mark.parametrize(
+    "title, stored",
+    [
+        ("Senior Software Engineer", True),  # tech, any level
+        ("Data Engineer II", True),
+        ("Software Engineering Intern", True),
+        ("Finance Intern - Summer 2027", True),  # a student role in any field
+        ("Sales Development Associate, New Grad", True),
+        ("Warehouse Associate", False),  # neither tech nor a student role
+        ("Senior Accountant", False),
+        ("Account Executive, Commercial", False),
+    ],
+)
+def test_worth_storing(title, stored):
+    assert worth_storing(_job(title)) is stored
+
+
+def test_keep_relevant_keeps_the_listing_complete_flag():
+    jobs = JobList([_job("Software Engineer"), _job("Warehouse Associate")], complete=False, total=7)
+    kept = keep_relevant(jobs)
+    assert [j.title for j in kept] == ["Software Engineer"]
+    assert kept.complete is False and kept.total == 7  # closure tracking still sees a partial listing
+
+
+@pytest.mark.parametrize(
+    "title, level",
+    [
+        ("Stage – Assistant(e) Chef de Projet Événements (H/F/X) - Janvier 2027", "intern"),
+        ("Stage ingénieur : Développement d'outils d'IA", "intern"),
+        ("Stagiaire ingénieur de recherche (H/F)", "intern"),
+        ("Alternant(e) HR Généraliste", "intern"),
+        ("Praktikant (m/w/d) Chemielabor", "intern"),
+        ("Werkstudent:in Marketing (w/m/d)", "intern"),
+        ("Tirocinio Extracurriculare - Assistenza Tecnica", "intern"),
+        ("2027 Summer Analyst - Risk Management - New York, NY", "intern"),
+        ("2027 Capital Markets, Global Investment Banking Summer Associate", "intern"),
+        ("2027 Invest in Success Program (New York)", "new_grad"),
+        ("Finance Rotational Program - May 2027 Grads", "new_grad"),
+        ("Operations Leadership Development Program – Class of 2027", "new_grad"),
+        # English uses of the same words stay as they were
+        ("Stage Manager", "senior"),
+        ("Early Stage Venture Investor", "mid"),
+        ("Development Program Manager (Q-Systems)", "senior"),
+        ("Director Drug Development Program Management", "senior"),
+        ("Community Instructor - Youth Development Program", "mid"),
+    ],
+)
+def test_student_titles_in_other_languages_and_programs(title, level):
+    assert classify_level(title) == level
+
+
+@pytest.mark.parametrize(
+    "title, role",
+    [
+        ("Senior AI Applied Engineer", "ml"),
+        ("AI Product Engineer, Deployed", "ml"),
+        ("AI Benchmark Engineer | Native Language Specialist - Dutch - Remote", "other"),
+        ("AI Support Engineer - Toronto (Weekend Shift)", "other"),
+        ("AI Field Engineer - Strategic Partnerships", "other"),
+    ],
+)
+def test_ai_titles_with_words_between(title, role):
+    assert classify_role(title) == role

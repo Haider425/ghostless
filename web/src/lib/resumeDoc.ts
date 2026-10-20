@@ -164,8 +164,56 @@ export function exampleDoc(): ResumeDoc {
   };
 }
 
+/*
+  PDFs wrap long bullets onto a second line. Older imports (and some PDFs)
+  read that second line as a new entry: "are in office" as a job title, "used
+  by 20+ staff" as the company. A real entry starts with a capital letter and
+  usually has dates; a wrapped line starts in lower case or with a number
+  ("100+ listings per hour") and has none. Such an entry is folded back into
+  the previous entry's last bullet, and its own bullets move up with it.
+*/
+const looksWrapped = (head: string) => /^[a-z0-9]/.test(head.trim());
+
+function rejoin<T extends { bullets: string[] }>(entries: T[], headOf: (e: T) => string[], dated: (e: T) => boolean): T[] {
+  const out: T[] = [];
+  for (const entry of entries) {
+    const head = headOf(entry).map((x) => x.trim()).filter(Boolean);
+    const prev = out[out.length - 1];
+    const last = prev ? prev.bullets.findLastIndex((b) => b.trim()) : -1;
+    if (prev && last >= 0 && head.length && looksWrapped(head[0]!) && !dated(entry)) {
+      const bullets = [...prev.bullets];
+      bullets[last] = `${bullets[last]!.trimEnd()} ${head.join(", ")}`;
+      out[out.length - 1] = { ...prev, bullets: [...bullets, ...entry.bullets.filter((b) => b.trim())] };
+      continue;
+    }
+    out.push(entry);
+  }
+  return out;
+}
+
+/** Fold wrapped bullet lines that were read as entries back into their bullets. */
+export function repairWrapped(doc: ResumeDoc): ResumeDoc {
+  return {
+    ...doc,
+    experience: rejoin(
+      doc.experience,
+      (e) => [e.title, e.company, e.location],
+      (e) => Boolean(e.start.trim() || e.end.trim()),
+    ),
+    projects: rejoin(
+      doc.projects,
+      (p) => [p.name, p.tech, p.link],
+      (p) => Boolean(p.date.trim()),
+    ),
+  };
+}
+
 /** Accept a stored or pasted document, filling anything missing. */
 export function normalizeDoc(value: unknown): ResumeDoc {
+  return repairWrapped(normalizeFields(value));
+}
+
+function normalizeFields(value: unknown): ResumeDoc {
   const base = emptyDoc();
   if (!value || typeof value !== "object") return base;
   const v = value as Partial<ResumeDoc>;

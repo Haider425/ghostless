@@ -131,7 +131,7 @@ export function ReportDialog({
                   <input id="report-email" name="email" type="email" maxLength={254} className="field h-10" />
                 </div>
               )}
-              {state === "error" && <p role="alert" className="rounded-lg bg-brick-tint px-3 py-2 text-sm text-brick">{error}</p>}
+              {state === "error" && <p role="alert" className="notice notice-danger">{error}</p>}
               <div className="flex items-center gap-3">
                 <button type="submit" disabled={state === "sending"} className="btn btn-primary">
                   {state === "sending" ? "Sending..." : "Send report"}

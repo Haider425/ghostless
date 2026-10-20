@@ -113,8 +113,9 @@ def test_fetch_workday_paginates_and_fetches_each_description_once(monkeypatch):
     jobs = fetch_workday(company)
 
     assert [j.external_id for j in jobs] == ["/job/a", "/job/b", "/job/c", "/job/d", "/job/e"]
-    # every posting gets its description; a failed detail call keeps the job
-    assert detail_calls == ["a", "b", "c", "d", "e"]
+    # every posting Ghostless stores gets its description (not the Branch Teller);
+    # a failed detail call keeps the job
+    assert detail_calls == ["a", "c", "d", "e"]
     assert jobs[0].description == "Python"
     assert jobs[2].description == ""
 
@@ -247,3 +248,52 @@ def test_big_listings_are_split_by_facet_past_the_offset_limit(monkeypatch):
     assert len(jobs) == 8
     assert jobs.complete is True
     assert {"jobFamilyGroup": ["eng"]} in searches and {"jobFamilyGroup": ["sales"]} in searches
+
+
+def test_student_searches_keep_only_student_titles(monkeypatch):
+    """Workday's search for "intern" also finds International and Internal Audit."""
+    found = [
+        {"title": "Software Engineering Intern", "externalPath": "/job/a", "locationsText": "Toronto"},
+        {"title": "International Tax Manager", "externalPath": "/job/b", "locationsText": "Toronto"},
+        {"title": "Internal Audit Senior", "externalPath": "/job/c", "locationsText": "Toronto"},
+        {"title": "Co-op, Data Analyst (Winter 2027)", "externalPath": "/job/d", "locationsText": "Toronto"},
+        {"title": "New Grad Software Developer", "externalPath": "/job/e", "locationsText": "Toronto"},
+    ]
+    details = []
+
+    def fake_request(method, url, payload=None):
+        if method == "POST":
+            return {"total": len(found), "jobPostings": found if payload["offset"] == 0 else []}
+        details.append(url.rsplit("/", 1)[-1])
+        return {"jobPostingInfo": {"jobDescription": "x"}}
+
+    monkeypatch.setattr(http, "request_json", fake_request)
+    company = Company("Acme", "workday", "acme.wd3.myworkdayjobs.com/External")
+    jobs = fetch_workday(company, queries=("intern", "co-op", "new grad"), per_query=100)
+    assert [j.external_id for j in jobs] == ["/job/a", "/job/d", "/job/e"]
+    assert sorted(details) == ["a", "d", "e"]  # no descriptions fetched for the rest
+
+
+def test_weekly_full_read_lists_small_boards_and_skips_huge_ones(monkeypatch):
+    from tracker.sources.workday import list_workday
+
+    calls = []
+
+    def board(total):
+        def fake_request(method, url, payload=None):
+            calls.append(payload["offset"])
+            start = payload["offset"]
+            page = [{"title": "x", "externalPath": f"/job/{i}"} for i in range(start, min(start + 20, total))]
+            return {"total": total, "jobPostings": page, "facets": [{"facetParameter": "loc", "values": []}]}
+
+        return fake_request
+
+    company = Company("Acme", "workday", "acme.wd3.myworkdayjobs.com/External")
+    monkeypatch.setattr(http, "request_json", board(45))
+    listed, complete = list_workday(company)
+    assert complete and len(listed) == 45 and len(calls) == 4  # a first look, then 3 pages
+
+    calls.clear()
+    monkeypatch.setattr(http, "request_json", board(2733))
+    listed, complete = list_workday(company)
+    assert not complete and calls == [0]  # one request, then skipped: closes nothing

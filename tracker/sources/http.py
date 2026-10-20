@@ -2,7 +2,8 @@
 
 Every request goes through `_send`, so every adapter automatically gets:
 
-  * a robots.txt check: requests a site disallows are never sent
+  * a robots.txt check: requests a site disallows are never sent, and a
+    site's Crawl-delay becomes its minimum gap, one request at a time
   * per-host throttling: a minimum gap between requests to the same host,
     and a cap on requests in flight at once: one for most sites, a few for
     the public job-board APIs built for this (Greenhouse, Lever, Ashby), and a
@@ -11,6 +12,10 @@ Every request goes through `_send`, so every adapter automatically gets:
     server's Retry-After header is honoured when present
   * retries with exponential backoff and jitter on network errors and 5xx
   * an identifying User-Agent with a contact URL (set GHOSTLESS_CONTACT)
+  * one pooled connection per thread and host (keep-alive), so repeated
+    requests to a site skip the TCP and TLS handshake
+  * conditional requests (`get_json_if_changed`): a site that answers 304
+    Not Modified sends no body, and the caller knows nothing changed
   * optional dumping of raw responses for debugging parsers (`--dump`)
 """
 
@@ -23,7 +28,9 @@ import random
 import re
 import threading
 import time
+from collections import defaultdict
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -49,7 +56,7 @@ HOST_INTERVALS = {  # slower hosts, set from observed rate limits
     "www.google.com": 1.0,
     # public job-board APIs: several requests at once, each answer can take seconds
     "boards-api.greenhouse.io": 0.25,
-    "api.lever.co": 0.25,
+    "api.lever.co": 1.0,  # its robots.txt asks for Crawl-delay: 1
     "api.ashbyhq.com": 0.5,
 }
 # Requests in flight at once per host (default 1). These are the public APIs
@@ -57,9 +64,12 @@ HOST_INTERVALS = {  # slower hosts, set from observed rate limits
 # run tens of requests at once against them. A few is still very gentle.
 HOST_CONCURRENCY = {
     "boards-api.greenhouse.io": 4,
-    "api.lever.co": 4,
+    "api.lever.co": 1,  # Crawl-delay means one at a time
     "api.ashbyhq.com": 2,
 }
+# A site asking for more than this between requests is skipped for the run:
+# honouring it would hold a worker for hours.
+MAX_CRAWL_DELAY_SECONDS = 30.0
 # Each Workday employer has its own host, but they share a few server clusters
 # (the wd1, wd3, wd5 ... in the address). Cap what's in flight per cluster too.
 _WORKDAY_CLUSTER = re.compile(r"^[^.]+\.(wd\d+\.myworkdayjobs\.com)$", re.I)
@@ -111,6 +121,10 @@ class Gate:
         with self._cond:
             self.limit = max(1, self.limit // 2)
 
+    def cap(self, limit: int) -> None:
+        with self._cond:
+            self.limit = max(1, min(self.limit, limit))
+
 
 def cluster_of(host: str) -> str | None:
     match = _WORKDAY_CLUSTER.match(host)
@@ -142,6 +156,7 @@ class Throttle:
         self._last: dict[str, float] = {}
         self._successes: dict[str, int] = {}
         self._gates: dict[str, Gate] = {}
+        self._crawl_delays: dict[str, float] = {}
         self._guard = threading.Lock()
 
     def gate(self, key: str, limit: int) -> Gate:
@@ -163,6 +178,18 @@ class Throttle:
     def interval(self, host: str) -> float:
         return self.intervals.get(host, self.default)
 
+    def respect_crawl_delay(self, host: str, delay: float | None) -> None:
+        """A robots.txt Crawl-delay: at least that gap between requests, one at a time."""
+        if not delay or host in self._crawl_delays:
+            return
+        with self._guard:
+            if host in self._crawl_delays:
+                return
+            self._crawl_delays[host] = delay
+            self.base[host] = max(self.base.get(host, self.default), delay)
+            self.intervals[host] = max(self.intervals.get(host, self.default), delay)
+        self.gates_for(host)[-1].cap(1)  # the host's own gate, not its Workday cluster's
+
     def wait(self, host: str) -> None:
         """Wait for this host's next start slot. Slots are handed out under a
         lock, so requests running at once still keep the minimum gap."""
@@ -176,7 +203,8 @@ class Throttle:
 
     def slow_down(self, host: str) -> float:
         """Double the host's interval after a rate limit, and return it."""
-        new = min(max(self.interval(host) * 2, 1.0), MAX_INTERVAL_SECONDS)
+        ceiling = max(MAX_INTERVAL_SECONDS, self.base.get(host, 0.0))  # never below a Crawl-delay
+        new = min(max(self.interval(host) * 2, 1.0), ceiling)
         self.intervals[host] = new
         self._successes[host] = 0
         for gate in self.gates_for(host):  # and fewer requests at once, for the rest of the run
@@ -202,9 +230,43 @@ dump_dir: Path | None = None
 _dump_count = 0
 
 
+_local = threading.local()
+
+
+def _session() -> requests.Session:
+    """This thread's session: pooled keep-alive connections. Its own retries
+    stay off (requests' default); `_send_locked` does the retrying."""
+    session = getattr(_local, "session", None)
+    if session is None:
+        session = _local.session = requests.Session()
+    return session
+
+
+def _request(method: str, url: str, **kwargs: Any) -> requests.Response:
+    return _session().request(method, url, **kwargs)
+
+
+class Traffic:
+    """Requests, bytes received and 304 answers per host, for the run summary."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.by_host: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
+
+    def record(self, host: str, resp: requests.Response) -> None:
+        with self._lock:
+            row = self.by_host[host]
+            row[0] += 1
+            row[1] += len(getattr(resp, "content", None) or b"")
+            row[2] += int(resp.status_code == 304)
+
+
+traffic = Traffic()
+
+
 def _fetch_robots(url: str) -> tuple[int, str]:
     try:
-        resp = requests.get(url, timeout=TIMEOUT_SECONDS, headers={"User-Agent": USER_AGENT})
+        resp = _request("GET", url, timeout=TIMEOUT_SECONDS, headers={"User-Agent": USER_AGENT})
         return resp.status_code, resp.text
     except requests.RequestException:
         return 0, ""
@@ -249,31 +311,45 @@ def _dump(url: str, resp: requests.Response) -> None:
     log.info("saved response to %s", path)
 
 
-def _send(method: str, url: str, payload: dict | None, accept: str) -> requests.Response:
+def _send(
+    method: str, url: str, payload: dict | None, accept: str, extra: dict[str, str] | None = None
+) -> requests.Response:
     host = urlsplit(url).netloc
     gates = throttle.gates_for(host)
     for gate in gates:
         gate.acquire()
     try:
-        return _send_locked(method, url, payload, accept, host)
+        return _send_locked(method, url, payload, {"Accept": accept, **(extra or {})}, host)
     finally:
         for gate in reversed(gates):
             gate.release()
 
 
-def _send_locked(method: str, url: str, payload: dict | None, accept: str, host: str) -> requests.Response:
+def _send_locked(
+    method: str, url: str, payload: dict | None, extra: dict[str, str], host: str
+) -> requests.Response:
+    # inside the gates, so even robots.txt fetches respect the host and cluster limits
     if not robots.allowed(url):
         raise FetchError(f"blocked by robots.txt: {url}")
-    headers = {"User-Agent": USER_AGENT, "Accept": accept}
+    delay = robots.crawl_delay(url)
+    if delay and delay > MAX_CRAWL_DELAY_SECONDS:
+        raise FetchError(f"robots.txt asks for {delay:.0f}s between requests, skipping {host} this run")
+    throttle.respect_crawl_delay(host, delay)  # start slots are spaced by it from here on
+    headers = {"User-Agent": USER_AGENT, **extra}
+    conditional = "If-None-Match" in headers or "If-Modified-Since" in headers
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         throttle.wait(host)
         try:
-            resp = requests.request(method, url, json=payload, timeout=TIMEOUT_SECONDS, headers=headers)
+            resp = _request(method, url, json=payload, timeout=TIMEOUT_SECONDS, headers=headers)
         except requests.RequestException as exc:
             reason, wait = f"network error: {exc}", _backoff(attempt)
         else:
+            traffic.record(host, resp)
             status = resp.status_code
+            if status == 304 and conditional:
+                throttle.recover(host)
+                return resp
             if 200 <= status < 300:
                 throttle.recover(host)
                 _dump(url, resp)
@@ -311,3 +387,50 @@ def get_json(url: str) -> Any:
 
 def get_text(url: str) -> str:
     return _send("GET", url, None, "text/html,application/xml;q=0.9,*/*;q=0.8").text
+
+
+# ---------- conditional requests ----------
+
+
+@dataclass(frozen=True)
+class Validators:
+    """What a server said identifies the version it sent. Sent back, they let
+    an unchanged resource come back as an empty 304."""
+
+    url: str
+    etag: str | None = None
+    last_modified: str | None = None
+
+    @classmethod
+    def of(cls, url: str, resp: requests.Response) -> Validators | None:
+        etag, modified = resp.headers.get("ETag"), resp.headers.get("Last-Modified")
+        return cls(url, etag, modified) if etag or modified else None
+
+    def headers(self) -> dict[str, str]:
+        out = {}
+        if self.etag:
+            out["If-None-Match"] = self.etag
+        if self.last_modified:
+            out["If-Modified-Since"] = self.last_modified
+        return out
+
+
+class _NotModified:
+    def __repr__(self) -> str:
+        return "NOT_MODIFIED"
+
+
+NOT_MODIFIED: Any = _NotModified()
+
+
+def get_json_if_changed(url: str, cached: Validators | None = None) -> tuple[Any, Validators | None]:
+    """(data, validators to store for next time), or (NOT_MODIFIED, cached)
+    when the server says nothing changed since `cached` was stored."""
+    extra = cached.headers() if cached and cached.url == url else None
+    resp = _send("GET", url, None, "application/json", extra)
+    if resp.status_code == 304:
+        return NOT_MODIFIED, cached
+    try:
+        return resp.json(), Validators.of(url, resp)
+    except ValueError as exc:
+        raise FetchError(f"invalid JSON from {url}") from exc

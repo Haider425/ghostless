@@ -16,6 +16,7 @@ import logging
 import re
 from datetime import datetime, timedelta, timezone
 
+from tracker.classify import classify_level
 from tracker.models import Company, Job, JobList
 from tracker.sources import http
 from tracker.sources.common import plan_details
@@ -53,6 +54,10 @@ def parse_workday_age(posted_on: str | None, now: datetime | None = None) -> dat
         return now - timedelta(days=1)
     match = _AGE.search(text)
     return now - timedelta(days=int(match.group(1))) if match else None
+
+
+def is_student_title(title: str) -> bool:
+    return classify_level(title) in ("intern", "new_grad")
 
 
 def parse_workday_job(item: dict, detail: dict | None, base: str, site: str) -> Job:
@@ -168,6 +173,25 @@ def _crawl(api: str, applied: dict, depth: int = 0) -> tuple[dict[str, dict], in
     return listings, total
 
 
+def list_workday(company: Company) -> tuple[set[str], bool]:
+    """Every posting id on the board (no descriptions), and whether the listing
+    came back complete. Used to close postings once a week on boards that are
+    otherwise only searched for student roles.
+
+    Only listings that fit in one search (Workday pages stop at 2,000) are
+    read: at most 100 requests. A bigger board would need the search split
+    by facets, which on some boards takes over 1,500 requests (measured), so
+    it's reported as incomplete after one request and nothing is closed."""
+    base, tenant, site = parse_workday_slug(company.board_slug)
+    api = f"{base}/wday/cxs/{tenant}/{site}"
+    first, total, _ = _search(api, {}, limit=PAGE_SIZE)
+    if total > OFFSET_LIMIT:
+        log.info("%s: %d postings, too many for the weekly full read", company.name, total)
+        return set(first), False
+    listings, total, _ = _search(api, {}) if total > len(first) else (first, total, None)
+    return set(listings), len(listings) >= total
+
+
 def fetch_workday(
     company: Company,
     details: bool = True,
@@ -193,6 +217,10 @@ def fetch_workday(
             total += matched
             for path, posting in found.items():
                 listings.setdefault(path, posting)
+        # Workday's search matches words inside words and in descriptions: "intern"
+        # finds International and Internal Audit. Keep what the title says is a
+        # student role, so nothing else is stored or sent for a description.
+        listings = {path: item for path, item in listings.items() if is_student_title(item.get("title", ""))}
     else:
         listings, total = _crawl(api, {})
         complete = len(listings) >= total

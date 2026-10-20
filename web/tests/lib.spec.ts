@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { EMPTY_FILTERS, activeFilterCount, jobsHref, parseFilters, toApiQuery } from "../src/lib/filters";
 import { ago, formatDate, formatSalary, initials, possessive, shortLocation } from "../src/lib/format";
+import { normalizeDoc } from "../src/lib/resumeDoc";
 
 /* Pure-function tests: no browser, no server. */
 
@@ -103,5 +104,41 @@ test.describe("labels", () => {
     expect(shortLocation(null)).toBe("Location not listed");
     expect(initials("Granite Payments")).toBe("GP");
     expect(initials("stripe")).toBe("St");
+  });
+});
+
+test.describe("resume documents", () => {
+  const job = (title: string, company: string, bullets: string[], start = "", end = "") => ({ title, company, location: "", start, end, bullets });
+
+  test("folds bullet lines that were read as entries back into their bullet", () => {
+    const doc = normalizeDoc({
+      experience: [
+        job("Ontario Power Generation", "Software Developer Co-op", ["Developed a scheduling web app that shows workers which days their form approvers"], "September 2026", "April 2027"),
+        job("are in office", "used by 20+ staff", ["Combined data from 4 databases, narrowing records to a few hundred"]),
+        job("matches in under 4 seconds", "", ["Built Power BI dashboards"]),
+        job("Square Root Technologies", "Software Engineer", ["Built an AI pipeline, processing"], "December 2025", "March 2026"),
+        job("100+ listings per hour", "", []),
+      ],
+      projects: [
+        { name: "AI Product Pipeline", tech: "Node.js", link: "", date: "March 2026", bullets: ["Built an API that extracts product data"] },
+        { name: "using Gemini vision", tech: "returning a validated JSON schema", link: "", date: "", bullets: [] },
+      ],
+    });
+    expect(doc.experience.map((e) => e.title)).toEqual(["Ontario Power Generation", "Square Root Technologies"]);
+    expect(doc.experience[0]!.bullets).toEqual([
+      "Developed a scheduling web app that shows workers which days their form approvers are in office, used by 20+ staff",
+      "Combined data from 4 databases, narrowing records to a few hundred matches in under 4 seconds",
+      "Built Power BI dashboards",
+    ]);
+    expect(doc.experience[1]!.bullets).toEqual(["Built an AI pipeline, processing 100+ listings per hour"]);
+    expect(doc.projects).toHaveLength(1);
+    expect(doc.projects[0]!.bullets[0]).toBe("Built an API that extracts product data using Gemini vision, returning a validated JSON schema");
+  });
+
+  test("keeps real entries, even ones without dates", () => {
+    const doc = normalizeDoc({
+      experience: [job("Data Analyst Co-op", "Maple Bank", ["Built reports"], "May 2025", "Aug 2025"), job("Volunteer Tutor", "Code Club", ["Taught Python"])],
+    });
+    expect(doc.experience.map((e) => e.title)).toEqual(["Data Analyst Co-op", "Volunteer Tutor"]);
   });
 });
