@@ -43,6 +43,10 @@ Stored = dict[str, tuple[datetime, str, "str | None"]]
 
 
 def board_url(company: Company) -> str:
+    if company.platform not in URLS:
+        from tracker.sources.ats import listing_url  # stage E hiring systems
+
+        return listing_url(company)
     return URLS[company.platform].format(slug=company.board_slug)
 
 

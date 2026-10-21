@@ -7,6 +7,8 @@ variables in the GitHub workflow):
 
     GHOSTLESS_SNOWBALL=1         register job boards linked from postings, and verify them
     GHOSTLESS_JSONLD=1           find and read company career sites that publish JSON-LD
+    GHOSTLESS_SOURCES=workable,teamtailor   read these hiring systems too (stage E; or "all"):
+                                 workable, teamtailor, personio, breezy, rippling, recruitee, smartrecruiters
     GHOSTLESS_INDEX_SEEDING=1    monthly: find job boards in Common Crawl's URL index (discover.yml,
                                  needs the optional `index` extra) and check them like the above
 
@@ -60,3 +62,16 @@ def jsonld_sitemaps() -> int:
 
 def jsonld_urls() -> int:
     return _number("GHOSTLESS_JSONLD_URLS", 2000, low=1, high=20_000)
+
+
+# Hiring systems added in stage E (tracker/sources/ats.py), each off until named
+NEW_SOURCES = ("workable", "teamtailor", "personio", "breezy", "rippling", "recruitee", "smartrecruiters")
+
+
+def sources() -> frozenset[str]:
+    """GHOSTLESS_SOURCES: the stage E hiring systems switched on, comma separated
+    ("workable,teamtailor"), or "all". Empty by default."""
+    raw = os.environ.get("GHOSTLESS_SOURCES", "").strip().lower()
+    if raw == "all":
+        return frozenset(NEW_SOURCES)
+    return frozenset(name.strip() for name in raw.split(",") if name.strip() in NEW_SOURCES)

@@ -16,7 +16,9 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS domain TEXT;
 ALTER TABLE companies DROP CONSTRAINT IF EXISTS companies_platform_check;
 ALTER TABLE companies ADD CONSTRAINT companies_platform_check
     CHECK (platform IN ('greenhouse', 'lever', 'ashby', 'workday', 'amazon',
-                        'eightfold', 'google', 'apple', 'sitemap', 'rss', 'list', 'jsonld'));
+                        'eightfold', 'google', 'apple', 'sitemap', 'rss', 'list', 'jsonld',
+                        'workable', 'teamtailor', 'personio', 'breezy', 'rippling', 'recruitee',
+                        'smartrecruiters'));
 
 -- v2.2: where a company came from. configured: companies.yaml. discovered: a
 -- job board found through a public job list. list: only known through the

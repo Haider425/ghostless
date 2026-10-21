@@ -375,6 +375,50 @@ Each one gets:
 
 The HTTP layer already re-checks robots.txt per company subdomain, so a company that disallows crawling is skipped.
 
+### Stage E results (built 21 October 2026, switched off)
+
+**The setting.** All seven adapters are in `tracker/sources/ats.py`, behind `GHOSTLESS_SOURCES`, which is empty by default. It takes a comma-separated list (`workable,teamtailor`) or `all`. A platform that isn't named isn't linked to, discovered, checked or read. A `companies.yaml` entry for it fails with "switched off". The workflows pass the repository variable of the same name through.
+
+**Checks before building** (21 October 2026, one request each). robots.txt was checked again for every host used, and every one allows the paths read. Each adapter was tried on a real company:
+
+| System | How it reads | Descriptions | 304 | Verified on |
+|---|---|---|---|---|
+| Workable | widget API, `details=true` (full descriptions confirmed) | in the listing | no | Focusrite |
+| Teamtailor | `jobs.rss`, 100 a page | in the listing | yes | Oatly |
+| Personio | `/xml?language=en` (seniority, schedule and years fields used) | in the listing | yes | Personio |
+| Breezy | `/json` (with pay) | each job page's JSON-LD | yes | Forge Nano |
+| Rippling | board API list, then each job's detail | the detail API | no | apexanalytix |
+| Recruitee | `/api/offers/` | in the listing | not checked | a board from the job lists (54 postings read) |
+| SmartRecruiters | the public career page, then each job page's schema.org microdata | each job page | no | Western Digital |
+
+**SmartRecruiters:**
+- **Never called:** the API host disallows crawlers, and no code calls it (a test checks this).
+- **The listing:** the career page shows the first postings of each location; its "show more" calls an undocumented path, which isn't used.
+- **Closures:** a stored posting missing from the page closes only when its own page is gone (a 404 or no posting on the page). At most 20 are checked per run. The rest stay open, so a big company's partial listing never closes anything wrongly.
+
+**Wiring:**
+- **Registry and schema:** `FETCHERS` entries, the platform constraint (one migration, safe to run twice).
+- **Discovery:** `board_from_url` rules for each system (only when switched on), checks of candidate boards, and URL prefixes in the B2 index read (also only when switched on).
+- **Pacing and requests:** host pacing for the shared hosts (`apply.workable.com`, `api.rippling.com`, `jobs.smartrecruiters.com`), conditional requests on the three that answer 304, and per-posting descriptions read once each, a capped batch per run.
+- **Tests:** recorded, trimmed samples in `tests/fixtures/sources`.
+
+**Dry run** (Neon read-only; nothing written):
+
+| System | Boards linked from the job lists and stored postings | Boards in the Common Crawl index | Sample read: listed / kept | Estimated postings kept |
+|---|---|---|---|---|
+| Workable | 70 | 3,199 | 51 / 17 (10 boards) | ~5,400 |
+| Teamtailor | 0 | 473 | 70 / 18 | ~850 |
+| Personio | 0 | 1,303 | 118 / 12 | ~1,550 |
+| Breezy | 2 | 57 | 37 / 4 | ~25 to 50 |
+| Rippling | 39 | 1,120 | 89 / 1 (index sample); 915 / 351 (linked boards) | ~110 from the index, ~1,700 from the linked boards |
+| Recruitee | 1 | 464 | 310 / 63 | ~2,900 |
+| SmartRecruiters | 90 | 704 | 92 / 12 | ~850 |
+| **Total** | | | | **~13,000 to 15,000 postings, about 60 to 70 MB** |
+
+**Cost:** reading the index for these hosts took 613 requests and 183 MB.
+
+**All growth stages switched on** (B links and career sites ~45 MB, B2 ~115 to 150 MB, C ~5 MB, E ~70 MB): Neon would go from 596 MB to about 830 to 870 MB, still under 1 GB. Each source has its own switch, so they can be turned on one at a time and checked with `ghostless health`.
+
 ## Storage
 
 Today it's 625 MB for 148k postings, about 3.9 KB per posting (row, description and indexes) plus about 0.5 KB in skills and signals. Descriptions are 264 MB of that. Closed postings are kept forever, so storage grows with history.

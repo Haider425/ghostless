@@ -18,6 +18,7 @@ env:
   # Settings > Secrets and variables > Actions > Variables (see README, Configuration)
   GHOSTLESS_SNOWBALL: ${{ vars.GHOSTLESS_SNOWBALL }}
   GHOSTLESS_JSONLD: ${{ vars.GHOSTLESS_JSONLD }}
+  GHOSTLESS_SOURCES: ${{ vars.GHOSTLESS_SOURCES }}  # extra hiring systems, e.g. workable,teamtailor
   GHOSTLESS_INDEX_SEEDING: ${{ vars.GHOSTLESS_INDEX_SEEDING }}  # checks boards from discover.yml
   GHOSTLESS_VERIFY_PER_RUN: ${{ vars.GHOSTLESS_VERIFY_PER_RUN }}
   GHOSTLESS_JSONLD_PAGES_PER_SITE: ${{ vars.GHOSTLESS_JSONLD_PAGES_PER_SITE }}

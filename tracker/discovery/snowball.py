@@ -175,6 +175,15 @@ def check(platform: str, slug: str, sample_url: str | None) -> Check:
             found, _, _ = _search(f"{base}/wday/cxs/{tenant}/{site}", {}, "intern", 20)
             worth = _worth(i.get("title") for i in found.values())
             return Check("active" if worth else "empty", worth=worth)
+        if platform in settings.NEW_SOURCES:  # stage E: the listing alone, no descriptions
+            from tracker.sources import ats
+
+            if not ats.enabled(platform):
+                return Check("failed")
+            company = Company(name=slug, platform=platform, board_slug=slug, origin="discovered")
+            jobs = ats.FETCHERS[platform](company, details=False)
+            worth = _worth(j.title for j in jobs)
+            return Check("active" if worth else "empty", worth=worth)
         if platform == "jsonld":
             if not sample_url:
                 return Check("failed")
@@ -198,7 +207,7 @@ def verify(dsn: str, budget: int | None = None) -> dict[str, int]:
     """Check up to `budget` candidates (and empty boards due a recheck)."""
     platforms = [p for p, on in (("jsonld", settings.jsonld()),) if on]
     if settings.snowball() or settings.index_seeding():  # boards from links or from the URL index
-        platforms += list(ATS_PLATFORMS)
+        platforms += list(ATS_PLATFORMS) + sorted(settings.sources())
     budget = settings.verify_per_run() if budget is None else budget
     counts = dict(checked=0, active=0, empty=0, failed=0, dead=0, replaced=0)
     if not platforms or budget <= 0:

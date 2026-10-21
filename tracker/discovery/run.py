@@ -36,7 +36,7 @@ from tracker.discovery.lists import JobList, ListedJob, clean_url, fetch_list
 from tracker.models import Company, Job
 from tracker.parallel import in_shard, run_by_site, site_of
 from tracker.skills import extract_skills
-from tracker.sources import FetchError
+from tracker.sources import FetchError, ats, complete_descriptions, fetch_jobs
 from tracker.sources.boards import fetch_board
 from tracker.sources.jsonld import fetch_jsonld
 from tracker.sources.workday import fetch_workday, list_workday
@@ -254,6 +254,17 @@ def _crawl_one(
                 per_query=WORKDAY_PER_QUERY,
                 max_details=WORKDAY_DETAILS,
             )
+        elif platform in ats.PLATFORMS:  # stage E: the source registry checks it's switched on
+            with db.connect(dsn) as conn:
+                stored = db.stored_details(conn, company)
+            cached, _ = board_state(dsn, company)
+            jobs = fetch_jobs(
+                company, known=complete_descriptions(platform, stored), cached=cached, stored=None
+            )
+            if not jobs.not_modified:
+                from tracker.ingest import reuse_details
+
+                reuse_details(jobs, stored)
         elif platform == "jsonld":
             with db.connect(dsn) as conn:
                 known = frozenset(db.stored_details(conn, company))

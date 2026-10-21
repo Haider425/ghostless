@@ -42,6 +42,25 @@ PREFIXES = (
     "io,greenhouse,eu,boards)/",
     "io,greenhouse,eu,job-boards)/",
 )
+# the stage E hiring systems, searched for only when switched on (GHOSTLESS_SOURCES)
+NEW_SOURCE_PREFIXES = {
+    "workable": ("com,workable,",),
+    "teamtailor": ("com,teamtailor,",),
+    "personio": ("de,personio,jobs,", "com,personio,jobs,"),
+    "breezy": ("hr,breezy,",),
+    "rippling": ("com,rippling,ats)/",),
+    "recruitee": ("com,recruitee,",),
+    "smartrecruiters": ("com,smartrecruiters,jobs)/", "com,smartrecruiters,careers)/"),
+}
+
+
+def prefixes() -> tuple[str, ...]:
+    from tracker import settings
+
+    extra = [p for name in sorted(settings.sources()) for p in NEW_SOURCE_PREFIXES[name]]
+    return PREFIXES + tuple(extra)
+
+
 READ_BLOCK = 1 << 16  # small reads (footers) are fetched in blocks of this size
 
 
@@ -161,9 +180,10 @@ def find_boards(files: list[str], limit_files: int | None = None) -> tuple[dict[
     """{(platform, slug): a job link on it} across the index files, and counts."""
     boards: dict[tuple[str, str], str] = {}
     counts = Counter()
+    wanted = prefixes()
     for url in files[:limit_files] if limit_files else files:
         try:
-            links, read, groups = board_urls_in(url)
+            links, read, groups = board_urls_in(url, wanted)
         except (FetchError, OSError) as exc:
             log.warning("index file %s unreadable: %s", url.rsplit("/", 1)[-1], exc)
             counts["files_failed"] += 1

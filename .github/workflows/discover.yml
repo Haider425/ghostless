@@ -24,6 +24,7 @@ concurrency:
 env:
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
   GHOSTLESS_CONTACT: https://github.com/${{ github.repository }}
+  GHOSTLESS_SOURCES: ${{ vars.GHOSTLESS_SOURCES }}  # extra hiring systems, e.g. workable,teamtailor
   GHOSTLESS_INDEX_SEEDING: ${{ vars.GHOSTLESS_INDEX_SEEDING }}
 
 jobs:

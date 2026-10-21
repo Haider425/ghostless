@@ -58,6 +58,10 @@ HOST_INTERVALS = {  # slower hosts, set from observed rate limits
     "boards-api.greenhouse.io": 0.25,
     "api.lever.co": 1.0,  # its robots.txt asks for Crawl-delay: 1
     "api.ashbyhq.com": 0.5,
+    # stage E hiring systems whose host every company shares
+    "apply.workable.com": 0.5,
+    "api.rippling.com": 0.5,
+    "jobs.smartrecruiters.com": 1.0,
 }
 # Requests in flight at once per host (default 1). These are the public APIs
 # ATS vendors publish for job boards; aggregators covering 20,000+ companies

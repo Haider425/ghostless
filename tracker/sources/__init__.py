@@ -13,6 +13,7 @@
 | sitemap    | Shopify                                 | careers XML sitemap              |
 | rss        | Scotiabank (SAP SuccessFactors)         | RSS job feed                     |
 | jsonld     | company career sites (discovered)       | sitemaps + JSON-LD JobPosting    |
+| workable, teamtailor, personio, breezy, rippling, recruitee, smartrecruiters | see sources/ats.py; each off unless in GHOSTLESS_SOURCES | |
 
 Every request goes through `http`, which checks robots.txt first.
 """
@@ -22,6 +23,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from tracker.models import Company, Job, JobList
+from tracker.sources import ats
 from tracker.sources.amazon import fetch_amazon, parse_amazon
 from tracker.sources.apple import fetch_apple, is_full_description, parse_apple_detail, parse_apple_page
 from tracker.sources.boards import fetch_board, parse_ashby, parse_greenhouse, parse_lever
@@ -49,6 +51,7 @@ FETCHERS: dict[str, Callable[..., list[Job]]] = {
     "sitemap": fetch_sitemap,
     "rss": fetch_rss,
     "jsonld": fetch_jsonld,
+    **ats.FETCHERS,
 }
 
 # Platforms whose fetch returns only part of the open postings. Jobs missing
@@ -60,7 +63,7 @@ PLATFORMS = set(FETCHERS)
 
 # Platforms whose servers answer conditional requests with 304 (checked for
 # each in docs/crawler-research.md; Workday, Workable and Rippling don't)
-CONDITIONAL = {"greenhouse", "lever", "ashby"}
+CONDITIONAL = {"greenhouse", "lever", "ashby"} | ats.CONDITIONAL
 
 
 def listing_is_complete(company: Company) -> bool:
@@ -70,7 +73,7 @@ def listing_is_complete(company: Company) -> bool:
 # Platforms that need one extra request per posting for its description.
 # They accept `known`: ids already stored with a description, which are not
 # fetched again.
-INCREMENTAL_DETAILS = {"workday", "eightfold", "apple", "jsonld"}
+INCREMENTAL_DETAILS = {"workday", "eightfold", "apple", "jsonld"} | ats.PER_POSTING
 
 # Where a listing already carries part of the text (Apple's summary), a stored
 # description only counts as known once it is the full posting.
@@ -109,7 +112,11 @@ def fetch_jobs(
     fetcher = FETCHERS.get(company.platform)
     if fetcher is None:
         raise FetchError(f"unknown platform: {company.platform}")
-    if company.platform == "jsonld":  # pages are read again when their sitemap entry changes
+    if company.platform in ats.PLATFORMS:
+        if not ats.enabled(company.platform):
+            raise FetchError(f"{company.platform} is switched off (add it to GHOSTLESS_SOURCES)")
+        result = fetcher(company, details=details, known=known, cached=cached, stored=stored)
+    elif company.platform == "jsonld":  # pages are read again when their sitemap entry changes
         result = fetcher(company, details=details, known=known, stored=stored)
     elif company.platform in INCREMENTAL_DETAILS:
         result = fetcher(company, details=details, known=known)

@@ -1,0 +1,28 @@
+[
+ {
+  "uuid": "e1eab597-c978-401f-9aaa-eb1f5553b86b",
+  "name": "AI Engineer",
+  "department": {
+   "id": "R&D - Archimedes",
+   "label": "R&D - Archimedes"
+  },
+  "url": "https://ats.rippling.com/apexanalytix-careers/jobs/e1eab597-c978-401f-9aaa-eb1f5553b86b",
+  "workLocation": {
+   "label": "Noida, India",
+   "id": "Noida, India"
+  }
+ },
+ {
+  "uuid": "e68a27d2-ecc2-4464-8b5e-d47e8a3e19f3",
+  "name": "Associate - Security and Compliance Analyst",
+  "department": {
+   "id": "IT Infrastructure",
+   "label": "IT Infrastructure"
+  },
+  "url": "https://ats.rippling.com/apexanalytix-careers/jobs/e68a27d2-ecc2-4464-8b5e-d47e8a3e19f3",
+  "workLocation": {
+   "label": "Noida, India",
+   "id": "Noida, India"
+  }
+ }
+]

@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from urllib.parse import parse_qs, urlparse
 
+from tracker import settings
+
 _GREENHOUSE_HOSTS = {
     "boards.greenhouse.io",
     "job-boards.greenhouse.io",
@@ -46,6 +48,55 @@ def board_from_url(url: str) -> tuple[str, str] | None:
         if site.lower() in ("job", "details", "wday") or not _SLUG.match(site):
             return None
         return ("workday", f"{host}/{site}")
+    board = _new_source_board(host, path)
+    if board and board[0] in settings.sources():  # stage E systems, only when switched on
+        return board
+    return None
+
+
+_SUBDOMAIN = re.compile(
+    r"^([a-z0-9][a-z0-9-]{0,62})\.(teamtailor\.com|breezy\.hr|recruitee\.com|workable\.com)$"
+)
+_PERSONIO = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}\.jobs\.personio\.(?:de|com)$")
+_SUBDOMAIN_PLATFORM = {
+    "teamtailor.com": "teamtailor",
+    "breezy.hr": "breezy",
+    "recruitee.com": "recruitee",
+    "workable.com": "workable",
+}
+_NOT_COMPANIES = {
+    "www",
+    "app",
+    "api",
+    "apply",
+    "jobs",
+    "careers",
+    "help",
+    "support",
+    "status",
+    "blog",
+    "docs",
+}
+
+
+def _new_source_board(host: str, path: list[str]) -> tuple[str, str] | None:
+    """A Workable, Teamtailor, Personio, Breezy, Rippling, Recruitee or SmartRecruiters board."""
+    if host == "apply.workable.com" and path and path[0] not in ("j", "api"):
+        return ("workable", path[0].lower()) if _SLUG.match(path[0]) else None
+    if host == "ats.rippling.com" and path:
+        slug = path[1] if _LOCALE.match(path[0]) and len(path) > 1 else path[0]
+        return ("rippling", slug.lower()) if _SLUG.match(slug) and not _LOCALE.match(slug) else None
+    if host in ("jobs.smartrecruiters.com", "careers.smartrecruiters.com") and path:
+        return (
+            ("smartrecruiters", path[0])
+            if _SLUG.match(path[0]) and path[0].lower() != "oneclick-ui"
+            else None
+        )
+    if _PERSONIO.match(host):
+        return ("personio", host)
+    match = _SUBDOMAIN.match(host)
+    if match and match.group(1) not in _NOT_COMPANIES:
+        return (_SUBDOMAIN_PLATFORM[match.group(2)], match.group(1))
     return None
 
 
