@@ -130,6 +130,18 @@ def test_lever_and_ashby_are_read_conditionally(monkeypatch, platform):
     assert again.not_modified and asked == [None, first.validators]
 
 
+def test_lever_eu_boards_are_read_from_lever_eu_api():
+    from tracker.discovery.boards import board_from_url
+    from tracker.sources.boards import board_url
+
+    assert board_from_url("https://jobs.eu.lever.co/Asobostudio/1ab1d28f") == ("lever", "eu/asobostudio")
+    assert board_from_url("https://jobs.lever.co/acme/1") == ("lever", "acme")
+    assert board_url(Company("Asobo", "lever", "eu/asobostudio")) == (
+        "https://api.eu.lever.co/v0/postings/asobostudio?mode=json"
+    )
+    assert board_url(Company("Acme", "lever", "acme")) == "https://api.lever.co/v0/postings/acme?mode=json"
+
+
 def test_keep_relevant_keeps_the_not_modified_flags():
     from tracker.classify import keep_relevant
     from tracker.models import JobList

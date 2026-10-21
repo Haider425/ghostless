@@ -33,6 +33,8 @@ URLS = {
     # includeCompensation: the pay range in structured form (stage C1)
     "ashby": "https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true",
 }
+# Lever's EU instance (jobs.eu.lever.co): boards stored as "eu/<slug>"
+LEVER_EU = "https://api.eu.lever.co/v0/postings/{slug}?mode=json"
 GREENHOUSE_FULL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true&pay_transparency=true"
 GREENHOUSE_JOB = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs/{id}?pay_transparency=true"
 # More new or changed postings than this: one request for the whole board instead
@@ -47,7 +49,15 @@ def board_url(company: Company) -> str:
         from tracker.sources.ats import listing_url  # stage E hiring systems
 
         return listing_url(company)
+    if company.platform == "lever":
+        return lever_url(company.board_slug)
     return URLS[company.platform].format(slug=company.board_slug)
+
+
+def lever_url(slug: str) -> str:
+    if slug.startswith("eu/"):
+        return LEVER_EU.format(slug=slug[3:])
+    return URLS["lever"].format(slug=slug)
 
 
 def _greenhouse_pay(job: Job, ranges: list | None) -> None:

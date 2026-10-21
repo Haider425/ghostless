@@ -131,6 +131,7 @@ def log_traffic(seconds_by_platform: dict[str, float] | None = None) -> None:
             else {
                 "boards-api.greenhouse.io": "greenhouse",
                 "api.lever.co": "lever",
+                "api.eu.lever.co": "lever",
                 "api.ashbyhq.com": "ashby",
             }.get(host, "other")
         )

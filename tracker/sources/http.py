@@ -57,6 +57,7 @@ HOST_INTERVALS = {  # slower hosts, set from observed rate limits
     # public job-board APIs: several requests at once, each answer can take seconds
     "boards-api.greenhouse.io": 0.25,
     "api.lever.co": 1.0,  # its robots.txt asks for Crawl-delay: 1
+    "api.eu.lever.co": 1.0,  # likewise
     "api.ashbyhq.com": 0.5,
     # stage E hiring systems whose host every company shares
     "apply.workable.com": 0.5,
@@ -69,6 +70,7 @@ HOST_INTERVALS = {  # slower hosts, set from observed rate limits
 HOST_CONCURRENCY = {
     "boards-api.greenhouse.io": 4,
     "api.lever.co": 1,  # Crawl-delay means one at a time
+    "api.eu.lever.co": 1,
     "api.ashbyhq.com": 2,
 }
 # A site asking for more than this between requests is skipped for the run:

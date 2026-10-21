@@ -38,8 +38,11 @@ def board_from_url(url: str) -> tuple[str, str] | None:
         else:
             slug = path[0] if path else ""
         return ("greenhouse", slug.lower()) if _SLUG.match(slug) else None
-    if host == "jobs.lever.co" and path:
-        return ("lever", path[0].lower()) if _SLUG.match(path[0]) else None
+    if host in ("jobs.lever.co", "jobs.eu.lever.co") and path:
+        if not _SLUG.match(path[0]):
+            return None
+        # Lever's EU instance is a separate board list, read from its own API
+        return ("lever", path[0].lower() if host == "jobs.lever.co" else f"eu/{path[0].lower()}")
     if host == "jobs.ashbyhq.com" and path:
         return ("ashby", path[0]) if _SLUG.match(path[0]) else None
     match = _WORKDAY_HOST.match(host)

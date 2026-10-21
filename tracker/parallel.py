@@ -33,6 +33,7 @@ DEFAULT_WORKERS = 16  # threads; the per-site limits in the HTTP layer decide th
 PLATFORM_HOSTS = {
     "greenhouse": "boards-api.greenhouse.io",
     "lever": "api.lever.co",
+    "lever-eu": "api.eu.lever.co",
     "ashby": "api.ashbyhq.com",
     "workable": "apply.workable.com",
     "rippling": "api.rippling.com",
@@ -53,6 +54,8 @@ def site_of(company: Company) -> str:
     first = slug.split("/", 1)[0]
     if "." in first:  # slugs that are hosts: Workday, Eightfold, feeds and sitemaps
         return first
+    if company.platform == "lever" and first == "eu":  # Lever's EU instance has its own API
+        return "lever-eu"
     return company.platform  # one shared API: Greenhouse, Lever, Ashby, Amazon, Google, Apple
 
 
