@@ -28,7 +28,7 @@ from tracker.discovery.boards import board_from_url, board_links, career_site, c
 from tracker.models import Company
 from tracker.parallel import run_by_site, site_of
 from tracker.sources import http
-from tracker.sources.boards import URLS
+from tracker.sources.boards import URLS, lever_url
 from tracker.sources.common import slug_to_title
 from tracker.sources.http import FetchError
 from tracker.sources.jsonld import parse_job_page
@@ -162,7 +162,7 @@ def check(platform: str, slug: str, sample_url: str | None) -> Check:
             worth = _worth(i.get("title") for i in items)
             return Check("active" if worth else "empty", name, worth=worth)
         if platform == "lever":
-            items = http.get_json(URLS["lever"].format(slug=slug)) or []
+            items = http.get_json(lever_url(slug)) or []
             worth = _worth(i.get("text") for i in items)
             return Check("active" if worth else "empty", worth=worth)
         if platform == "ashby":

@@ -34,7 +34,11 @@ MIRROR = "https://huggingface.co/buckets/commoncrawl/commoncrawl/resolve/"
 # Index URLs in SURT form: hosts reversed, lowercase. The table is sorted on it,
 # so each of these is one contiguous slice.
 PREFIXES = (
+    # jobs.lever.co answers Common Crawl's crawler with 403, so its pages are
+    # missing from the 'warc' subset (none in CC-MAIN-2026-25, -34 or -39);
+    # Lever's EU instance is crawled normally.
     "co,lever,jobs)/",
+    "co,lever,eu,jobs)/",
     "com,ashbyhq,jobs)/",
     "com,myworkdayjobs,",
     "io,greenhouse,boards)/",

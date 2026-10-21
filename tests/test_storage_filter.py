@@ -87,8 +87,8 @@ def test_sources_skip_descriptions_of_postings_that_wont_be_stored(monkeypatch):
     monkeypatch.setattr(http, "get_json", fake_json)
     jobs = boards.fetch_greenhouse(Company("Acme", "greenhouse", "acme"))
     assert [u.split("/jobs/")[1].split("?")[0] for u in asked] == ["1", "3"]
-    assert [j.external_id for j in jobs] == ["1", "2", "3"]  # still listed, so closure tracking sees it
-    assert [bool(j.description) for j in jobs] == [True, False, True]
+    assert [j.external_id for j in jobs] == ["1", "3"] and all(j.description for j in jobs)
+    assert jobs.listed == frozenset({"1", "2", "3"})  # still listed, so closure tracking sees it
 
 
 # ---------- against a database (CI) ----------
@@ -166,7 +166,7 @@ def test_configured_companies_are_filtered(conn, monkeypatch):
     company_id = stored_before_the_filter(conn, company, {"o": OTHER})
     monkeypatch.setenv("DATABASE_URL", DSN)
     monkeypatch.setattr(ingest, "load_companies", lambda: [company])
-    monkeypatch.setattr(ingest, "board_state", lambda dsn, c: (None, {}))
+    monkeypatch.setattr(ingest, "board_state", lambda dsn, c: (None, {}, {}))
     monkeypatch.setattr(
         ingest,
         "fetch_jobs",
@@ -188,7 +188,7 @@ def test_discovered_boards_are_filtered(conn, monkeypatch, registered):
     conn.commit()
     if registered:
         stored_before_the_filter(conn, company, {"o": OTHER})
-    monkeypatch.setattr(ingest, "board_state", lambda dsn, c: (None, {}))
+    monkeypatch.setattr(ingest, "board_state", lambda dsn, c: (None, {}, {}))
     monkeypatch.setattr(
         discovery, "fetch_board", lambda c, **kw: JobList([job("t", TECH), job("o", OTHER), job("o2", OTHER)])
     )

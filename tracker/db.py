@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -10,6 +11,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from tracker import health
+from tracker.dbtraffic import CountingCursor, traffic
 from tracker.models import Company, Job
 from tracker.sources.http import Validators
 
@@ -19,8 +21,11 @@ SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 
 def connect(dsn: str) -> psycopg.Connection:
-    # The timeout covers a serverless database waking from sleep.
-    return psycopg.connect(dsn, connect_timeout=30)
+    # The timeout covers a serverless database waking from sleep. Every result
+    # is counted (dbtraffic), since Neon caps how much is read out each month.
+    conn = psycopg.connect(dsn, connect_timeout=30, cursor_factory=CountingCursor)
+    traffic.connected()
+    return conn
 
 
 def apply_schema(conn: psycopg.Connection) -> None:
@@ -44,40 +49,74 @@ def upsert_company(conn: psycopg.Connection, company: Company) -> int:
     return row[0]
 
 
-def stored_details(conn: psycopg.Connection, company: Company) -> dict[str, tuple[str, str]]:
-    """{external_id: (description, location)} for this company's postings that
-    already have a description, so sources that need a request per posting
-    don't fetch them again."""
+@dataclass(frozen=True)
+class StoredPosting:
+    """What a run needs to know about a stored posting, without its text."""
+
+    title: str
+    location: str
+    active: bool
+    described: bool  # has a description
+    full: bool  # has a description that needs no further request (see sources.FULL_TEXT_HEADINGS)
+
+
+def stored_postings(
+    conn: psycopg.Connection, company: Company, full_text_headings: list[str] | None = None
+) -> dict[str, StoredPosting]:
+    """{external_id: StoredPosting} for this company's postings. Descriptions
+    stay in the database (Neon caps what's read out of it): a posting the
+    source lists unchanged is only marked seen, and one stored with its text
+    isn't fetched again. `full_text_headings`: a description counts as full
+    only when it contains one of them (Apple's listing carries a summary)."""
+    rows = conn.execute(
+        """
+        SELECT j.external_id, j.title, coalesce(j.location, ''), j.is_active,
+               coalesce(j.description, '') <> '',
+               coalesce(j.description, '') <> '' AND (
+                   %(headings)s::text[] IS NULL
+                   OR EXISTS (SELECT 1 FROM unnest(%(headings)s::text[]) h WHERE strpos(j.description, h) > 0))
+        FROM jobs j JOIN companies c ON c.id = j.company_id
+        WHERE c.platform = %(platform)s AND c.board_slug = %(slug)s
+        """,
+        {"platform": company.platform, "slug": company.board_slug, "headings": full_text_headings},
+    ).fetchall()
+    return {row[0]: StoredPosting(*row[1:]) for row in rows}
+
+
+def stored_descriptions(
+    conn: psycopg.Connection, company: Company, external_ids: list[str]
+) -> dict[str, tuple[str, str]]:
+    """{external_id: (description, location)} for just these postings: ones the
+    source lists changed, or again after they closed, whose text it didn't send."""
+    if not external_ids:
+        return {}
     rows = conn.execute(
         """
         SELECT j.external_id, j.description, coalesce(j.location, '')
         FROM jobs j JOIN companies c ON c.id = j.company_id
-        WHERE c.platform = %s AND c.board_slug = %s AND coalesce(j.description, '') <> ''
+        WHERE c.platform = %s AND c.board_slug = %s AND j.external_id = ANY(%s)
+          AND coalesce(j.description, '') <> ''
         """,
-        (company.platform, company.board_slug),
+        (company.platform, company.board_slug, external_ids),
     ).fetchall()
     return {external_id: (description, location) for external_id, description, location in rows}
 
 
-def stored_versions(
-    conn: psycopg.Connection, company: Company
-) -> dict[str, tuple[datetime, str, str | None]]:
-    """{external_id: (source_updated_at, description, department)} for this
-    company's postings stored with a description and a source version, so a
-    posting the source hasn't changed since isn't downloaded again."""
+def stored_versions(conn: psycopg.Connection, company: Company) -> dict[str, datetime]:
+    """{external_id: source_updated_at} for this company's open postings stored
+    with a description and a source version: a posting whose version is the
+    same at the source is left as stored (only marked seen), and its text is
+    neither downloaded nor read back."""
     rows = conn.execute(
         """
-        SELECT j.external_id, j.source_updated_at, j.description, j.department
+        SELECT j.external_id, j.source_updated_at
         FROM jobs j JOIN companies c ON c.id = j.company_id
-        WHERE c.platform = %s AND c.board_slug = %s
+        WHERE c.platform = %s AND c.board_slug = %s AND j.is_active
           AND j.source_updated_at IS NOT NULL AND coalesce(j.description, '') <> ''
         """,
         (company.platform, company.board_slug),
     ).fetchall()
-    return {
-        external_id: (updated, description, department)
-        for external_id, updated, description, department in rows
-    }
+    return dict(rows)
 
 
 # ---------- conditional requests (see http_cache in schema.sql) ----------
@@ -186,6 +225,8 @@ def save_company_jobs(
     """
     new_count = 0
     skill_ids = _skill_ids(conn, {s for job in jobs for s in job.skills})
+    saved_ids: list[int] = []
+    skill_pairs: tuple[list[int], list[int]] = ([], [])  # (job id, skill id)
 
     for job in jobs:
         job_id, inserted = conn.execute(
@@ -269,16 +310,23 @@ def save_company_jobs(
             },
         ).fetchone()
         new_count += int(inserted)
+        saved_ids.append(job_id)
+        for skill in job.skills:
+            skill_pairs[0].append(job_id)
+            skill_pairs[1].append(skill_ids[skill])
 
-        conn.execute("DELETE FROM job_skills WHERE job_id = %s", (job_id,))
-        if job.skills:
-            conn.execute(
-                """
-                INSERT INTO job_skills (job_id, skill_id)
-                SELECT %s, unnest(%s::int[]) ON CONFLICT DO NOTHING
-                """,
-                (job_id, [skill_ids[s] for s in job.skills]),
-            )
+    # the saved postings' skills, replaced in two statements for the whole board
+    # (each statement's answer is read back from the database, so fewer is less)
+    if saved_ids:
+        conn.execute("DELETE FROM job_skills WHERE job_id = ANY(%s)", (saved_ids,))
+    if skill_pairs[0]:
+        conn.execute(
+            """
+            INSERT INTO job_skills (job_id, skill_id)
+            SELECT * FROM unnest(%s::bigint[], %s::int[]) ON CONFLICT DO NOTHING
+            """,
+            skill_pairs,
+        )
 
     # Postings the source still lists that the storage filter left out (see
     # classify.keep_relevant). One stored before the filter is still open: it's

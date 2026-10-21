@@ -20,6 +20,7 @@ def test_companies_are_grouped_by_the_site_they_come_from():
     assert site_of(c("workday", "rbc.wd3.myworkdayjobs.com/RBC")) != site_of(
         c("workday", "td.wd3.myworkdayjobs.com/x")
     )
+    assert site_of(c("lever", "acme")) == "lever" and site_of(c("lever", "eu/acme")) == "lever-eu"
 
 
 def test_groups_run_side_by_side_and_items_in_a_group_one_by_one():

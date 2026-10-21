@@ -28,7 +28,7 @@ from datetime import datetime
 
 import psycopg
 
-from tracker import db, health
+from tracker import db, dbtraffic, health, models
 from tracker.classify import enrich, keep_relevant
 from tracker.discovery import snowball
 from tracker.discovery.boards import board_from_url, company_key
@@ -82,31 +82,34 @@ def run(
 
     configured_boards = {(c.platform, c.board_slug.lower()) for c in configured}
     configured_names = {company_key(c.name) for c in configured}
-    registered = register_boards(dsn, items, configured_boards, configured_names)
-    health.current.boards_registered(registered)
-    if registered:
-        log.info("discovered %d new job boards", registered)
-    for item in items:  # entries on a company's own career site (GHOSTLESS_JSONLD)
-        snowball.note_list_entry(item.company, item.url, item.list_name)
-    snowball.register(dsn, configured_names)
-    checked = snowball.verify(dsn)
+    with dbtraffic.step("register boards"):
+        registered = register_boards(dsn, items, configured_boards, configured_names)
+        health.current.boards_registered(registered)
+        if registered:
+            log.info("discovered %d new job boards", registered)
+        for item in items:  # entries on a company's own career site (GHOSTLESS_JSONLD)
+            snowball.note_list_entry(item.company, item.url, item.list_name)
+        snowball.register(dsn, configured_names)
+    with dbtraffic.step("candidate checks"):
+        checked = snowball.verify(dsn)
     if checked["checked"]:
         health.current.record("candidate boards checked", seen=checked["checked"], new=checked["active"])
 
     if crawl:
         crawl_boards(dsn, run_started, stats)
-    save_list_jobs(
-        dsn,
-        items,
-        configured_names,
-        run_started,
-        stats,
-        close=all_lists_read,
-        configured_boards=configured_boards,
-    )
+    with dbtraffic.step("list-only postings"):
+        save_list_jobs(
+            dsn,
+            items,
+            configured_names,
+            run_started,
+            stats,
+            close=all_lists_read,
+            configured_boards=configured_boards,
+        )
     from tracker.discovery.dedupe import merge_duplicates
 
-    with db.connect(dsn) as conn:
+    with dbtraffic.step("dedupe"), db.connect(dsn) as conn:
         merge_duplicates(conn)
 
 
@@ -127,25 +130,22 @@ def register_boards(
         found.setdefault(key, (board[1], item.company, item.list_name))
     if not found:
         return 0
+    rows = [(p, slug, name, where) for (p, _), (slug, name, where) in found.items()]
     with db.connect(dsn) as conn:
-        known = {
-            (platform, slug.lower())
-            for platform, slug in conn.execute(
-                "SELECT platform, board_slug FROM discovered_boards"
-            ).fetchall()
-        }
-        rows = [
-            (p, slug, name, where) for (p, _), (slug, name, where) in found.items() if (p, _) not in known
-        ]
-        before = conn.execute("SELECT count(*) FROM discovered_boards").fetchone()[0]
-        with conn.cursor() as cur:
-            cur.executemany(
-                """INSERT INTO discovered_boards (platform, board_slug, company_name, found_in)
-                   VALUES (%s, %s, %s, %s) ON CONFLICT (platform, board_slug) DO NOTHING""",
-                rows,
-            )
-        after = conn.execute("SELECT count(*) FROM discovered_boards").fetchone()[0]
-    return after - before
+        # the database skips boards it has under any spelling ("External" and
+        # "external"), so the whole table is never read out
+        return conn.execute(
+            """WITH new AS (
+                   INSERT INTO discovered_boards (platform, board_slug, company_name, found_in)
+                   SELECT x.platform, x.slug, x.name, x.found_in
+                   FROM unnest(%s::text[], %s::text[], %s::text[], %s::text[]) AS x(platform, slug, name, found_in)
+                   WHERE NOT EXISTS (SELECT 1 FROM discovered_boards d
+                                     WHERE d.platform = x.platform AND lower(d.board_slug) = lower(x.slug))
+                   ON CONFLICT (platform, board_slug) DO NOTHING
+                   RETURNING 1)
+               SELECT count(*) FROM new""",
+            [list(column) for column in zip(*rows, strict=True)],
+        ).fetchone()[0]
 
 
 # ---------- 3. crawling a rotation of boards ----------
@@ -184,6 +184,17 @@ def crawl_boards(
     stats: dict,
     limit: int | None = None,
     shard: tuple[int, int] | None = None,
+) -> None:
+    with dbtraffic.step("discovered boards"):
+        _crawl_due(dsn, run_started, stats, limit, shard)
+    with dbtraffic.step("weekly Workday full read"):
+        full_read_workday(dsn, run_started, stats, shard=shard)
+    with dbtraffic.step("register boards"):
+        snowball.register(dsn)  # boards linked from what was just read, checked on the next run
+
+
+def _crawl_due(
+    dsn: str, run_started: datetime, stats: dict, limit: int | None, shard: tuple[int, int] | None
 ) -> None:
     started = time.perf_counter()
     with db.connect(dsn) as conn:
@@ -228,8 +239,6 @@ def crawl_boards(
         stats["jobs_new"] += new
         stats["jobs_closed"] += closed
     log.info("discovered boards: %d crawled in %.0fs", len(companies), time.perf_counter() - started)
-    full_read_workday(dsn, run_started, stats, shard=shard)
-    snowball.register(dsn)  # boards linked from what was just read, checked on the next run
 
 
 def _crawl_one(
@@ -240,65 +249,49 @@ def _crawl_one(
     unchanged: set[tuple[str, str]] | None = None,
 ) -> tuple[int, int, int] | None:
     """Fetch and save one discovered board: (jobs, new, closed), or None if it couldn't be read."""
-    from tracker.ingest import board_state, remember_board, save_unchanged
+    from tracker.ingest import board_state, remember_board, settle_unchanged
+    from tracker.sources.boards import board_url
 
     platform, slug, name = company.platform, company.board_slug, company.name
+    cached, versions, stored = board_state(dsn, company)  # one read, no posting text
     try:
         if platform == "workday":
-            with db.connect(dsn) as conn:
-                known = frozenset(db.stored_details(conn, company))
             jobs = fetch_workday(
                 company,
-                known=known,
+                known=complete_descriptions(stored),
                 queries=WORKDAY_QUERIES,
                 per_query=WORKDAY_PER_QUERY,
                 max_details=WORKDAY_DETAILS,
             )
         elif platform in ats.PLATFORMS:  # stage E: the source registry checks it's switched on
-            with db.connect(dsn) as conn:
-                stored = db.stored_details(conn, company)
-            cached, _ = board_state(dsn, company)
-            jobs = fetch_jobs(
-                company, known=complete_descriptions(platform, stored), cached=cached, stored=None
-            )
-            if not jobs.not_modified:
-                from tracker.ingest import reuse_details
-
-                reuse_details(jobs, stored)
+            jobs = fetch_jobs(company, known=complete_descriptions(stored), cached=cached, stored=None)
         elif platform == "jsonld":
-            with db.connect(dsn) as conn:
-                known = frozenset(db.stored_details(conn, company))
-                versions = db.stored_versions(conn, company)
-            jobs = fetch_jsonld(company, known=known, stored=versions)
+            jobs = fetch_jsonld(company, known=complete_descriptions(stored), stored=versions)
         else:
-            cached, versions = board_state(dsn, company)
             jobs = fetch_board(company, cached=cached, stored=versions)
     except FetchError as exc:
         _mark(dsn, platform, slug, ok=False)
         log.warning("discovered %s (%s %s): fetch failed: %s", name, platform, slug, exc)
         return None
     if getattr(jobs, "not_modified", False):
-        seen = save_unchanged(dsn, company, run_started)
-        with db.connect(dsn) as conn:
+        with db.connect(dsn) as conn:  # one connection: what's seen, and when to come back
+            seen = db.mark_unchanged(conn, company, board_url(company), run_started)
             students = conn.execute(
                 """SELECT count(*) FROM jobs j JOIN companies c ON c.id = j.company_id
                    WHERE c.platform = %s AND c.board_slug = %s AND j.is_active AND j.level = ANY(%s)""",
                 (platform, slug, list(STUDENT_LEVELS)),
             ).fetchone()[0]
-        _mark(dsn, platform, slug, ok=True, jobs=seen, changed=False, students=students)  # a quiet visit
+            _record_visit(conn, platform, slug, ok=True, jobs=seen, changed=False, students=students)
         if stats is not None:
             stats["discovered_not_modified"] = stats.get("discovered_not_modified", 0) + 1
         if unchanged is not None:
             unchanged.add((platform, slug))
         log.info("discovered %s: unchanged (%d open jobs)", name, seen)
         return seen, 0, 0
+    if not isinstance(jobs, models.JobList):
+        jobs = models.JobList(jobs)
+    jobs = settle_unchanged(dsn, company, jobs, stored)  # as for configured companies
     snowball.note_postings(company, jobs)
-    if platform == "workday":
-        # reuse descriptions already stored, as for configured companies
-        from tracker.ingest import reuse_details
-
-        with db.connect(dsn) as conn:
-            reuse_details(jobs, db.stored_details(conn, company))
     for job in jobs:
         enrich(job, extract_skills(f"{job.title} {job.description}"))
     jobs = keep_relevant(jobs)  # tech roles and student roles only
@@ -316,17 +309,28 @@ def _crawl_one(
                 close_levels=STUDENT_LEVELS if platform == "workday" else None,
             )
             remember_board(conn, company, jobs, open_before)
+            # open student roles, including ones left as stored, set the next visit
+            students = conn.execute(
+                "SELECT count(*) FROM jobs WHERE company_id = %s AND is_active AND level = ANY(%s)",
+                (company_id, list(STUDENT_LEVELS)),
+            ).fetchone()[0]
+            _record_visit(
+                conn, platform, slug, ok=True, jobs=jobs.seen, changed=bool(new or closed), students=students
+            )
     except psycopg.Error:
         log.exception("discovered %s: database write failed", name)
         return None
-    students = sum(1 for job in jobs if job.level in STUDENT_LEVELS)
-    _mark(dsn, platform, slug, ok=True, jobs=len(jobs), changed=bool(new or closed), students=students)
-    log.info("discovered %s: %d jobs (%d new, %d closed)", name, len(jobs), new, closed)
-    return len(jobs), new, closed
+    log.info("discovered %s: %d jobs (%d new, %d closed)", name, jobs.seen, new, closed)
+    return jobs.seen, new, closed
 
 
-def _mark(
-    dsn: str,
+def _mark(dsn: str, platform: str, slug: str, ok: bool, **visit) -> None:
+    with db.connect(dsn) as conn:
+        _record_visit(conn, platform, slug, ok, **visit)
+
+
+def _record_visit(
+    conn: psycopg.Connection,
     platform: str,
     slug: str,
     ok: bool,
@@ -334,34 +338,34 @@ def _mark(
     changed: bool = False,
     students: int = 0,
 ) -> None:
-    with db.connect(dsn) as conn:
-        if ok:
-            quiet = conn.execute(
-                "SELECT quiet_visits FROM discovered_boards WHERE platform = %s AND board_slug = %s",
-                (platform, slug),
-            ).fetchone()
-            quiet_visits = 0 if changed or quiet is None else quiet[0] + 1
-            days = next_visit_days(changed, quiet_visits, students, failures=0)
-            conn.execute(
-                """UPDATE discovered_boards SET last_crawled = now(), last_ok = now(), failures = 0,
-                          jobs_last = %s, quiet_visits = %s,
-                          last_changed = CASE WHEN %s THEN now() ELSE last_changed END,
-                          next_due = now() + make_interval(secs => %s)
-                   WHERE platform = %s AND board_slug = %s""",
-                (jobs, quiet_visits, changed, days * 86400, platform, slug),
-            )
-        else:
-            failures = conn.execute(
-                """UPDATE discovered_boards SET last_crawled = now(), failures = failures + 1
-                   WHERE platform = %s AND board_slug = %s RETURNING failures""",
-                (platform, slug),
-            ).fetchone()
-            days = next_visit_days(False, 0, 0, failures[0] if failures else 1)
-            conn.execute(
-                "UPDATE discovered_boards SET next_due = now() + make_interval(secs => %s) "
-                "WHERE platform = %s AND board_slug = %s",
-                (days * 86400, platform, slug),
-            )
+    """When the board was read, and when to read it next (see next_visit_days)."""
+    if ok:
+        quiet = conn.execute(
+            "SELECT quiet_visits FROM discovered_boards WHERE platform = %s AND board_slug = %s",
+            (platform, slug),
+        ).fetchone()
+        quiet_visits = 0 if changed or quiet is None else quiet[0] + 1
+        days = next_visit_days(changed, quiet_visits, students, failures=0)
+        conn.execute(
+            """UPDATE discovered_boards SET last_crawled = now(), last_ok = now(), failures = 0,
+                      jobs_last = %s, quiet_visits = %s,
+                      last_changed = CASE WHEN %s THEN now() ELSE last_changed END,
+                      next_due = now() + make_interval(secs => %s)
+               WHERE platform = %s AND board_slug = %s""",
+            (jobs, quiet_visits, changed, days * 86400, platform, slug),
+        )
+    else:
+        failures = conn.execute(
+            """UPDATE discovered_boards SET last_crawled = now(), failures = failures + 1
+               WHERE platform = %s AND board_slug = %s RETURNING failures""",
+            (platform, slug),
+        ).fetchone()
+        days = next_visit_days(False, 0, 0, failures[0] if failures else 1)
+        conn.execute(
+            "UPDATE discovered_boards SET next_due = now() + make_interval(secs => %s) "
+            "WHERE platform = %s AND board_slug = %s",
+            (days * 86400, platform, slug),
+        )
 
 
 # ---------- 3b. the weekly full read of discovered Workday boards ----------

@@ -33,13 +33,15 @@ URLS = {
     # includeCompensation: the pay range in structured form (stage C1)
     "ashby": "https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true",
 }
+# Lever's EU instance (jobs.eu.lever.co): boards stored as "eu/<slug>"
+LEVER_EU = "https://api.eu.lever.co/v0/postings/{slug}?mode=json"
 GREENHOUSE_FULL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true&pay_transparency=true"
 GREENHOUSE_JOB = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs/{id}?pay_transparency=true"
 # More new or changed postings than this: one request for the whole board instead
 GREENHOUSE_MAX_DETAILS = 10
 
-# {external_id: (source_updated_at, description, department)}, from db.stored_versions
-Stored = dict[str, tuple[datetime, str, "str | None"]]
+# {external_id: source_updated_at} of open stored postings, from db.stored_versions
+Stored = dict[str, datetime]
 
 
 def board_url(company: Company) -> str:
@@ -47,7 +49,15 @@ def board_url(company: Company) -> str:
         from tracker.sources.ats import listing_url  # stage E hiring systems
 
         return listing_url(company)
+    if company.platform == "lever":
+        return lever_url(company.board_slug)
     return URLS[company.platform].format(slug=company.board_slug)
+
+
+def lever_url(slug: str) -> str:
+    if slug.startswith("eu/"):
+        return LEVER_EU.format(slug=slug[3:])
+    return URLS["lever"].format(slug=slug)
 
 
 def _greenhouse_pay(job: Job, ranges: list | None) -> None:
@@ -96,8 +106,7 @@ def plan_greenhouse(items: list[dict], stored: Stored) -> list[str]:
         key = str(item["id"])
         if not title_worth_storing(item.get("title", "")):
             continue
-        known = stored.get(key)
-        if known is None or parse_iso(item.get("updated_at")) != known[0]:
+        if parse_iso(item.get("updated_at")) != stored.get(key):
             todo.append(key)
     return todo
 
@@ -125,16 +134,21 @@ def fetch_greenhouse(
         return JobList(
             parse_greenhouse(http.get_json(GREENHOUSE_FULL.format(slug=slug))), validators=validators
         )
-    jobs = JobList(validators=validators)
+    # Unchanged postings stay as stored (their text isn't downloaded or read
+    # back from the database); postings Ghostless won't store are listed only.
+    # Either way they're listed, so nothing they match is taken for closed.
+    jobs = JobList(validators=validators, listed=frozenset(str(item["id"]) for item in items))
     for item in items:
         key = str(item["id"])
         if key in details:
             jobs.append(_greenhouse_job({**item, **details[key]}))
-        elif key in stored:
-            _, description, department = stored[key]
-            jobs.append(_greenhouse_job(item, description, department))
-        else:  # not stored and won't be: listed, so nothing it matches is taken for closed
-            jobs.append(_greenhouse_job(item, ""))
+    jobs.unchanged = frozenset(
+        str(item["id"])
+        for item in items
+        if str(item["id"]) in stored
+        and str(item["id"]) not in details
+        and title_worth_storing(item.get("title", ""))
+    )
     return jobs
 
 

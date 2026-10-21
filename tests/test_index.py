@@ -15,6 +15,7 @@ from tracker.sources.http import FetchError
     "surt, url",
     [
         ("co,lever,jobs)/acme/123", "https://jobs.lever.co/acme/123"),
+        ("co,lever,eu,jobs)/adaptovate", "https://jobs.eu.lever.co/adaptovate"),
         (
             "com,myworkdayjobs,wd5,nvidia)/en-us/external/job/x",
             "https://nvidia.wd5.myworkdayjobs.com/en-us/external/job/x",
@@ -75,6 +76,18 @@ def index_file(tmp_path, monkeypatch):
         [f"com,acme)/page{i}" for i in range(50)]
         + [f"co,lever,jobs)/acme/{i}" for i in range(3)]
         + ["co,lever,jobs)/beta-labs/9", "co,lever,jobs)/"]
+        # real keys around Lever's slice in CC-MAIN-2026-39 (part-00288), where
+        # jobs.lever.co itself is absent: Lever refuses Common Crawl's crawler
+        + [
+            "co,iclever)/home?lang=en-us",
+            "co,lever)/",
+            "co,lever,api)/v0/postings/catalist?group=team",
+            "co,lever,eu,hire)/auth/login?continue=/llms.txt",
+            "co,lever,eu,jobs)/abzena/9dbb2bcd-4aed-4cdf-89a9-0a0945ecbb8f",
+            "co,lever,eu,jobs)/adaptovate",
+            "co,lever,eu,jobs)/amo/55ba793e-ced6-4f37-819c-fe6a9fc46a7d/apply",
+            "co,lever,help)/s/article/enabling-and-using-the-pin-integration",
+        ]
         + [f"com,myworkdayjobs,wd3,td)/en-us/td_bank_careers/job/{i}" for i in range(2)]
         + [f"org,example)/x{i}" for i in range(50)]
     )
@@ -105,9 +118,12 @@ def test_find_boards_turns_links_into_boards(index_file):
     assert set(boards) == {
         ("lever", "acme"),
         ("lever", "beta-labs"),
+        ("lever", "eu/abzena"),  # Lever's EU instance
+        ("lever", "eu/adaptovate"),
+        ("lever", "eu/amo"),
         ("workday", "td.wd3.myworkdayjobs.com/td_bank_careers"),
-    }  # "jobs.lever.co/" alone is no board
-    assert counts["files"] == 1 and counts["urls"] == 7  # six job links and the bare jobs.lever.co/
+    }  # "jobs.lever.co/" alone is no board, and Lever's own pages aren't boards
+    assert counts["files"] == 1 and counts["urls"] == 10  # nine job links and the bare jobs.lever.co/
 
 
 def test_an_unreadable_file_is_skipped(monkeypatch):

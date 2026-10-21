@@ -183,9 +183,9 @@ def test_reads_a_career_site_incrementally(monkeypatch):
 
     # next run: stored pages aren't read again unless their lastmod moved on
     site.read.clear()
-    stored = {
-        "careers.acme.example/jobs/1": (datetime(2026, 10, 1), "x", None),
-        "careers.acme.example/jobs/2": (datetime(2026, 10, 1), "x", None),
+    stored = {  # db.stored_versions: dates only
+        "careers.acme.example/jobs/1": datetime(2026, 10, 1),
+        "careers.acme.example/jobs/2": datetime(2026, 10, 1),
     }
     jobs = jsonld.fetch_jsonld(company, known=frozenset(stored), stored=stored)
     pages_read = [u for u in site.read if "/jobs/" in u]

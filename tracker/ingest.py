@@ -13,7 +13,7 @@ from pathlib import Path
 
 import psycopg
 
-from tracker import db, health
+from tracker import db, dbtraffic, health
 from tracker.accounts.store import purge_expired
 from tracker.classify import enrich, keep_relevant
 from tracker.config import database_url, load_companies, load_lists, select
@@ -23,6 +23,7 @@ from tracker.parallel import in_shard, run_by_site, site_of, workers
 from tracker.skills import extract_skills
 from tracker.sources import (
     CONDITIONAL,
+    FULL_TEXT_HEADINGS,
     INCREMENTAL_DETAILS,
     FetchError,
     complete_descriptions,
@@ -51,27 +52,40 @@ def rules_version() -> str:
     return digest.hexdigest()[:16]
 
 
-def board_state(dsn: str, company) -> tuple[Validators | None, dict]:
-    """For the public job-board APIs: what to send to ask whether the board
-    changed (None reads it in full), and on Greenhouse the stored postings'
-    versions, so unchanged ones aren't downloaded again. A full read
-    (nothing cached, a week old, or new code) downloads everything."""
-    if company.platform == "jsonld":  # career sites: when each page was last read
-        try:
-            with db.connect(dsn) as conn:
-                return None, db.stored_versions(conn, company)
-        except psycopg.Error:
-            return None, {}
-    if company.platform not in CONDITIONAL:
-        return None, {}
+def board_state(dsn: str, company) -> tuple[Validators | None, dict, dict]:
+    """What's stored about a board, read once before fetching it, in one connection:
+
+    - on the public job-board APIs, what to send to ask whether the board
+      changed (None reads it in full: nothing cached, a week old, or new code);
+    - on Greenhouse and career sites, the stored postings' versions, so
+      unchanged ones aren't downloaded again;
+    - on sources that need a request per posting, the stored postings
+      (db.stored_postings: titles and flags, never their text).
+    """
+    platform = company.platform
+    if platform not in CONDITIONAL and platform not in INCREMENTAL_DETAILS:
+        return None, {}, {}
     try:
         with db.connect(dsn) as conn:
-            cached = db.cached_validators(conn, company, board_url(company), rules_version())
-            stored = db.stored_versions(conn, company) if cached and company.platform == "greenhouse" else {}
-            return cached, stored
+            cached = (
+                db.cached_validators(conn, company, board_url(company), rules_version())
+                if platform in CONDITIONAL
+                else None
+            )
+            versions = (
+                db.stored_versions(conn, company)
+                if platform == "jsonld" or (cached and platform == "greenhouse")
+                else {}
+            )
+            postings = (
+                db.stored_postings(conn, company, FULL_TEXT_HEADINGS.get(platform))
+                if platform in INCREMENTAL_DETAILS
+                else {}
+            )
+            return cached, versions, postings
     except psycopg.Error as exc:  # first run, or the database is waking: read it in full
-        log.warning("%s: could not read the board's cache (%s)", company.name, exc)
-        return None, {}
+        log.warning("%s: could not read what's stored for the board (%s)", company.name, exc)
+        return None, {}, {}
 
 
 def remember_board(conn: psycopg.Connection, company, jobs, open_before: int) -> None:
@@ -131,6 +145,7 @@ def log_traffic(seconds_by_platform: dict[str, float] | None = None) -> None:
             else {
                 "boards-api.greenhouse.io": "greenhouse",
                 "api.lever.co": "lever",
+                "api.eu.lever.co": "lever",
                 "api.ashbyhq.com": "ashby",
             }.get(host, "other")
         )
@@ -148,18 +163,74 @@ def log_traffic(seconds_by_platform: dict[str, float] | None = None) -> None:
         )
 
 
+def log_database_reads() -> dict:
+    """Log what this run read from the database (Neon caps it monthly), by
+    step and the biggest queries; returned for the run's health report."""
+    report = dbtraffic.traffic.report()
+    log.info(
+        "read from the database: about %.1f MB (%.1f MB of results, %d connections)",
+        report["bytes"] / 1e6,
+        report["result_bytes"] / 1e6,
+        report["connections"],
+    )
+    for name, row in sorted(report["steps"].items(), key=lambda kv: -kv[1]["bytes"]):
+        log.info(
+            "  %s: %.2f MB, %d connections, %d queries, %d rows",
+            name,
+            row["bytes"] / 1e6,
+            row["connections"],
+            row["queries"],
+            row["rows"],
+        )
+    for row in report["queries"]:
+        log.info(
+            "  query %s (%s): %.2f MB in %d queries, %d rows",
+            row["query"],
+            row["step"],
+            row["bytes"] / 1e6,
+            row["queries"],
+            row["rows"],
+        )
+    return report
+
+
 _MULTI_LOCATION = re.compile(r"^\s*\d+\s+locations?\s*$", re.I)
 
 
-def _stored_details(dsn: str, company) -> dict[str, tuple[str, str]]:
-    if company.platform not in INCREMENTAL_DETAILS:
-        return {}
-    try:
+def settle_unchanged(dsn: str, company, jobs: JobList, stored: dict) -> JobList:
+    """On sources that need a request per posting, a stored posting whose text
+    wasn't fetched this run (`stored`: db.stored_postings):
+
+    - still open, same title, and the same location (or the listing only says
+      "3 Locations"): left exactly as stored, only marked seen (`unchanged`);
+    - otherwise (renamed, moved, or listed again after it closed): its stored
+      text is read back, for just these postings, and it's saved again.
+
+    So descriptions are never read back just to be written again unchanged."""
+    if not stored:
+        return jobs
+    keep, unchanged, wanted = [], set(), []
+    for job in jobs:
+        posting = stored.get(job.external_id)
+        if job.description or posting is None:
+            keep.append(job)
+        elif (
+            posting.active
+            and job.title == posting.title
+            and (not job.location or _MULTI_LOCATION.match(job.location) or job.location == posting.location)
+        ):
+            unchanged.add(job.external_id)
+        else:
+            keep.append(job)
+            if posting.described:
+                wanted.append(job.external_id)
+    if wanted:
         with db.connect(dsn) as conn:
-            return db.stored_details(conn, company)
-    except psycopg.Error as exc:  # first run, or the database is waking: fetch everything
-        log.warning("%s: could not read stored descriptions (%s)", company.name, exc)
-        return {}
+            reuse_details(keep, db.stored_descriptions(conn, company, wanted))
+    result = jobs.like(keep)
+    result.listed = jobs.listed_ids()
+    result.unchanged = frozenset(unchanged) | jobs.unchanged
+    return result
 
 
 def reuse_details(jobs, stored: dict[str, tuple[str, str]]) -> None:
@@ -185,6 +256,7 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
     run_started = datetime.now(timezone.utc)
     clock = time.perf_counter()
     stats = dict(companies_ok=0, companies_failed=0, jobs_seen=0, jobs_new=0, jobs_closed=0)
+    dbtraffic.traffic.reset()
 
     with db.connect(dsn) as conn:
         if shard is None:  # sharded runs start after a single `ghostless migrate`, so parts don't race
@@ -207,12 +279,9 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
             timings[company.name] = time.perf_counter() - started
 
     def _collect(company, started: float) -> tuple[int, int, int] | None:
-        stored = _stored_details(dsn, company)
-        cached, versions = board_state(dsn, company)
+        cached, versions, stored = board_state(dsn, company)
         try:
-            jobs = fetch_jobs(
-                company, known=complete_descriptions(company.platform, stored), cached=cached, stored=versions
-            )
+            jobs = fetch_jobs(company, known=complete_descriptions(stored), cached=cached, stored=versions)
         except FetchError as exc:
             log.error("%s: fetch failed, skipping (no jobs closed): %s", company.name, exc)
             return None
@@ -225,7 +294,7 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
                 "[%d/%d] %s: unchanged (%d open jobs)", done["count"], len(companies), company.name, seen
             )
             return seen, 0, 0
-        reuse_details(jobs, stored)
+        jobs = settle_unchanged(dsn, company, jobs, stored)
         snowball.note_postings(company, jobs)  # boards they link to (GHOSTLESS_SNOWBALL)
         for job in jobs:
             enrich(job, extract_skills(f"{job.title} {job.description}"))
@@ -237,15 +306,17 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
             done["count"],
             len(companies),
             company.name,
-            len(jobs),
+            jobs.seen,
             new,
             closed,
             time.perf_counter() - started,
         )
-        return len(jobs), new, closed
+        return jobs.seen, new, closed
 
     log.info("collecting %d companies, %d sites at a time", len(companies), workers())
-    for company, result in run_by_site(companies, site_of, collect):
+    with dbtraffic.step("configured companies"):
+        results = list(run_by_site(companies, site_of, collect))
+    for company, result in results:
         source, seconds = f"configured {company.platform}", timings.get(company.name, 0.0)
         if isinstance(result, BaseException) or result is None:
             health.current.record(source, ok=False, seconds=seconds)
@@ -295,7 +366,8 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
         except Exception:
             log.exception("discovery failed; the companies above were still saved")
 
-    snowball.register(dsn)  # boards linked from postings, checked on the next run
+    with dbtraffic.step("register boards"):
+        snowball.register(dsn)  # boards linked from postings, checked on the next run
     stats["duration_seconds"] = round(time.perf_counter() - clock, 2)
     log_traffic(by_platform)
     if stats.get("boards_not_modified") or stats.get("discovered_not_modified"):
@@ -304,16 +376,17 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
             stats.get("boards_not_modified", 0),
             stats.get("discovered_not_modified", 0),
         )
+    if shard is None:
+        with dbtraffic.step("signals and clean-up"), db.connect(dsn) as conn:
+            db.refresh_signals(conn)
+            purge_expired(conn)  # old sessions, used email links, analytics past retention
     report = health.current.report()
+    report["database"] = log_database_reads()
     health.write_step_summary(
         report, f"Ingest health, part {shard[0]} of {shard[1]}" if shard else "Ingest health"
     )
     with db.connect(dsn) as conn:
         db.finish_run(conn, run_id, stats, report)
-        if shard is None:
-            db.refresh_signals(conn)
-            purge_expired(conn)  # old sessions, used email links, analytics past retention
-        conn.commit()
 
     log.info(
         "run complete: %d companies ok, %d failed, %d jobs seen, %d new, %d closed in %.0fs",
@@ -337,12 +410,14 @@ def finish() -> dict:
     run_started = datetime.now(timezone.utc)
     stats = dict(jobs_seen=0, jobs_new=0, jobs_closed=0)
     health.current.reset()
+    dbtraffic.traffic.reset()
     discovery.run(dsn, load_companies(), load_lists(), run_started, stats, crawl=False)
-    health.write_step_summary(health.current.report(), "Job lists")
-    with db.connect(dsn) as conn:
+    with dbtraffic.step("signals and clean-up"), db.connect(dsn) as conn:
         db.refresh_signals(conn)
         purge_expired(conn)
-        conn.commit()
+    report = health.current.report()
+    report["database"] = log_database_reads()
+    health.write_step_summary(report, "Job lists")
     log.info(
         "finished: %d list companies, %d new and %d closed list postings",
         stats.get("list_companies", 0),

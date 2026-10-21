@@ -21,6 +21,21 @@ _GREENHOUSE_HOSTS = {
 _SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$")
 _WORKDAY_HOST = re.compile(r"^([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com$", re.I)
 _LOCALE = re.compile(r"^[a-z]{2}-[a-z]{2}$", re.I)  # en-US, and en-us as some lists write it
+_LANGUAGE = re.compile(r"^[a-z]{2}$")  # a bare language: /es/careers/job/1, /en/Search
+# pages inside a Workday site, never a site's name ("jobs" and "apply" are
+# real sites: paypal.wd1.myworkdayjobs.com/jobs, ebay.wd5.myworkdayjobs.com/apply)
+_WORKDAY_PAGES = {"job", "details", "wday", "login", "introduceyourself", "userhome"}
+
+
+def _is_workday_locale(path: list[str]) -> bool:
+    """Is the first part of a Workday path a language rather than the site?
+    A bare two-letter one is a language only when a site follows it:
+    /es/careers/job/1 is site "careers", /ac/job/1 is site "ac"."""
+    if len(path) < 2:
+        return False
+    if _LOCALE.match(path[0]):
+        return True
+    return bool(_LANGUAGE.match(path[0])) and path[1].lower() not in _WORKDAY_PAGES
 
 
 def board_from_url(url: str) -> tuple[str, str] | None:
@@ -38,14 +53,17 @@ def board_from_url(url: str) -> tuple[str, str] | None:
         else:
             slug = path[0] if path else ""
         return ("greenhouse", slug.lower()) if _SLUG.match(slug) else None
-    if host == "jobs.lever.co" and path:
-        return ("lever", path[0].lower()) if _SLUG.match(path[0]) else None
+    if host in ("jobs.lever.co", "jobs.eu.lever.co") and path:
+        if not _SLUG.match(path[0]):
+            return None
+        # Lever's EU instance is a separate board list, read from its own API
+        return ("lever", path[0].lower() if host == "jobs.lever.co" else f"eu/{path[0].lower()}")
     if host == "jobs.ashbyhq.com" and path:
         return ("ashby", path[0]) if _SLUG.match(path[0]) else None
     match = _WORKDAY_HOST.match(host)
     if match and path:
-        site = path[1] if _LOCALE.match(path[0]) and len(path) > 1 else path[0]
-        if site.lower() in ("job", "details", "wday") or not _SLUG.match(site):
+        site = path[1] if _is_workday_locale(path) else path[0]
+        if site.lower() in _WORKDAY_PAGES or not _SLUG.match(site):
             return None
         return ("workday", f"{host}/{site}")
     board = _new_source_board(host, path)

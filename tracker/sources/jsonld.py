@@ -319,7 +319,7 @@ def fetch_jsonld(
         if key not in known:
             return True
         when = parse_iso(lastmod) if lastmod else None
-        version = stored.get(key, (None,))[0]
+        version = stored.get(key)
         return bool(when and version and when > version)
 
     todo = sorted(

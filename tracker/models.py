@@ -26,7 +26,11 @@ class JobList(list):
     `listed` holds the ids of every posting the source listed, before the
     storage filter dropped the ones Ghostless doesn't keep (None: the jobs
     themselves are the whole listing). A stored posting that's still listed
-    is still open, whether or not it would be stored today."""
+    is still open, whether or not it would be stored today.
+
+    `unchanged` holds the ids of listed postings left exactly as stored: they
+    aren't in the list, are only marked seen, and their text is never read
+    back from the database."""
 
     def __init__(
         self,
@@ -36,6 +40,7 @@ class JobList(list):
         not_modified: bool = False,
         validators=None,
         listed: frozenset[str] | None = None,
+        unchanged: frozenset[str] = frozenset(),
     ):
         super().__init__(jobs)
         self.complete = complete
@@ -43,13 +48,21 @@ class JobList(list):
         self.not_modified = not_modified
         self.validators = validators
         self.listed = listed
+        self.unchanged = unchanged
 
     def listed_ids(self) -> frozenset[str]:
         return self.listed if self.listed is not None else frozenset(job.external_id for job in self)
 
     def like(self, jobs) -> JobList:
         """Other jobs, with this fetch's flags."""
-        return JobList(jobs, self.complete, self.total, self.not_modified, self.validators, self.listed)
+        return JobList(
+            jobs, self.complete, self.total, self.not_modified, self.validators, self.listed, self.unchanged
+        )
+
+    @property
+    def seen(self) -> int:
+        """Postings in this fetch that are stored: saved again, or left as they were."""
+        return len(self) + len(self.unchanged)
 
 
 @dataclass
