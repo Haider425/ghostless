@@ -184,11 +184,11 @@ def jobs_from_links(page_html: str, locale: str) -> list[Job]:
 
 # Full descriptions are built with these headings; a summary from the search
 # results never contains them, which is how a stored full text is recognised.
-_FULL_HEADINGS = ("\n\nDescription\n", "\n\nMinimum Qualifications\n")
+FULL_HEADINGS = ("\n\nDescription\n", "\n\nMinimum Qualifications\n")
 
 
 def is_full_description(text: str | None) -> bool:
-    return bool(text) and any(heading in text for heading in _FULL_HEADINGS)
+    return bool(text) and any(heading in text for heading in FULL_HEADINGS)
 
 
 def _lines_as_bullets(raw: str) -> str:

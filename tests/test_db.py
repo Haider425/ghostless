@@ -158,7 +158,31 @@ def test_stored_versions_feed_the_greenhouse_two_step_read(conn):
     job = _job("1")
     job.description, job.department, job.source_updated_at = "Build things.", "Engineering", when
     db.save_company_jobs(conn, company_id, [job, _job("2")], when)  # job 2 has no description: not reusable
-    assert db.stored_versions(conn, BOARD) == {"1": (when, "Build things.", "Engineering")}
+    assert db.stored_versions(conn, BOARD) == {"1": when}  # the version only, never the text
+    conn.execute("UPDATE jobs SET is_active = false WHERE external_id = '1'")
+    assert db.stored_versions(conn, BOARD) == {}  # a closed posting listed again is read again
+
+
+def test_stored_postings_carry_no_text_and_descriptions_are_read_only_when_asked(conn):
+    company_id = db.upsert_company(conn, BOARD)
+    full, summary = _job("full"), _job("summary")
+    full.description = "Summary.\n\nDescription\nBuild things."
+    summary.description = "Just the search summary."
+    day1 = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    db.save_company_jobs(conn, company_id, [full, summary, _job("none")], day1)
+
+    stored = db.stored_postings(conn, BOARD)
+    assert set(stored) == {"full", "summary", "none"}
+    assert stored["full"] == db.StoredPosting(full.title, full.location, True, True, True)
+    assert (stored["none"].described, stored["none"].full) == (False, False)
+    # Apple: a description is only full with one of its headings, checked in the database
+    apple = db.stored_postings(conn, BOARD, ["\n\nDescription\n"])
+    assert {k for k, s in apple.items() if s.full} == {"full"}
+
+    assert db.stored_descriptions(conn, BOARD, ["summary", "none", "missing"]) == {
+        "summary": ("Just the search summary.", summary.location)
+    }
+    assert db.stored_descriptions(conn, BOARD, []) == {}
 
 
 # ---------- stage D: weekly full read, health ----------

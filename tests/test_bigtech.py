@@ -428,12 +428,15 @@ def test_fetch_apple_fetches_each_posting_page_once(monkeypatch):
 
 
 def test_only_full_apple_descriptions_count_as_known():
-    stored = {
-        "a": ("Just the search summary.", ""),
-        "b": (parse_apple_detail(_hydration_page(APPLE_DETAIL_DATA)), ""),
-    }
-    assert complete_descriptions("apple", stored) == frozenset({"b"})
-    assert complete_descriptions("workday", stored) == frozenset({"a", "b"})
+    from tracker.db import StoredPosting
+    from tracker.sources import FULL_TEXT_HEADINGS
+
+    # the database checks for these headings (db.stored_postings); a full page has one
+    full = parse_apple_detail(_hydration_page(APPLE_DETAIL_DATA))
+    assert any(h in full for h in FULL_TEXT_HEADINGS["apple"])
+    assert not any(h in "Just the search summary." for h in FULL_TEXT_HEADINGS["apple"])
+    stored = {"a": StoredPosting("T", "", True, True, False), "b": StoredPosting("T", "", True, True, True)}
+    assert complete_descriptions(stored) == frozenset({"b"})
 
 
 def test_parse_apple_escaped_links_fallback():

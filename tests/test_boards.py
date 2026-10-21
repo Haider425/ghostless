@@ -31,8 +31,9 @@ def with_content(item, text="Build things."):
 
 
 def stored(*keys, updated=OLD):
+    """db.stored_versions: when each open stored posting last changed at the source."""
     when = datetime.fromisoformat(updated)
-    return {str(k): (when, f"stored {k}", "Engineering") for k in keys}
+    return {str(k): when for k in keys}
 
 
 class FakeApi:
@@ -75,7 +76,7 @@ def test_plan_greenhouse_fetches_only_new_and_changed():
     assert boards.plan_greenhouse(items, stored(1, 2)) == ["2", "3"]  # 2 changed, 3 is new
 
 
-def test_unchanged_postings_keep_their_stored_description(api):
+def test_unchanged_postings_are_left_as_stored(api):
     fake = api([listed(1), listed(2, NEW), listed(3)])
     jobs = boards.fetch_greenhouse(GREENHOUSE, stored=stored(1, 2))
     assert fake.calls == [
@@ -83,12 +84,13 @@ def test_unchanged_postings_keep_their_stored_description(api):
         f"{LIST_URL}/2?pay_transparency=true",
         f"{LIST_URL}/3?pay_transparency=true",
     ]
-    by_id = {j.external_id: j for j in jobs}
-    assert by_id["1"].description == "stored 1" and by_id["1"].department == "Engineering"
-    assert by_id["2"].description == "detail 2" and by_id["3"].description == "detail 3"
-    assert by_id["2"].source_updated_at == datetime.fromisoformat(NEW)
-    assert all(j.description for j in jobs)  # every posting ends with its full text
+    # 1 is unchanged: not downloaded, not rebuilt from the database, only marked seen
+    assert [j.external_id for j in jobs] == ["2", "3"]
+    assert jobs.unchanged == frozenset({"1"}) and jobs.listed == frozenset({"1", "2", "3"})
+    assert [j.description for j in jobs] == ["detail 2", "detail 3"]
+    assert jobs[0].source_updated_at == datetime.fromisoformat(NEW)
     assert jobs.validators == Validators(LIST_URL, '"same"')
+    assert fetch_jobs(GREENHOUSE, stored=stored(1, 2)).unchanged == frozenset({"1"})  # kept by fetch_jobs
 
 
 def test_many_changes_read_the_whole_board_once(api):

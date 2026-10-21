@@ -439,6 +439,35 @@ These figures are estimates, to be checked against real numbers after B and E:
 
 **Please check your Neon plan's storage limit against these numbers before B2 or E are switched on.** Each source is behind a setting, so it can be turned on gradually.
 
+## Data read out of Neon (built 21 October 2026)
+
+Neon's free plan caps data transfer, what's read out of the database, at 5 GB a month, and the nightly ingest was using most of it.
+
+**Measuring.** Every connection from `db.connect` counts its results as the server sends them (`tracker/dbtraffic.py`: the values plus the protocol's per-message bytes; checked against a counting proxy, within 0.01%) and counts new connections. Each run's log and GitHub summary show the total, each step and the biggest queries. A connection's own cost on Neon (TLS handshake and authentication) isn't visible to the client; it's estimated at 0.4 to 4 KB (0.4 KB is the measured greeting on a local server without TLS).
+
+**Where it went.** Before every board was read, its stored descriptions were read back: `stored_details` (descriptions and locations of every stored posting, read twice for discovered Workday boards) and `stored_versions` (every Greenhouse description, read before the board was even asked whether it had changed, so mostly for boards that then answered 304). Those texts were then written back unchanged.
+
+**What changed.**
+- A posting the source lists unchanged is left exactly as stored and only marked seen (`JobList.unchanged`): its text is neither downloaded nor read back. Greenhouse compares `updated_at`; sources that need a request per posting compare the title and location. Only a posting that was renamed, moved, or listed again after it closed has its stored text read back, for just that posting (`db.stored_descriptions`).
+- What a run needs to know about a board is read once, before fetching it, without any text (`db.stored_postings`: titles, locations and flags; `db.stored_versions`: dates). Apple's "is this the full text" check runs in the database.
+- New boards from the job lists are registered without reading the whole `discovered_boards` table.
+- A discovered board's visit is recorded in the connection that saved it (one or two fewer connections per board), and skills are replaced with two statements per board instead of two per posting.
+
+**Before and after**, on a local copy built by the real pipeline (1,267 boards from the job lists, then part 1 of 4 read on day 1, then each version's next two nights from the same starting point). Both versions got identical answers from every site on day 3. The day-3 numbers, multiplied by 4 for the four parts plus `finish`:
+
+| Per nightly run | Before | After |
+|---|---|---|
+| Query results | 243 MB | 5.9 MB |
+| Connections | 4,956 | 2,544 |
+| Total, with connections at 0.4 to 4 KB each | 245 to 262 MB | 7 to 16 MB |
+| A month of nightly runs | 7.3 to 7.9 GB | 0.2 to 0.5 GB |
+
+After both nights the two copies held the same 15,992 open postings with the same titles, levels and roles. The few differences came from the sites (one Workday board rate-limited one run) and from the full re-read below.
+
+**The first night after this is deployed** reads every board in full once, because `sources/boards.py` is part of the rules version (see `http_cache`). That night more is downloaded from the job boards and written to Neon, but it reads about the same from Neon as any other night (6.1 MB of results for part 1 locally).
+
+Not covered here: what the website and API read from Neon, the monthly `discover.yml` run (a few MB), and closed postings. The old `stored_details` read closed postings' text too, so on Neon "before" was likely higher than measured.
+
 ## Measuring before and after
 
 After each stage, from the D2 health report and the database:

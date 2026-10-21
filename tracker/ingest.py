@@ -23,6 +23,7 @@ from tracker.parallel import in_shard, run_by_site, site_of, workers
 from tracker.skills import extract_skills
 from tracker.sources import (
     CONDITIONAL,
+    FULL_TEXT_HEADINGS,
     INCREMENTAL_DETAILS,
     FetchError,
     complete_descriptions,
@@ -51,27 +52,40 @@ def rules_version() -> str:
     return digest.hexdigest()[:16]
 
 
-def board_state(dsn: str, company) -> tuple[Validators | None, dict]:
-    """For the public job-board APIs: what to send to ask whether the board
-    changed (None reads it in full), and on Greenhouse the stored postings'
-    versions, so unchanged ones aren't downloaded again. A full read
-    (nothing cached, a week old, or new code) downloads everything."""
-    if company.platform == "jsonld":  # career sites: when each page was last read
-        try:
-            with db.connect(dsn) as conn:
-                return None, db.stored_versions(conn, company)
-        except psycopg.Error:
-            return None, {}
-    if company.platform not in CONDITIONAL:
-        return None, {}
+def board_state(dsn: str, company) -> tuple[Validators | None, dict, dict]:
+    """What's stored about a board, read once before fetching it, in one connection:
+
+    - on the public job-board APIs, what to send to ask whether the board
+      changed (None reads it in full: nothing cached, a week old, or new code);
+    - on Greenhouse and career sites, the stored postings' versions, so
+      unchanged ones aren't downloaded again;
+    - on sources that need a request per posting, the stored postings
+      (db.stored_postings: titles and flags, never their text).
+    """
+    platform = company.platform
+    if platform not in CONDITIONAL and platform not in INCREMENTAL_DETAILS:
+        return None, {}, {}
     try:
         with db.connect(dsn) as conn:
-            cached = db.cached_validators(conn, company, board_url(company), rules_version())
-            stored = db.stored_versions(conn, company) if cached and company.platform == "greenhouse" else {}
-            return cached, stored
+            cached = (
+                db.cached_validators(conn, company, board_url(company), rules_version())
+                if platform in CONDITIONAL
+                else None
+            )
+            versions = (
+                db.stored_versions(conn, company)
+                if platform == "jsonld" or (cached and platform == "greenhouse")
+                else {}
+            )
+            postings = (
+                db.stored_postings(conn, company, FULL_TEXT_HEADINGS.get(platform))
+                if platform in INCREMENTAL_DETAILS
+                else {}
+            )
+            return cached, versions, postings
     except psycopg.Error as exc:  # first run, or the database is waking: read it in full
-        log.warning("%s: could not read the board's cache (%s)", company.name, exc)
-        return None, {}
+        log.warning("%s: could not read what's stored for the board (%s)", company.name, exc)
+        return None, {}, {}
 
 
 def remember_board(conn: psycopg.Connection, company, jobs, open_before: int) -> None:
@@ -183,15 +197,40 @@ def log_database_reads() -> dict:
 _MULTI_LOCATION = re.compile(r"^\s*\d+\s+locations?\s*$", re.I)
 
 
-def _stored_details(dsn: str, company) -> dict[str, tuple[str, str]]:
-    if company.platform not in INCREMENTAL_DETAILS:
-        return {}
-    try:
+def settle_unchanged(dsn: str, company, jobs: JobList, stored: dict) -> JobList:
+    """On sources that need a request per posting, a stored posting whose text
+    wasn't fetched this run (`stored`: db.stored_postings):
+
+    - still open, same title, and the same location (or the listing only says
+      "3 Locations"): left exactly as stored, only marked seen (`unchanged`);
+    - otherwise (renamed, moved, or listed again after it closed): its stored
+      text is read back, for just these postings, and it's saved again.
+
+    So descriptions are never read back just to be written again unchanged."""
+    if not stored:
+        return jobs
+    keep, unchanged, wanted = [], set(), []
+    for job in jobs:
+        posting = stored.get(job.external_id)
+        if job.description or posting is None:
+            keep.append(job)
+        elif (
+            posting.active
+            and job.title == posting.title
+            and (not job.location or _MULTI_LOCATION.match(job.location) or job.location == posting.location)
+        ):
+            unchanged.add(job.external_id)
+        else:
+            keep.append(job)
+            if posting.described:
+                wanted.append(job.external_id)
+    if wanted:
         with db.connect(dsn) as conn:
-            return db.stored_details(conn, company)
-    except psycopg.Error as exc:  # first run, or the database is waking: fetch everything
-        log.warning("%s: could not read stored descriptions (%s)", company.name, exc)
-        return {}
+            reuse_details(keep, db.stored_descriptions(conn, company, wanted))
+    result = jobs.like(keep)
+    result.listed = jobs.listed_ids()
+    result.unchanged = frozenset(unchanged) | jobs.unchanged
+    return result
 
 
 def reuse_details(jobs, stored: dict[str, tuple[str, str]]) -> None:
@@ -240,12 +279,9 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
             timings[company.name] = time.perf_counter() - started
 
     def _collect(company, started: float) -> tuple[int, int, int] | None:
-        stored = _stored_details(dsn, company)
-        cached, versions = board_state(dsn, company)
+        cached, versions, stored = board_state(dsn, company)
         try:
-            jobs = fetch_jobs(
-                company, known=complete_descriptions(company.platform, stored), cached=cached, stored=versions
-            )
+            jobs = fetch_jobs(company, known=complete_descriptions(stored), cached=cached, stored=versions)
         except FetchError as exc:
             log.error("%s: fetch failed, skipping (no jobs closed): %s", company.name, exc)
             return None
@@ -258,7 +294,7 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
                 "[%d/%d] %s: unchanged (%d open jobs)", done["count"], len(companies), company.name, seen
             )
             return seen, 0, 0
-        reuse_details(jobs, stored)
+        jobs = settle_unchanged(dsn, company, jobs, stored)
         snowball.note_postings(company, jobs)  # boards they link to (GHOSTLESS_SNOWBALL)
         for job in jobs:
             enrich(job, extract_skills(f"{job.title} {job.description}"))
@@ -270,12 +306,12 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
             done["count"],
             len(companies),
             company.name,
-            len(jobs),
+            jobs.seen,
             new,
             closed,
             time.perf_counter() - started,
         )
-        return len(jobs), new, closed
+        return jobs.seen, new, closed
 
     log.info("collecting %d companies, %d sites at a time", len(companies), workers())
     with dbtraffic.step("configured companies"):

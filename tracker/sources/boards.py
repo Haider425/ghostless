@@ -40,8 +40,8 @@ GREENHOUSE_JOB = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs/{id}?pa
 # More new or changed postings than this: one request for the whole board instead
 GREENHOUSE_MAX_DETAILS = 10
 
-# {external_id: (source_updated_at, description, department)}, from db.stored_versions
-Stored = dict[str, tuple[datetime, str, "str | None"]]
+# {external_id: source_updated_at} of open stored postings, from db.stored_versions
+Stored = dict[str, datetime]
 
 
 def board_url(company: Company) -> str:
@@ -106,8 +106,7 @@ def plan_greenhouse(items: list[dict], stored: Stored) -> list[str]:
         key = str(item["id"])
         if not title_worth_storing(item.get("title", "")):
             continue
-        known = stored.get(key)
-        if known is None or parse_iso(item.get("updated_at")) != known[0]:
+        if parse_iso(item.get("updated_at")) != stored.get(key):
             todo.append(key)
     return todo
 
@@ -135,16 +134,21 @@ def fetch_greenhouse(
         return JobList(
             parse_greenhouse(http.get_json(GREENHOUSE_FULL.format(slug=slug))), validators=validators
         )
-    jobs = JobList(validators=validators)
+    # Unchanged postings stay as stored (their text isn't downloaded or read
+    # back from the database); postings Ghostless won't store are listed only.
+    # Either way they're listed, so nothing they match is taken for closed.
+    jobs = JobList(validators=validators, listed=frozenset(str(item["id"]) for item in items))
     for item in items:
         key = str(item["id"])
         if key in details:
             jobs.append(_greenhouse_job({**item, **details[key]}))
-        elif key in stored:
-            _, description, department = stored[key]
-            jobs.append(_greenhouse_job(item, description, department))
-        else:  # not stored and won't be: listed, so nothing it matches is taken for closed
-            jobs.append(_greenhouse_job(item, ""))
+    jobs.unchanged = frozenset(
+        str(item["id"])
+        for item in items
+        if str(item["id"]) in stored
+        and str(item["id"]) not in details
+        and title_worth_storing(item.get("title", ""))
+    )
     return jobs
 
 

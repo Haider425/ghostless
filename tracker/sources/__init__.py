@@ -25,7 +25,13 @@ from collections.abc import Callable
 from tracker.models import Company, Job, JobList
 from tracker.sources import ats
 from tracker.sources.amazon import fetch_amazon, parse_amazon
-from tracker.sources.apple import fetch_apple, is_full_description, parse_apple_detail, parse_apple_page
+from tracker.sources.apple import (
+    FULL_HEADINGS,
+    fetch_apple,
+    is_full_description,
+    parse_apple_detail,
+    parse_apple_page,
+)
 from tracker.sources.boards import fetch_board, parse_ashby, parse_greenhouse, parse_lever
 from tracker.sources.eightfold import fetch_eightfold, parse_eightfold_position, parse_eightfold_slug
 from tracker.sources.feeds import fetch_rss, fetch_sitemap, parse_rss, parse_sitemap
@@ -76,16 +82,14 @@ def listing_is_complete(company: Company) -> bool:
 INCREMENTAL_DETAILS = {"workday", "eightfold", "apple", "jsonld"} | ats.PER_POSTING
 
 # Where a listing already carries part of the text (Apple's summary), a stored
-# description only counts as known once it is the full posting.
-_IS_FULL: dict[str, Callable[[str], bool]] = {"apple": is_full_description}
+# description only counts as known once it is the full posting: one with any
+# of these headings (checked in the database, see db.stored_postings).
+FULL_TEXT_HEADINGS: dict[str, list[str]] = {"apple": list(FULL_HEADINGS)}
 
 
-def complete_descriptions(platform: str, stored: dict[str, tuple[str, str]]) -> frozenset[str]:
-    """Ids of stored postings whose description needs no further request."""
-    is_full = _IS_FULL.get(platform)
-    return frozenset(
-        key for key, (description, _) in stored.items() if is_full is None or is_full(description)
-    )
+def complete_descriptions(stored: dict) -> frozenset[str]:
+    """Ids of stored postings (db.stored_postings) whose description needs no further request."""
+    return frozenset(key for key, posting in stored.items() if posting.full)
 
 
 def fetch_jobs(
@@ -107,7 +111,8 @@ def fetch_jobs(
     On the public job-board APIs (CONDITIONAL), `cached` asks the server
     whether the board changed since it was last read: if not, the result is
     empty with `not_modified` set. `stored` (Greenhouse) holds the stored
-    postings' versions, so unchanged postings aren't downloaded again.
+    postings' versions: unchanged postings aren't downloaded again, and come
+    back in `unchanged` rather than in the list.
     """
     fetcher = FETCHERS.get(company.platform)
     if fetcher is None:
@@ -131,6 +136,7 @@ def fetch_jobs(
         not_modified=getattr(result, "not_modified", False),
         validators=getattr(result, "validators", None),
         listed=getattr(result, "listed", None),
+        unchanged=getattr(result, "unchanged", frozenset()),
     )
     if company.region:
         for job in jobs:
