@@ -251,24 +251,39 @@ def descriptions(conn: psycopg.Connection, job_ids: list[int]) -> dict[int, str]
 def matching_pool(
     conn: psycopg.Connection, location: str = "any", include_high_risk: bool = False
 ) -> list[dict]:
-    """Every open tech posting, shaped like a job summary, for resume matching."""
+    """Every open tech posting, shaped like a job summary, for resume matching
+    (the API keeps one copy, see api.cache, and narrows it with `in_pool`)."""
     clauses = ["j.is_active", "j.role_type = ANY(%(roles)s)"]
     if LOCATIONS[location]:
         clauses.append(LOCATIONS[location])
     if not include_high_risk:
         clauses.append("coalesce(s.ghost_risk, 'low') <> 'high'")
+    where = " AND ".join(clauses)
     with _cursor(conn) as cur:
         rows = cur.execute(
-            f"SELECT {JOB_COLUMNS} {JOB_FROM} WHERE {' AND '.join(clauses)}", {"roles": TECH_ROLES}
+            f"SELECT {JOB_COLUMNS} {JOB_FROM} WHERE {where} ORDER BY j.id", {"roles": TECH_ROLES}
         ).fetchall()
-    skills = dict(
+    skills = dict(  # for the pool's postings only
         conn.execute(
-            """SELECT js.job_id, array_agg(sk.name ORDER BY sk.name)
-               FROM job_skills js JOIN skills sk ON sk.id = js.skill_id
-               JOIN jobs j ON j.id = js.job_id WHERE j.is_active GROUP BY js.job_id"""
+            f"""SELECT js.job_id, array_agg(sk.name ORDER BY sk.name)
+                FROM job_skills js JOIN skills sk ON sk.id = js.skill_id
+                JOIN jobs j ON j.id = js.job_id LEFT JOIN job_signals_mv s ON s.job_id = j.id
+                WHERE {where} GROUP BY js.job_id""",
+            {"roles": TECH_ROLES},
         ).fetchall()
     )
     return [_shape_job(r, skills.get(r["id"], [])) for r in rows]
+
+
+def in_pool(job: dict, location: str = "any", include_high_risk: bool = False) -> bool:
+    """`matching_pool`'s filters, applied to a job summary already loaded."""
+    if location == "canada" and not job["is_canada"]:
+        return False
+    if location == "remote" and not job["is_remote"]:
+        return False
+    if location == "canada_or_remote" and not (job["is_canada"] or job["is_remote"]):
+        return False
+    return include_high_risk or job["signals"]["risk"] != "high"
 
 
 def get_job(conn: psycopg.Connection, job_id: int) -> dict | None:
@@ -336,14 +351,74 @@ def _company_row(row: dict) -> dict:
     return {**row, "slug": slugify(row["name"])}
 
 
+COMPANY_GROUP = "GROUP BY c.id, c.name, c.domain, c.platform, c.origin, t.started, ty.days"
+# slugify() in SQL, so one company is found without reading every company out
+SLUG_SQL = "trim(both '-' from regexp_replace(lower(c.name), '[^a-z0-9]+', '-', 'g'))"
+
+
 def list_companies(conn: psycopg.Connection) -> list[dict]:
     with _cursor(conn) as cur:
-        rows = cur.execute(
-            f"""{COMPANY_SUMMARY}
-            GROUP BY c.id, c.name, c.domain, c.platform, c.origin, t.started, ty.days
-            ORDER BY active_jobs DESC, c.name"""
-        ).fetchall()
+        rows = cur.execute(f"{COMPANY_SUMMARY} {COMPANY_GROUP} ORDER BY active_jobs DESC, c.name").fetchall()
     return [_company_row(r) for r in rows]
+
+
+# The Companies page's orderings (web/src/app/companies/page.tsx), ties by name
+# as the browser's localeCompare orders them (ICU's root collation)
+COMPANY_SORTS = {
+    "open": "tech_active_jobs DESC",
+    "new": "new_last_7_days DESC",
+    "fastest": "coalesce(typical_days_open, 9999) ASC",
+    "risk": "high_risk_jobs::float8 / greatest(1, active_jobs) DESC",
+}
+COMPANY_SOURCES = {"all": "true", "boards": "origin <> 'list'", "lists": "origin = 'list'"}
+
+
+def company_page(conn: psycopg.Connection, sort: str, q: str, source: str, page: int, per_page: int) -> dict:
+    """One page of the Companies page, filtered, sorted and counted in the
+    database: only the rows shown are read out."""
+    summary = f"({COMPANY_SUMMARY} {COMPANY_GROUP}) AS s"
+    match = f"{COMPANY_SOURCES[source]} AND strpos(lower(name), %(needle)s) > 0"
+    params = {"needle": q.lower()}
+    with _cursor(conn) as cur:
+        totals = cur.execute(
+            f"""SELECT count(*)::int AS employers,
+                       count(*) FILTER (WHERE origin = 'list')::int AS from_lists,
+                       coalesce(sum(tech_active_jobs), 0)::int AS total_open,
+                       count(*) FILTER (WHERE {match})::int AS total
+                FROM {summary}""",
+            params,
+        ).fetchone()
+        pages = max(1, -(-totals["total"] // per_page))
+        page = min(pages, max(1, page))
+        rows = cur.execute(
+            f"""SELECT * FROM {summary} WHERE {match}
+                ORDER BY {COMPANY_SORTS[sort]}, name COLLATE "und-x-icu", active_jobs DESC, name, id
+                LIMIT %(limit)s OFFSET %(offset)s""",
+            {**params, "limit": per_page, "offset": (page - 1) * per_page},
+        ).fetchall()
+    return {**totals, "page": page, "per_page": per_page, "items": [_company_row(r) for r in rows]}
+
+
+def company_names(conn: psycopg.Connection, q: str | None = None, limit: int | None = None) -> list[dict]:
+    """Names, slugs and open tech roles, without the rest of each company's
+    summary: every company (the sitemap), or with `q` the hiring companies
+    whose name contains it, names starting with it first (search suggestions)."""
+    where, params = "", {"limit": limit}
+    if q:
+        where = "HAVING count(*) FILTER (WHERE j.is_active AND j.role_type <> 'other') > 0 AND strpos(lower(c.name), %(needle)s) > 0"
+        params["needle"] = q.lower()
+    order = "starts_with(lower(c.name), %(needle)s) DESC, " if q else ""
+    with _cursor(conn) as cur:
+        rows = cur.execute(
+            f"""SELECT c.name, c.domain,
+                       count(*) FILTER (WHERE j.is_active AND j.role_type <> 'other')::int AS tech_active_jobs
+                FROM companies c JOIN jobs j ON j.company_id = c.id
+                GROUP BY c.id, c.name, c.domain {where}
+                ORDER BY {order}{"tech_active_jobs DESC, " if q else ""}count(*) FILTER (WHERE j.is_active) DESC, c.name
+                LIMIT %(limit)s""",
+            params,
+        ).fetchall()
+    return [{**r, "slug": slugify(r["name"])} for r in rows]
 
 
 WEEKLY = """
@@ -384,7 +459,8 @@ def weekly(
 def get_company(conn: psycopg.Connection, slug: str) -> dict | None:
     with _cursor(conn) as cur:
         rows = cur.execute(
-            f"{COMPANY_SUMMARY} GROUP BY c.id, c.name, c.domain, c.platform, c.origin, t.started, ty.days"
+            f"{COMPANY_SUMMARY} WHERE {SLUG_SQL} = %s {COMPANY_GROUP} ORDER BY active_jobs DESC, c.id",
+            (slug,),
         ).fetchall()
         row = next((r for r in rows if slugify(r["name"]) == slug), None)
         if row is None:

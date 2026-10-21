@@ -215,6 +215,25 @@ def test_full_read_that_looks_wrong_closes_nothing(conn):
     assert db.close_missing_postings(conn, company_id, set(), day1 + timedelta(days=7)) == 0
     assert conn.execute("SELECT count(*) FROM jobs WHERE is_active").fetchone()[0] == 5
     assert health.current.report()["guarded"] == [{"board": "Bank", "found": 0, "open": 5}]
+    # an empty listing stays guarded even when it claims to be the whole board
+    assert (
+        db.close_missing_postings(conn, company_id, set(), day1 + timedelta(days=7), whole_listing=True) == 0
+    )
+
+
+def test_a_whole_listing_closes_a_real_drop(conn):
+    """A university board whose season ended (Autodesk's /uni: 26 open, 1 listed):
+    the board listed every posting it says it has, so the drop is real."""
+    from tracker import health
+
+    health.current.reset()
+    day1 = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    company_id = db.upsert_company(conn, Company("Autodesk", "workday", "autodesk.wd1.myworkdayjobs.com/uni"))
+    db.save_company_jobs(conn, company_id, [_job(f"/job/{i}") for i in range(26)], day1)
+    week = day1 + timedelta(days=7)
+    assert db.close_missing_postings(conn, company_id, {"/job/0"}, week) == 0  # a search's view: guarded
+    assert db.close_missing_postings(conn, company_id, {"/job/0"}, week, whole_listing=True) == 25
+    assert conn.execute("SELECT external_id FROM jobs WHERE is_active").fetchall() == [("/job/0",)]
 
 
 def test_finish_run_stores_the_health_report(conn):

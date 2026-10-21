@@ -23,6 +23,8 @@ from tracker.api.schemas import (
     CalendarEntry,
     Company,
     CompanyDetail,
+    CompanyName,
+    CompanyPage,
     GapReport,
     GhostRisk,
     JobDetail,
@@ -189,6 +191,35 @@ def register_routes(app: FastAPI) -> None:
     @app.get("/companies", response_model=list[Company], tags=["companies"], summary="Tracked employers")
     def list_companies(conn: Conn):
         return queries.list_companies(conn)
+
+    @app.get(
+        "/company-list",
+        response_model=CompanyPage,
+        tags=["companies"],
+        summary="One page of employers, searched, filtered and sorted",
+    )
+    def company_list(
+        conn: Conn,
+        sort: Literal["open", "new", "fastest", "risk"] = "open",
+        q: Annotated[str, Query(max_length=80, description="part of the name, any case")] = "",
+        source: Literal["all", "boards", "lists"] = "all",
+        page: Annotated[int, Query(ge=1, le=10_000)] = 1,
+        per_page: Annotated[int, Query(ge=1, le=100)] = 20,
+    ):
+        return queries.company_page(conn, sort, q.strip(), source, page, per_page)
+
+    @app.get(
+        "/company-names",
+        response_model=list[CompanyName],
+        tags=["companies"],
+        summary="Employers' names and slugs: all of them, or the hiring ones matching q",
+    )
+    def company_names(
+        conn: Conn,
+        q: Annotated[str | None, Query(max_length=100)] = None,
+        limit: Annotated[int | None, Query(ge=1, le=50)] = None,
+    ):
+        return queries.company_names(conn, (q or "").strip() or None, limit)
 
     @app.get("/terms", response_model=list[TermCount], tags=["jobs"], summary="Seasons with open postings")
     def list_terms(conn: Conn):

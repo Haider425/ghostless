@@ -358,3 +358,54 @@ def test_one_workday_board_is_registered_once_however_lists_spell_it(conn):
     ]
     assert discovery.register_boards(DSN, items, set(), set()) == 1
     assert discovery.register_boards(DSN, items[1:], set(), set()) == 0  # and not again on the next run
+
+
+@needs_db
+def test_the_weekly_full_read_reports_what_was_due_seen_and_too_big(conn, monkeypatch):
+    """Each part says how many boards were due, how many of today's share were
+    already read (an earlier run the same day), the postings each read saw, and
+    the boards too big to read whole."""
+    from tracker import health
+
+    run_started = datetime(2026, 10, 21, 21, 0, tzinfo=timezone.utc)
+    slugs = [f"co{i}.wd1.myworkdayjobs.com/External" for i in range(60)]
+    today = [s for s in slugs if discovery.full_read_day(s, run_started)]
+    assert len(today) >= 4
+    read_this_morning, due, too_big = today[0], today[1:-1], today[-1]
+    for slug in slugs:
+        company_id = db.upsert_company(conn, Company(slug, "workday", slug, origin="discovered"))
+        db.save_company_jobs(
+            conn,
+            company_id,
+            [Job("/job/1", "Software Engineer Intern", "u", level="intern")],
+            run_started - timedelta(days=1),
+        )
+        conn.execute(
+            """INSERT INTO discovered_boards (platform, board_slug, company_name, last_ok, last_full_read)
+               VALUES ('workday', %s, %s, now(), %s)""",
+            (slug, slug, run_started - timedelta(hours=6) if slug == read_this_morning else None),
+        )
+    conn.commit()
+
+    def listing(company):
+        if company.board_slug == too_big:
+            return {"/job/1"}, False, 12_779
+        return {"/job/1", "/job/2"}, True, 2
+
+    monkeypatch.setattr(discovery, "list_workday", listing)
+    health.current.reset()
+    discovery.full_read_workday(DSN, run_started, {"jobs_closed": 0})
+    report = health.current.report()
+    row = report["sources"]["discovered workday, weekly full read"]
+    assert row["read"] == len(due) + 1 and row["seen"] == 2 * len(due) + 12_779
+    assert report["notes"] == [
+        f"Weekly Workday full read: {len(due) + 1} boards due (1 over 2,000 postings, so nothing closed on them);"
+        " 1 more of today's share were read in the last 6 days."
+    ]
+
+    # a second run the same day: nothing left, and the note says why
+    health.current.reset()
+    discovery.full_read_workday(DSN, run_started + timedelta(hours=1), {"jobs_closed": 0})
+    assert health.current.report()["notes"] == [
+        f"Weekly Workday full read: nothing due; today's {len(today)} boards were read in the last 6 days."
+    ]

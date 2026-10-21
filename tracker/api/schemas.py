@@ -116,6 +116,25 @@ class Company(BaseModel):
     )
 
 
+class CompanyPage(BaseModel):
+    """One page of employers, with the totals the Companies page shows."""
+
+    total: int = Field(description="employers matching the search and source")
+    page: int = Field(description="the page returned (an out-of-range page gives the last one)")
+    per_page: int
+    employers: int = Field(description="every employer with postings")
+    from_lists: int = Field(description="employers only known from the job lists")
+    total_open: int = Field(description="open tech roles across every employer")
+    items: list[Company]
+
+
+class CompanyName(BaseModel):
+    name: str
+    slug: str
+    domain: str | None
+    tech_active_jobs: int
+
+
 class TermCount(BaseModel):
     term: str
     jobs: int

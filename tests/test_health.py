@@ -28,8 +28,12 @@ def test_report_adds_up_per_source():
     assert [g["board"] for g in report["guarded"]] == ["Big Co", "Small Co"]  # the biggest drops first
     assert report["registered"] == 4
 
+    h.note("Weekly Workday full read: 3 boards due.")
+    assert h.report()["notes"] == ["Weekly Workday full read: 3 boards due."]
+    assert "Weekly Workday full read: 3 boards due." in render(h.report())
+
     h.reset()
-    assert h.report() == {"sources": {}, "guarded": [], "registered": 0}
+    assert h.report() == {"sources": {}, "guarded": [], "registered": 0, "notes": []}
 
 
 def test_render_names_boards_that_returned_nothing():

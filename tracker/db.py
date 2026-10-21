@@ -387,12 +387,20 @@ def _report_guard(conn: psycopg.Connection, company_id: int, found: int, open_be
 
 
 def close_missing_postings(
-    conn: psycopg.Connection, company_id: int, listed: set[str], run_started: datetime
+    conn: psycopg.Connection,
+    company_id: int,
+    listed: set[str],
+    run_started: datetime,
+    whole_listing: bool = False,
 ) -> int:
     """After reading a board's complete listing without saving it (the weekly
     Workday full read): close open postings, at any level, that aren't listed,
-    and mark the listed ones as seen. Nothing is inserted. The suspicious-drop
-    guard applies. Returns how many closed."""
+    and mark the listed ones as seen. Nothing is inserted. Returns how many closed.
+
+    The suspicious-drop guard applies, unless `whole_listing`: the board listed
+    every posting it says it has, so a big drop is real (a university board
+    whose season ended) rather than a read that failed. An empty listing is
+    always guarded."""
     rows = conn.execute(
         "SELECT id, external_id FROM jobs WHERE company_id = %s AND is_active", (company_id,)
     ).fetchall()
@@ -402,7 +410,7 @@ def close_missing_postings(
         conn.execute("UPDATE jobs SET last_seen = %s WHERE id = ANY(%s)", (run_started, present))
     if not gone:
         return 0
-    if suspicious_drop(len(rows), len(present)):
+    if suspicious_drop(len(rows), len(present)) and not (whole_listing and listed):
         _report_guard(conn, company_id, len(present), len(rows))
         return 0
     return conn.execute(

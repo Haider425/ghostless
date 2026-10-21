@@ -15,7 +15,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     (path) => ({ url: `${site}${path}`, changeFrequency: "daily" as const, priority: path === "" ? 1 : 0.7 }),
   );
   try {
-    const [companies, jobs] = await Promise.all([api.companies(), api.jobs({ limit: 100, sort: "newest" })]);
+    const [companies, jobs] = await Promise.all([api.companyNames(), api.jobs({ limit: 100, sort: "newest" })]);
     return [
       ...fixed,
       ...companies.map((c) => ({ url: `${site}/companies/${c.slug}`, changeFrequency: "daily" as const, priority: 0.6 })),

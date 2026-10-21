@@ -175,9 +175,9 @@ def _crawl(api: str, applied: dict, depth: int = 0) -> tuple[dict[str, dict], in
     return listings, total
 
 
-def list_workday(company: Company) -> tuple[set[str], bool]:
-    """Every posting id on the board (no descriptions), and whether the listing
-    came back complete. Used to close postings once a week on boards that are
+def list_workday(company: Company) -> tuple[set[str], bool, int]:
+    """Every posting id on the board (no descriptions), whether the listing
+    came back complete, and how many postings Workday says the board has. Used to close postings once a week on boards that are
     otherwise only searched for student roles.
 
     Only listings that fit in one search (Workday pages stop at 2,000) are
@@ -189,9 +189,9 @@ def list_workday(company: Company) -> tuple[set[str], bool]:
     first, total, _ = _search(api, {}, limit=PAGE_SIZE)
     if total > OFFSET_LIMIT:
         log.info("%s: %d postings, too many for the weekly full read", company.name, total)
-        return set(first), False
+        return set(first), False, total
     listings, total, _ = _search(api, {}) if total > len(first) else (first, total, None)
-    return set(listings), len(listings) >= total
+    return set(listings), len(listings) >= total, total
 
 
 def fetch_workday(
