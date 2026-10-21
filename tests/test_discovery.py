@@ -267,6 +267,31 @@ def test_boards_are_revisited_by_how_often_they_change():
     assert [next_visit_days(False, 0, 0, f) for f in (1, 2, 3, 6, 10)] == [1, 2, 4, 30, 30]
 
 
+@pytest.mark.parametrize(
+    "url, slug",
+    [
+        # real links from Common Crawl (CC-MAIN-2026-39): a bare language before the site
+        ("https://3m.wd1.myworkdayjobs.com/en/search", "3m.wd1.myworkdayjobs.com/search"),
+        ("https://3m.wd1.myworkdayjobs.com/es/search", "3m.wd1.myworkdayjobs.com/search"),
+        ("https://axalta.wd1.myworkdayjobs.com/es/axalta", "axalta.wd1.myworkdayjobs.com/axalta"),
+        ("https://aes.wd1.myworkdayjobs.com/es/aes_mcac/jobs", "aes.wd1.myworkdayjobs.com/aes_mcac"),
+        ("https://amgen.wd1.myworkdayjobs.com/es/careers/job/india---hyderabad/sr-associate_r-221779", "amgen.wd1.myworkdayjobs.com/careers"),
+        ("https://theirc.wd1.myworkdayjobs.com/ar/external_careers/job/x/meal-assistant_jr00001716", "theirc.wd1.myworkdayjobs.com/external_careers"),
+        ("https://arrow.wd1.myworkdayjobs.com/es/ac/login", "arrow.wd1.myworkdayjobs.com/ac"),
+        # a two-letter site name stays one
+        ("https://arrow.wd1.myworkdayjobs.com/ac/job/us-co/strategic-account-executive_r242927", "arrow.wd1.myworkdayjobs.com/ac"),
+        ("https://howard.wd1.myworkdayjobs.com/en-us/hu/job/program-manager_jr108293", "howard.wd1.myworkdayjobs.com/hu"),
+        ("https://3m.wd1.myworkdayjobs.com/en", "3m.wd1.myworkdayjobs.com/en"),  # nothing follows: can't tell
+        ("https://paypal.wd1.myworkdayjobs.com/en-us/jobs/job/bangalore-in/software-engineer-1_r0058249", "paypal.wd1.myworkdayjobs.com/jobs"),
+        ("https://ebay.wd5.myworkdayjobs.com/en-us/apply/job/remote/business-development-mgr_r0066917", "ebay.wd5.myworkdayjobs.com/apply"),
+    ],
+)  # fmt: skip
+def test_workday_links_with_a_bare_language(url, slug):
+    from tracker.discovery.boards import board_from_url
+
+    assert board_from_url(url) == ("workday", slug)
+
+
 @needs_db
 def test_postings_stored_twice_are_merged_and_nothing_a_person_saved_is_lost(conn):
     from tracker.discovery.boards import board_from_url
