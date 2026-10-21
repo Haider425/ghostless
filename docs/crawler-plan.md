@@ -184,6 +184,87 @@ Sites are found from companies' `domain` fields and from links in B1. Pages are 
 - JSON-LD parsing on recorded pages (including multiple JobPostings per page, `@graph`, and invalid JSON);
 - dedupe across platforms.
 
+### Stage B results (built 20 October 2026, switched off)
+
+**Settings, all off by default.** With them unset, every run behaves exactly as before. The schema gains `discovered_boards.state` and `sample_url`, existing boards default to `active`, and `jsonld` is added to the allowed platforms. The workflow passes repository variables of the same names through.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `GHOSTLESS_SNOWBALL` | off | B1: notes Greenhouse, Lever, Ashby and Workday boards linked from postings (addresses and descriptions), registers them as candidates, and checks them |
+| `GHOSTLESS_JSONLD` | off | B3: notes career sites from job list entries, checks them, and reads the active ones |
+| `GHOSTLESS_VERIFY_PER_RUN` | 100 | candidates checked per run, one request each |
+| `GHOSTLESS_JSONLD_PAGES_PER_SITE` | 25 | job pages read per career site per run |
+| `GHOSTLESS_JSONLD_SITEMAPS` | 3 | sitemap files read per career site per run |
+| `GHOSTLESS_JSONLD_URLS` | 2000 | job links considered per career site |
+
+**B1, built as planned.** Candidates are checked with one request:
+- **Active:** something worth storing, so the board is read in this run's crawl.
+- **Empty:** nothing worth storing; checked again in 30 days.
+- **Failed three times:** marked `dead`, and never registered again.
+- **Replaced:** a career site whose page links to a supported hiring system, which is registered instead.
+
+Board links for stage E's platforms are added in stage E, together with their adapters.
+
+**B2, built from the Parquet index (agreed 20 October 2026), switched off.** The Hugging Face bucket is Common Crawl's own mirror, announced on its blog, and current (crawls up to CC-MAIN-2026-39). Its CDX `cluster.idx` files aren't mirrored, so B2 reads the Parquet table (`cc-index/table/.../subset=warc`) instead, with `pyarrow`.
+
+- **Where pyarrow is used:** only in the optional `index` extra. Only the monthly `discover.yml` workflow installs it, plus CI for its tests. Ingest and the API never import it.
+- **How a crawl is read:**
+  - the files aren't in sorted order, so all 300 footers are read, about 2 requests each;
+  - row-group statistics on `url_surtkey` pick out the few row groups that can hold job board URLs;
+  - only the `url_surtkey` column of those row groups is downloaded.
+- **Candidates:** new boards are registered as candidates and checked like B1's, by the daily ingest.
+- **Ashby:** board names aren't case-sensitive (checked), so the lowercase SURT form is safe.
+
+**Settings:**
+- `GHOSTLESS_INDEX_SEEDING=1` as a repository variable runs the workflow monthly (the 5th), and lets ingest check the boards it finds.
+- A manual run of the workflow defaults to a dry run.
+- Locally: `ghostless seed-boards --dry-run`.
+
+**B2 dry run** (crawl CC-MAIN-2026-39; Neon read-only, nothing written):
+
+| | Greenhouse | Ashby | Workday | Lever |
+|---|---|---|---|---|
+| Boards in the index | 3,653 | 2,775 | 2,817 | 0 (the crawl has no jobs.lever.co pages) |
+| New to Ghostless | 3,398 | 2,552 | 2,419 | 0 |
+| Sample of 20 checked: active / empty / failed | 13 / 6 / 1 | 12 / 5 / 3 | 6 / 13 / 1 | n/a |
+| Postings kept per active board (sample) | 8 | 4 | 3 (first search page only) | n/a |
+| Estimated postings kept | ~17,800 | ~6,400 | ~2,100+ | n/a |
+
+**Cost and size:**
+- **Reading the index:** 609 requests, 96 MB downloaded, 5 minutes. Only 4 of 1,497 row groups were needed.
+- **After the filter:** about 26,000 postings, roughly 115 to 150 MB.
+- **Pace:** at the default of 100 checks per run, the 8,369 candidates take about 3 months to work through, so growth is gradual.
+- **Database size with B2 and B3 together:** about 790 MB, under 1 GB.
+
+**B3, built as planned, with these choices:**
+- **A site's path:** the path its job pages sit under, worked out from a job link. Ids and title-like segments are left out ("/JobDetail/Senior-Data-Analyst/123" becomes "/JobDetail"). When nothing sits under that path, its parents are tried, down to one segment and never the whole site.
+- **Excluded hosts:** shared hiring systems (Avature, Jibe, iCIMS, Taleo and others) are never treated as a company's career site, and neither are job sites and aggregators (LinkedIn, Indeed and others).
+- **Plain-text descriptions** keep their line breaks.
+- **Expired postings:** a posting past `validThrough` leaves the listing, so it closes.
+- **Pages not re-read:** a stored posting stays open while its page is in the sitemap.
+
+**B4, built as planned.**
+- **Pipeline:** career sites are read through `_crawl_one`, with the storage filter, the guard and the revisit schedule.
+- **Dedupe:** `merge_duplicates` retires a career site whose company also has a hiring-system board. Its postings that match by title are removed, with anything saved or reported moved to the hiring-system copy. Its other postings are closed, not deleted.
+
+**Dry run** (20 October 2026; Neon read-only, nothing written anywhere):
+
+| Step | Found | Checked | Result |
+|---|---|---|---|
+| B1: links in the 46k open postings' addresses and descriptions | 0 new boards | n/a | every linked board is already known |
+| B3: career sites from 9,106 job list entries | 217 candidates | 40 | 9 active, 22 failed (no JSON-LD), 9 replaced by a hiring system |
+| B3: reading 8 active sites | 4,362 job pages listed | 145 pages read | 65 kept by the filter; 6 of the 8 sites readable |
+
+**Estimates, with both switches on:**
+- **Requests:** about 100 checks per run, plus up to 28 requests per active site per run.
+- **Expected growth:** about 50 active sites in all, reached over a few runs. Reading 25 pages per site per run, and keeping about 45% of them, they add about 10,000 postings over 3 to 4 weeks. That's roughly 45 MB at about 4.4 KB per posting.
+- **Database size:** Neon is at 596 MB today, far below 1 GB.
+- **B1 on its own** adds nothing at the moment.
+
+**Verification:**
+- **Tests:** 522 pass with a database (on Windows-locale and C-locale databases) and 432 without one. The database tests run in CI.
+- **Lint:** ruff is clean.
+
 ## Stage C: smarter parsing
 
 **C1. Structured data first, then rules.** Adapters fill new `Job` fields from source data:
@@ -216,6 +297,63 @@ Sites are found from companies' `domain` fields and from links in B1. Pages are 
 - `ghostless evaluate` prints accuracy per field.
 - Run once on today's code (before) and after each change in C. The before and after table goes in the stage summary.
 
+### Stage C results (built 21 October 2026)
+
+**The labelled sets** are in `tests/fixtures/labelled`. Every label is a draft (`"reviewed": false`) and should be spot-checked. The conventions are in that folder's README.
+- **The 200:** sampled across all platforms. The extraction rules were developed while reading these, so their scores are optimistic.
+- **The 50 held-out:** a second sample with no overlap, labelled before any rule was tuned on it. It gives the honest estimate.
+- **What's committed:** excerpts only. Full text stays in a git-ignored `private/` folder, rebuilt with `scripts/build_labelled_set.py`.
+
+**Accuracy, before and after** (committed excerpts; `ghostless evaluate`, `--holdout`, `--full`):
+
+| Field | 200, before | 200, after | 50 held-out, before | 50 held-out, after |
+|---|---|---|---|---|
+| level | 92% | 100% | 92% | 100% |
+| seniority (new) | not extracted | 98% | not extracted | 100% |
+| role_type | 88% | 95% | 80% | 82% |
+| employment_type (new) | not extracted | 96% | not extracted | 90% |
+| workplace (new) | not extracted | 98% | not extracted | 86% |
+| countries (new) | not extracted | 98% | not extracted | 88% |
+| sponsorship (new) | not extracted | 99% | not extracted | 94% |
+| min_years_experience (new) | not extracted | 94% | not extracted | 90% |
+| pay (all four parts right) | 76% | 96% | 82% | 96% |
+
+The full text gives the same results within a point.
+
+**Built:**
+- **C1, structured fields first.** The text fills only what a source doesn't state in its own fields:
+  - Ashby compensation, `workplaceType` and `employmentType` (its API is now called with `includeCompensation=true`);
+  - Greenhouse `pay_input_ranges` (`pay_transparency=true`, choosing the Canadian range for a posting in Canada);
+  - Lever `salaryRange`, `workplaceType` and `commitment`;
+  - Workday `remoteType` and `timeType`;
+  - JSON-LD `employmentType` and `experienceRequirements`.
+- **C2, new fields.** `tracker/extract.py` uses built-in tables of countries, provinces, states and cities, with no new dependency. New columns: `seniority`, `workplace`, `employment_type`, `sponsorship`, `min_years_experience`, `locations` and `countries`, added by one migration that's safe to run twice. Pay gains a monthly period. An unlabelled `$` follows the posting's country, and when ranges are given per country, the posting's own country's range is used.
+- **`level` is derived from `seniority`.** The title decides first, then the years asked for. Only title words make a posting new grad, so asking for few years of experience never makes a role a student one.
+- **`role_type` fixes from the test set:**
+  - "Blob Placement" is no longer an internship;
+  - mortgage and faculty titles, physical security guards, and Field Application, Solution and Developer Relations roles are other;
+  - ML Software Engineer, Applied AI and ML Systems titles are ml;
+  - SDET titles are software, even for firmware;
+  - Forward Deployed and full-stack titles are software;
+  - AI Data Developer is data engineering;
+  - RF titles are hardware;
+  - "Early Careers" counts as new grad.
+- **`ghostless reprocess`** fills the new fields for stored postings. It keeps a source's structured pay, workplace and job type when the text says nothing, and a job list's own level and category.
+
+**Dry run** (2,000 random open postings from Neon, read-only, through the new parsing):
+- **Fields filled:**
+  - countries 90%;
+  - employment type 44%;
+  - years of experience 44%;
+  - workplace 27%;
+  - sponsorship stated 17%;
+  - pay found where none was stored 0.9%.
+- **Level changes, 7.4% of postings:** mostly mid to senior (5+ years asked for). Every new grad to mid move was on a job list, and those keep the list's level.
+- **Role changes, 3.7%:** of these, 19 non-list postings would no longer pass the storage filter, all intended (mortgage specialists, security guards, developer relations, field application engineers). They stay open while listed.
+- **Storage:** about 105 bytes per posting, roughly 5 MB for today's postings.
+
+**Before the new fields show for stored postings:** they fill in as postings are read again, or all at once with `ghostless reprocess`, which rewrites every stored posting. Both write to Neon.
+
 ## Stage E: new sources
 
 One adapter per hiring system that passed the checks, in this order:
@@ -236,6 +374,50 @@ Each one gets:
 - tests with recorded sample responses.
 
 The HTTP layer already re-checks robots.txt per company subdomain, so a company that disallows crawling is skipped.
+
+### Stage E results (built 21 October 2026, switched off)
+
+**The setting.** All seven adapters are in `tracker/sources/ats.py`, behind `GHOSTLESS_SOURCES`, which is empty by default. It takes a comma-separated list (`workable,teamtailor`) or `all`. A platform that isn't named isn't linked to, discovered, checked or read. A `companies.yaml` entry for it fails with "switched off". The workflows pass the repository variable of the same name through.
+
+**Checks before building** (21 October 2026, one request each). robots.txt was checked again for every host used, and every one allows the paths read. Each adapter was tried on a real company:
+
+| System | How it reads | Descriptions | 304 | Verified on |
+|---|---|---|---|---|
+| Workable | widget API, `details=true` (full descriptions confirmed) | in the listing | no | Focusrite |
+| Teamtailor | `jobs.rss`, 100 a page | in the listing | yes | Oatly |
+| Personio | `/xml?language=en` (seniority, schedule and years fields used) | in the listing | yes | Personio |
+| Breezy | `/json` (with pay) | each job page's JSON-LD | yes | Forge Nano |
+| Rippling | board API list, then each job's detail | the detail API | no | apexanalytix |
+| Recruitee | `/api/offers/` | in the listing | not checked | a board from the job lists (54 postings read) |
+| SmartRecruiters | the public career page, then each job page's schema.org microdata | each job page | no | Western Digital |
+
+**SmartRecruiters:**
+- **Never called:** the API host disallows crawlers, and no code calls it (a test checks this).
+- **The listing:** the career page shows the first postings of each location; its "show more" calls an undocumented path, which isn't used.
+- **Closures:** a stored posting missing from the page closes only when its own page is gone (a 404 or no posting on the page). At most 20 are checked per run. The rest stay open, so a big company's partial listing never closes anything wrongly.
+
+**Wiring:**
+- **Registry and schema:** `FETCHERS` entries, the platform constraint (one migration, safe to run twice).
+- **Discovery:** `board_from_url` rules for each system (only when switched on), checks of candidate boards, and URL prefixes in the B2 index read (also only when switched on).
+- **Pacing and requests:** host pacing for the shared hosts (`apply.workable.com`, `api.rippling.com`, `jobs.smartrecruiters.com`), conditional requests on the three that answer 304, and per-posting descriptions read once each, a capped batch per run.
+- **Tests:** recorded, trimmed samples in `tests/fixtures/sources`.
+
+**Dry run** (Neon read-only; nothing written):
+
+| System | Boards linked from the job lists and stored postings | Boards in the Common Crawl index | Sample read: listed / kept | Estimated postings kept |
+|---|---|---|---|---|
+| Workable | 70 | 3,199 | 51 / 17 (10 boards) | ~5,400 |
+| Teamtailor | 0 | 473 | 70 / 18 | ~850 |
+| Personio | 0 | 1,303 | 118 / 12 | ~1,550 |
+| Breezy | 2 | 57 | 37 / 4 | ~25 to 50 |
+| Rippling | 39 | 1,120 | 89 / 1 (index sample); 915 / 351 (linked boards) | ~110 from the index, ~1,700 from the linked boards |
+| Recruitee | 1 | 464 | 310 / 63 | ~2,900 |
+| SmartRecruiters | 90 | 704 | 92 / 12 | ~850 |
+| **Total** | | | | **~13,000 to 15,000 postings, about 60 to 70 MB** |
+
+**Cost:** reading the index for these hosts took 613 requests and 183 MB.
+
+**All growth stages switched on** (B links and career sites ~45 MB, B2 ~115 to 150 MB, C ~5 MB, E ~70 MB): Neon would go from 596 MB to about 830 to 870 MB, still under 1 GB. Each source has its own switch, so they can be turned on one at a time and checked with `ghostless health`.
 
 ## Storage
 

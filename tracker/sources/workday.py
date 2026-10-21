@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from tracker.classify import classify_level
 from tracker.models import Company, Job, JobList
 from tracker.sources import http
-from tracker.sources.common import plan_details
+from tracker.sources.common import employment_type_of, plan_details, workplace_of
 from tracker.sources.http import FetchError
 from tracker.text import html_to_text
 
@@ -73,6 +73,8 @@ def parse_workday_job(item: dict, detail: dict | None, base: str, site: str) -> 
         description=html_to_text(info.get("jobDescription")),
         posted_at=parse_workday_age(item.get("postedOn")),
         source_remote=bool(info.get("remoteType") and "remote" in info["remoteType"].lower()),
+        workplace=workplace_of(info.get("remoteType")),  # stage C1: "Hybrid", "Remote", "On-site"
+        employment_type=employment_type_of(info.get("timeType")),  # "Full time", "Part time"
     )
 
 

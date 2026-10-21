@@ -12,3 +12,6 @@ dist/
 
 # local database exports (never commit: they contain stored postings and user rows)
 backups/
+
+# full text of the labelled test set (the repo is public): rebuilt by scripts/build_labelled_set.py rebuild
+tests/fixtures/labelled/private/

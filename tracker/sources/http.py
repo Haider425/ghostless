@@ -58,6 +58,10 @@ HOST_INTERVALS = {  # slower hosts, set from observed rate limits
     "boards-api.greenhouse.io": 0.25,
     "api.lever.co": 1.0,  # its robots.txt asks for Crawl-delay: 1
     "api.ashbyhq.com": 0.5,
+    # stage E hiring systems whose host every company shares
+    "apply.workable.com": 0.5,
+    "api.rippling.com": 0.5,
+    "jobs.smartrecruiters.com": 1.0,
 }
 # Requests in flight at once per host (default 1). These are the public APIs
 # ATS vendors publish for job boards; aggregators covering 20,000+ companies
@@ -387,6 +391,19 @@ def get_json(url: str) -> Any:
 
 def get_text(url: str) -> str:
     return _send("GET", url, None, "text/html,application/xml;q=0.9,*/*;q=0.8").text
+
+
+def get_bytes(url: str) -> bytes:
+    return _send("GET", url, None, "application/xml,application/gzip;q=0.9,*/*;q=0.8").content
+
+
+def get_range(url: str, start: int, end: int) -> tuple[bytes, int]:
+    """Bytes start..end (inclusive) of a file, and the file's total size."""
+    resp = _send("GET", url, None, "*/*", {"Range": f"bytes={start}-{end}"})
+    total = resp.headers.get("Content-Range", "").rpartition("/")[2]
+    if resp.status_code != 206 or not total.isdigit():
+        raise FetchError(f"no range support at {url}")
+    return resp.content, int(total)
 
 
 # ---------- conditional requests ----------

@@ -17,6 +17,7 @@ from tracker import db, health
 from tracker.accounts.store import purge_expired
 from tracker.classify import enrich, keep_relevant
 from tracker.config import database_url, load_companies, load_lists, select
+from tracker.discovery import snowball
 from tracker.models import JobList
 from tracker.parallel import in_shard, run_by_site, site_of, workers
 from tracker.skills import extract_skills
@@ -55,6 +56,12 @@ def board_state(dsn: str, company) -> tuple[Validators | None, dict]:
     changed (None reads it in full), and on Greenhouse the stored postings'
     versions, so unchanged ones aren't downloaded again. A full read
     (nothing cached, a week old, or new code) downloads everything."""
+    if company.platform == "jsonld":  # career sites: when each page was last read
+        try:
+            with db.connect(dsn) as conn:
+                return None, db.stored_versions(conn, company)
+        except psycopg.Error:
+            return None, {}
     if company.platform not in CONDITIONAL:
         return None, {}
     try:
@@ -219,6 +226,7 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
             )
             return seen, 0, 0
         reuse_details(jobs, stored)
+        snowball.note_postings(company, jobs)  # boards they link to (GHOSTLESS_SNOWBALL)
         for job in jobs:
             enrich(job, extract_skills(f"{job.title} {job.description}"))
         jobs = keep_relevant(jobs)  # tech roles and student roles only
@@ -287,6 +295,7 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
         except Exception:
             log.exception("discovery failed; the companies above were still saved")
 
+    snowball.register(dsn)  # boards linked from postings, checked on the next run
     stats["duration_seconds"] = round(time.perf_counter() - clock, 2)
     log_traffic(by_platform)
     if stats.get("boards_not_modified") or stats.get("discovered_not_modified"):

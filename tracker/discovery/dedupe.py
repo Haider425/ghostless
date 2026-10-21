@@ -87,12 +87,69 @@ def merge_duplicates(conn: psycopg.Connection) -> dict[str, int]:
         "DELETE FROM jobs WHERE company_id IN (SELECT id FROM dup_companies)"
     ).rowcount  # the rest of a duplicate board's postings: copies with no keeper elsewhere
     companies = conn.execute("DELETE FROM companies WHERE id IN (SELECT id FROM dup_companies)").rowcount
-    result = {"boards": len(removed_boards), "companies": companies, "jobs": jobs}
+    sites, site_jobs = retire_replaced_sites(conn)
+    result = {"boards": len(removed_boards), "companies": companies, "jobs": jobs + site_jobs, "sites": sites}
     if any(result.values()):
         log.info(
-            "merged duplicates: %d boards, %d companies and %d postings removed",
+            "merged duplicates: %d boards, %d companies and %d postings removed, %d career sites replaced",
             result["boards"],
             result["companies"],
             result["jobs"],
+            result["sites"],
         )
     return result
+
+
+def retire_replaced_sites(conn: psycopg.Connection) -> tuple[int, int]:
+    """A company read both from its career site (JSON-LD) and from a hiring
+    system: the hiring system wins, being complete and cheaper to read. The
+    site stops being read. Its postings that match one on the hiring system
+    (same title) are removed, with anything people saved or reported moved
+    to that copy; the rest are closed, not deleted. Returns (sites, postings removed)."""
+    from tracker.discovery.boards import company_key  # noqa: PLC0415 - avoids a cycle at import
+
+    sites = conn.execute("SELECT id, name, board_slug FROM companies WHERE platform = 'jsonld'").fetchall()
+    if not sites:
+        return 0, 0
+    others: dict[str, list[int]] = {}
+    for company_id, name in conn.execute(
+        "SELECT id, name FROM companies WHERE platform NOT IN ('jsonld', 'list')"
+    ).fetchall():
+        others.setdefault(company_key(name), []).append(company_id)
+    retired = removed = 0
+    for site_id, name, slug in sites:
+        keepers = others.get(company_key(name))
+        if not keepers:
+            continue
+        pairs = conn.execute(
+            """SELECT DISTINCT ON (s.id) s.id, k.id FROM jobs s
+               JOIN jobs k ON k.company_id = ANY(%s) AND lower(k.title) = lower(s.title)
+               WHERE s.company_id = %s ORDER BY s.id, k.is_active DESC, k.id""",
+            (keepers, site_id),
+        ).fetchall()
+        if pairs:
+            losers, keeps = [p[0] for p in pairs], [p[1] for p in pairs]
+            conn.execute(
+                """INSERT INTO saved_jobs (user_id, job_id, saved_at, status, notes, updated_at, applied_at)
+                   SELECT s.user_id, m.keep, s.saved_at, s.status, s.notes, s.updated_at, s.applied_at
+                   FROM saved_jobs s JOIN unnest(%s::bigint[], %s::bigint[]) AS m(lose, keep) ON s.job_id = m.lose
+                   ON CONFLICT (user_id, job_id) DO NOTHING""",
+                (losers, keeps),
+            )
+            for table in ("reports", "application_events"):
+                conn.execute(
+                    f"""UPDATE {table} t SET job_id = m.keep
+                        FROM unnest(%s::bigint[], %s::bigint[]) AS m(lose, keep) WHERE t.job_id = m.lose""",
+                    (losers, keeps),
+                )
+            removed += conn.execute("DELETE FROM jobs WHERE id = ANY(%s)", (losers,)).rowcount
+        conn.execute(
+            "UPDATE jobs SET is_active = false, closed_at = now() WHERE company_id = %s AND is_active",
+            (site_id,),
+        )
+        conn.execute(
+            "UPDATE discovered_boards SET state = 'replaced' WHERE platform = 'jsonld' AND board_slug = %s",
+            (slug,),
+        )
+        retired += 1
+    return retired, removed

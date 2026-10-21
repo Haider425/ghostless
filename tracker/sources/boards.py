@@ -15,12 +15,13 @@ with its full description.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 
 from tracker.classify import title_worth_storing
 from tracker.models import Company, Job, JobList
 from tracker.sources import http
-from tracker.sources.common import parse_iso
+from tracker.sources.common import employment_type_of, parse_iso, period_of, set_pay, workplace_of
 from tracker.sources.http import FetchError, Validators
 from tracker.text import html_to_text
 
@@ -29,9 +30,10 @@ log = logging.getLogger(__name__)
 URLS = {
     "greenhouse": "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs",
     "lever": "https://api.lever.co/v0/postings/{slug}?mode=json",
-    "ashby": "https://api.ashbyhq.com/posting-api/job-board/{slug}",
+    # includeCompensation: the pay range in structured form (stage C1)
+    "ashby": "https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true",
 }
-GREENHOUSE_FULL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
+GREENHOUSE_FULL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true&pay_transparency=true"
 GREENHOUSE_JOB = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs/{id}?pay_transparency=true"
 # More new or changed postings than this: one request for the whole board instead
 GREENHOUSE_MAX_DETAILS = 10
@@ -41,12 +43,34 @@ Stored = dict[str, tuple[datetime, str, "str | None"]]
 
 
 def board_url(company: Company) -> str:
+    if company.platform not in URLS:
+        from tracker.sources.ats import listing_url  # stage E hiring systems
+
+        return listing_url(company)
     return URLS[company.platform].format(slug=company.board_slug)
+
+
+def _greenhouse_pay(job: Job, ranges: list | None) -> None:
+    """Greenhouse's pay transparency ranges, in cents, one per country or level:
+    the Canadian one for a posting in Canada, otherwise the first."""
+    ranges = [r for r in ranges or [] if r.get("min_cents") and r.get("max_cents")]
+    if not ranges:
+        return
+    canadian = bool(
+        re.search(r"\bcanada\b|, ?(ON|BC|QC|AB|MB|NS)\b|toronto|vancouver|montr", job.location, re.I)
+    )
+    chosen = next(
+        (r for r in ranges if canadian and (r.get("currency_type") or "").upper() == "CAD"), ranges[0]
+    )
+    low, high = chosen["min_cents"] / 100, chosen["max_cents"] / 100
+    title = (chosen.get("title") or "").lower()
+    period = "hour" if "hour" in title or high < 1000 else "month" if "month" in title else "year"
+    set_pay(job, low, high, chosen.get("currency_type"), period)
 
 
 def _greenhouse_job(item: dict, description: str | None = None, department: str | None = None) -> Job:
     departments = item.get("departments") or []
-    return Job(
+    job = Job(
         external_id=str(item["id"]),
         title=item.get("title", "").strip(),
         url=item.get("absolute_url", ""),
@@ -56,6 +80,8 @@ def _greenhouse_job(item: dict, description: str | None = None, department: str 
         posted_at=parse_iso(item.get("first_published") or item.get("updated_at")),
         source_updated_at=parse_iso(item.get("updated_at")),
     )
+    _greenhouse_pay(job, item.get("pay_input_ranges"))
+    return job
 
 
 def parse_greenhouse(data: dict) -> list[Job]:
@@ -123,21 +149,35 @@ def parse_lever(data: list) -> list[Job]:
             sections.append(f"{heading}\n{body}".strip())
         sections.append(html_to_text(item.get("additional")) or (item.get("additionalPlain") or "").strip())
         created_ms = item.get("createdAt")
-        jobs.append(
-            Job(
-                external_id=str(item["id"]),
-                title=item.get("text", "").strip(),
-                url=item.get("hostedUrl", ""),
-                location=categories.get("location", "") or "",
-                department=categories.get("team"),
-                description="\n\n".join(part for part in sections if part),
-                posted_at=(
-                    datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc) if created_ms else None
-                ),
-                source_remote=(item.get("workplaceType") == "remote"),
-            )
+        job = Job(
+            external_id=str(item["id"]),
+            title=item.get("text", "").strip(),
+            url=item.get("hostedUrl", ""),
+            location=categories.get("location", "") or "",
+            department=categories.get("team"),
+            description="\n\n".join(part for part in sections if part),
+            posted_at=(datetime.fromtimestamp(created_ms / 1000, tz=timezone.utc) if created_ms else None),
+            source_remote=(item.get("workplaceType") == "remote"),
+            workplace=workplace_of(item.get("workplaceType")),
+            employment_type=employment_type_of(categories.get("commitment")),
         )
+        pay = item.get("salaryRange") or {}
+        set_pay(job, pay.get("min"), pay.get("max"), pay.get("currency"), period_of(pay.get("interval")))
+        jobs.append(job)
     return jobs
+
+
+def _ashby_pay(job: Job, compensation: dict | None) -> None:
+    for part in (compensation or {}).get("summaryComponents") or []:
+        if part.get("compensationType") == "Salary":
+            set_pay(
+                job,
+                part.get("minValue"),
+                part.get("maxValue"),
+                part.get("currencyCode"),
+                period_of(part.get("interval")),
+            )
+            return
 
 
 def parse_ashby(data: dict) -> list[Job]:
@@ -145,19 +185,21 @@ def parse_ashby(data: dict) -> list[Job]:
     for item in data.get("jobs", []):
         if item.get("isListed") is False:
             continue
-        jobs.append(
-            Job(
-                external_id=str(item["id"]),
-                title=item.get("title", "").strip(),
-                url=item.get("jobUrl", ""),
-                location=item.get("location", "") or "",
-                department=item.get("department"),
-                description=html_to_text(item.get("descriptionHtml"))
-                or (item.get("descriptionPlain") or "").strip(),
-                posted_at=parse_iso(item.get("publishedAt")),
-                source_remote=bool(item.get("isRemote")),
-            )
+        job = Job(
+            external_id=str(item["id"]),
+            title=item.get("title", "").strip(),
+            url=item.get("jobUrl", ""),
+            location=item.get("location", "") or "",
+            department=item.get("department"),
+            description=html_to_text(item.get("descriptionHtml"))
+            or (item.get("descriptionPlain") or "").strip(),
+            posted_at=parse_iso(item.get("publishedAt")),
+            source_remote=bool(item.get("isRemote")),
+            workplace=workplace_of(item.get("workplaceType")),
+            employment_type=employment_type_of(item.get("employmentType")),
         )
+        _ashby_pay(job, item.get("compensation"))
+        jobs.append(job)
     return jobs
 
 

@@ -50,12 +50,23 @@ _SALARY_CODE_AFTER = re.compile(  # 224,000 USD - 300,000 USD
     rf"(?P<max>{_NUMBER}){_K.format('k2')}\s?(?P<cur2>{_CODE})\b{_AFTER}",
     re.S,
 )
-_PAY_WORDS = r"salary|salaries|pay|wages?|compensation|stipend|hourly\s+rate|rate\s+of\s+pay"
+_PAY_WORDS = r"salary|salaries|pay|paid|wages?|compensation|stipend|hourly\s+rate|rate\s+of\s+pay|offering"
 _SALARY_BARE = re.compile(  # Base Pay Range (USD)\n\n34 - 68, $ per hour
     rf"(?<![\d.,$£€])(?P<min>{_NUMBER}){_K.format('k1')}{_TO}(?P<max>{_NUMBER}){_K.format('k2')}{_AFTER}",
     re.S,
 )
 _PAY_BEFORE = re.compile(rf"\b(?:{_PAY_WORDS})\b", re.I)
+# one amount that says its own currency code and period, with no pay word needed:
+# "Toronto, ON, CAN - 50,405.00 CAD Annually", "$7,000 CAD per month", "Canada: $120000 (CAD)"
+_SALARY_STATED = re.compile(
+    rf"(?:(?:(?P<cur1>{_SYMBOL})\s?(?P<min>{_NUMBER})\s?\(?(?P<code1>{_CODE})?\)?"
+    rf"|(?<![\d.,$£€])(?P<min2>{_NUMBER})\s?(?P<code2>{_CODE})\b)"
+    r"(?=\s*(?:annually|per\s+(?:year|annum|hour|month)|a\s+(?:year|month)|hourly|monthly"
+    r"|/\s*(?:hour|hr|month|mo|year|yr)\b))"
+    rf"|(?P<cur3>{_SYMBOL})\s?(?P<min3>{_NUMBER})\s?\((?P<code3>{_CODE})\)){_AFTER}",
+    re.I,
+)
+_MONTHLY = re.compile(r"(?:\bper\s+month|\ba\s+month|/\s*mo(?:nth)?|\bmonthly)\b", re.I)
 _SALARY_SINGLE = re.compile(  # Salary: £34k · Pay rate: 19.50 USD/hour
     rf"\b(?:{_PAY_WORDS})\b[^\n\d$£€]{{0,30}}?"
     rf"(?:(?P<cur1>{_CURRENCY})\s?(?P<min>{_NUMBER}){_K.format('k1')}"
@@ -88,7 +99,7 @@ _SPLIT_THOUSANDS = re.compile(r"(\d) ,(\d{3})\b")  # "$202 ,400" as some sites r
 class Salary:
     minimum: float
     maximum: float
-    period: str  # "year" | "hour"
+    period: str  # "year" | "month" | "hour"
     currency: str | None  # "CAD" | "USD" | "GBP" | "EUR" | "AUD" | None when not stated
     text: str = field(default="", compare=False)  # the sentence it came from
 
@@ -123,6 +134,8 @@ def _plausible(low: float, high: float, period: str) -> bool:
         return False
     if period == "hour":
         return 10 <= low and high <= 500
+    if period == "month":
+        return 1_000 <= low and high <= 50_000
     return 15_000 <= low and high <= 1_000_000
 
 
@@ -130,6 +143,8 @@ def _period(text: str, start: int, after: str, high: float) -> str:
     context = text[max(0, start - 40) : start] + after
     if _HOURLY.search(after) or (_HOURLY.search(context) and not _YEARLY.search(after)):
         return "hour"
+    if _MONTHLY.search(after) or (_MONTHLY.search(context) and not _YEARLY.search(after)):
+        return "month"
     if _YEARLY.search(context) or high >= 1000:
         return "year"
     return "hour"
@@ -208,12 +223,37 @@ def _single_amounts(text: str):
             continue
         value = _to_number(raw, bool(k))
         yield start, m.end("after") - len(m["after"]), value, value, (cur,), m["after"], False
+    for m in _SALARY_STATED.finditer(text):
+        if m["min"]:
+            raw, tokens, start = m["min"], (m["code1"], m["cur1"]), m.start("cur1")
+        elif m["min2"]:
+            raw, tokens, start = m["min2"], (m["code2"],), m.start("min2")
+        else:
+            raw, tokens, start = m["min3"], (m["code3"], m["cur3"]), m.start("cur3")
+        lead = text[max(0, start - 30) : start]
+        if _RANGE_NEXT.match(m["after"]) or _NOT_PAY.search(m["after"][:15]) or _CEILING_BEFORE.search(lead):
+            continue
+        value = _to_number(raw, False)
+        yield start, m.end("after") - len(m["after"]), value, value, tokens, m["after"], False
 
 
-def parse_salary(text: str) -> Salary | None:
+# where a posting gives pay per country, the words that mark each country's range
+_COUNTRY_WORDS = {
+    "CA": re.compile(r"\b(?:canada|canadian|can|ontario|quebec|british columbia|alberta)\b", re.I),
+    "US": re.compile(r"\b(?:us|usa|u\.s\.|united states|america)\b", re.I),
+    "GB": re.compile(r"\b(?:uk|united kingdom|london)\b", re.I),
+}
+_COUNTRY_CURRENCY = {"CA": "CAD", "US": "USD", "GB": "GBP"}
+
+
+def parse_salary(text: str, country: str | None = None) -> Salary | None:
     """Return the first plausible written pay range in the text; failing that a
     range in words; failing that a stated amount. A labelled "$X - $Y" is the
-    most specific statement, so it beats "between $X in the lowest market..."."""
+    most specific statement, so it beats "between $X in the lowest market...".
+
+    With `country` (the posting's own, ISO code), a posting that gives a range
+    per country ("US: $147,000 - $210,000 ... Canada: $150,000 - $153,000 CAD")
+    gives that country's range."""
     if not text:
         return None
     text = _SPLIT_THOUSANDS.sub(r"\1,\2", text)
@@ -222,7 +262,8 @@ def parse_salary(text: str) -> Salary | None:
         *((1, *c) for c in _ranges_in_words(text)),
         *((2, *c) for c in _single_amounts(text)),
     ]
-    for _, start, end, low, high, tokens, after, bare in sorted(ranked, key=lambda c: (c[0], c[1])):
+    found: list[tuple[int, Salary, int]] = []
+    for rank, start, end, low, high, tokens, after, bare in sorted(ranked, key=lambda c: (c[0], c[1])):
         if _SCALE_WORDS.match(after):
             continue  # "$5 to $10 billion" is not a salary
         period = _period(text, start, after, high)
@@ -232,8 +273,20 @@ def parse_salary(text: str) -> Salary | None:
             continue
         code_after = _CODE_NEARBY.match(after)
         currency = _currency(*tokens, code_after and code_after.group(1))
-        return Salary(low, high, period, currency, _around(text, start, end))
-    return None
+        found.append((rank, Salary(low, high, period, currency, _around(text, start, end)), start))
+    if not found:
+        return None
+    first_rank, first, _ = found[0]
+    want = _COUNTRY_CURRENCY.get(country or "")
+    if want and first.currency != want and len(found) > 1:
+        same_rank = [(salary, start) for rank, salary, start in found if rank == first_rank]
+        for salary, _ in same_rank:
+            if salary.currency == want:
+                return salary
+        for salary, start in same_rank:
+            if salary.currency is None and _COUNTRY_WORDS[country].search(text[max(0, start - 70) : start]):
+                return salary
+    return first
 
 
 def _around(text: str, start: int, end: int) -> str:

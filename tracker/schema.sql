@@ -16,7 +16,9 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS domain TEXT;
 ALTER TABLE companies DROP CONSTRAINT IF EXISTS companies_platform_check;
 ALTER TABLE companies ADD CONSTRAINT companies_platform_check
     CHECK (platform IN ('greenhouse', 'lever', 'ashby', 'workday', 'amazon',
-                        'eightfold', 'google', 'apple', 'sitemap', 'rss', 'list'));
+                        'eightfold', 'google', 'apple', 'sitemap', 'rss', 'list', 'jsonld',
+                        'workable', 'teamtailor', 'personio', 'breezy', 'rippling', 'recruitee',
+                        'smartrecruiters'));
 
 -- v2.2: where a company came from. configured: companies.yaml. discovered: a
 -- job board found through a public job list. list: only known through the
@@ -60,6 +62,15 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS listed_in TEXT;
 -- v2.3: when the source last changed the posting (Greenhouse's updated_at), so
 -- an unchanged posting's description isn't downloaded again
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
+-- v2.5: what a posting says about itself, from the source's fields or its text
+-- (crawler plan, stage C2; NULL means not stated). salary_period also takes month.
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS seniority            TEXT;     -- intern | new_grad | junior | mid | senior | staff
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS workplace            TEXT;     -- remote | hybrid | onsite
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS employment_type      TEXT;     -- full_time | part_time | contract | temporary | internship
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS sponsorship          TEXT;     -- available | not_available | unknown
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS min_years_experience NUMERIC(4, 1);
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS locations            JSONB NOT NULL DEFAULT '[]'::jsonb;  -- [{city, region, country}]
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS countries            TEXT[] NOT NULL DEFAULT '{}';         -- ISO codes
 
 -- v2.3: conditional requests. What a job board's server said identifies the
 -- version it last sent (ETag, Last-Modified). Sent back, an unchanged board
@@ -96,6 +107,16 @@ CREATE INDEX IF NOT EXISTS discovered_boards_due ON discovered_boards (next_due 
 -- v2.3: discovered Workday boards are searched for student roles only, so once a
 -- week their whole listing is read to close postings that have gone (any level)
 ALTER TABLE discovered_boards ADD COLUMN IF NOT EXISTS last_full_read TIMESTAMPTZ;
+-- v2.4: boards found by following links (GHOSTLESS_SNOWBALL, GHOSTLESS_JSONLD) start
+-- as candidates and are checked once before being read. candidate: not checked
+-- yet. active: read on the revisit schedule (every board found through the job
+-- lists starts here). empty: answered with nothing worth storing, checked again
+-- monthly. dead: failed three checks, kept so it isn't registered again.
+-- replaced: a career site whose company has a hiring-system board, read instead.
+ALTER TABLE discovered_boards ADD COLUMN IF NOT EXISTS state TEXT NOT NULL DEFAULT 'active';
+-- a job link on the board, to check a candidate with one request
+ALTER TABLE discovered_boards ADD COLUMN IF NOT EXISTS sample_url TEXT;
+CREATE INDEX IF NOT EXISTS discovered_boards_state ON discovered_boards (state, next_due);
 
 CREATE INDEX IF NOT EXISTS idx_jobs_active_filters
     ON jobs (is_active, level, role_type) WHERE is_active;

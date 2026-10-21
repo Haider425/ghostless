@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from urllib.parse import parse_qs, urlparse
 
+from tracker import settings
+
 _GREENHOUSE_HOSTS = {
     "boards.greenhouse.io",
     "job-boards.greenhouse.io",
@@ -46,7 +48,172 @@ def board_from_url(url: str) -> tuple[str, str] | None:
         if site.lower() in ("job", "details", "wday") or not _SLUG.match(site):
             return None
         return ("workday", f"{host}/{site}")
+    board = _new_source_board(host, path)
+    if board and board[0] in settings.sources():  # stage E systems, only when switched on
+        return board
     return None
+
+
+_SUBDOMAIN = re.compile(
+    r"^([a-z0-9][a-z0-9-]{0,62})\.(teamtailor\.com|breezy\.hr|recruitee\.com|workable\.com)$"
+)
+_PERSONIO = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}\.jobs\.personio\.(?:de|com)$")
+_SUBDOMAIN_PLATFORM = {
+    "teamtailor.com": "teamtailor",
+    "breezy.hr": "breezy",
+    "recruitee.com": "recruitee",
+    "workable.com": "workable",
+}
+_NOT_COMPANIES = {
+    "www",
+    "app",
+    "api",
+    "apply",
+    "jobs",
+    "careers",
+    "help",
+    "support",
+    "status",
+    "blog",
+    "docs",
+}
+
+
+def _new_source_board(host: str, path: list[str]) -> tuple[str, str] | None:
+    """A Workable, Teamtailor, Personio, Breezy, Rippling, Recruitee or SmartRecruiters board."""
+    if host == "apply.workable.com" and path and path[0] not in ("j", "api"):
+        return ("workable", path[0].lower()) if _SLUG.match(path[0]) else None
+    if host == "ats.rippling.com" and path:
+        slug = path[1] if _LOCALE.match(path[0]) and len(path) > 1 else path[0]
+        return ("rippling", slug.lower()) if _SLUG.match(slug) and not _LOCALE.match(slug) else None
+    if host in ("jobs.smartrecruiters.com", "careers.smartrecruiters.com") and path:
+        return (
+            ("smartrecruiters", path[0])
+            if _SLUG.match(path[0]) and path[0].lower() != "oneclick-ui"
+            else None
+        )
+    if _PERSONIO.match(host):
+        return ("personio", host)
+    match = _SUBDOMAIN.match(host)
+    if match and match.group(1) not in _NOT_COMPANIES:
+        return (_SUBDOMAIN_PLATFORM[match.group(2)], match.group(1))
+    return None
+
+
+_LINK = re.compile(r"https?://[^\s<>\"'()\[\]{}|\\^`]+", re.I)
+
+
+def board_links(text: str) -> set[tuple[str, str]]:
+    """Every job board linked from a piece of text ("apply at jobs.lever.co/acme")."""
+    found = set()
+    for match in _LINK.finditer(text or ""):
+        board = board_from_url(match.group(0).rstrip(".,;:!?"))
+        if board:
+            found.add(board)
+    return found
+
+
+# Hosts a company career site can't be on: job sites and aggregators (never
+# read: LinkedIn, Indeed and the like), and hiring systems shared by many
+# companies, which need their own adapter rather than the JSON-LD reader.
+_NOT_CAREER_SITES = (
+    "linkedin.com",
+    "indeed.com",
+    "glassdoor.com",
+    "glassdoor.ca",
+    "ziprecruiter.com",
+    "monster.com",
+    "simplify.jobs",
+    "handshake.com",
+    "joinhandshake.com",
+    "wellfound.com",
+    "angel.co",
+    "builtin.com",
+    "dice.com",
+    "careerbuilder.com",
+    "jobbank.gc.ca",
+    "workopolis.com",
+    "eluta.ca",
+    "talent.com",
+    "facebook.com",
+    "meta.com",
+    "metacareers.com",
+    "instagram.com",
+    "twitter.com",
+    "x.com",
+    "github.com",
+    "google.com",
+    "goo.gl",
+    "bit.ly",
+    "youtube.com",
+    "notion.site",
+    "notion.so",
+    "greenhouse.io",
+    "lever.co",
+    "ashbyhq.com",
+    "myworkdayjobs.com",
+    "myworkdaysite.com",
+    "workday.com",
+    "icims.com",
+    "taleo.net",
+    "successfactors.com",
+    "successfactors.eu",
+    "sapsf.com",
+    "smartrecruiters.com",
+    "workable.com",
+    "teamtailor.com",
+    "personio.de",
+    "personio.com",
+    "breezy.hr",
+    "rippling.com",
+    "recruitee.com",
+    "jobvite.com",
+    "bamboohr.com",
+    "adp.com",
+    "ultipro.com",
+    "paylocity.com",
+    "dayforcehcm.com",
+    "oraclecloud.com",
+    "eightfold.ai",
+    "jazzhr.com",
+    "applytojob.com",
+    "pinpointhq.com",
+    "avature.net",
+    "jibeapply.com",
+    "phenompeople.com",
+    "brassring.com",
+    "amazon.jobs",
+    "jobs.apple.com",
+    "careers.microsoft.com",
+)
+
+
+def career_site(url: str) -> str | None:
+    """The career site a job link is on, as a JSON-LD board slug: its host and
+    the path its job pages sit under ("careers.acme.example/jobs"). None for
+    job sites, aggregators and shared hiring systems."""
+    try:
+        parts = urlparse(url.strip())
+    except ValueError:
+        return None
+    host = (parts.hostname or "").lower()
+    if parts.scheme not in ("http", "https") or "." not in host or parts.port:
+        return None
+    if any(host == d or host.endswith("." + d) for d in _NOT_CAREER_SITES):
+        return None
+    path = [p for p in parts.path.split("/") if p]
+    if not path:
+        return None  # a home page, not a job page
+    section = path[:-1]
+    # "/job/8196515/title" and "/JobDetail/Senior-Data-Analyst/123": the id and title aren't the section
+    while section and (_ID_SEGMENT.search(section[-1]) or _TITLE_SEGMENT.match(section[-1])):
+        section.pop()
+    prefix = "/".join(section)
+    return f"{host}/{prefix}" if prefix else host
+
+
+_ID_SEGMENT = re.compile(r"\d{4,}|^[0-9a-f]{8}-[0-9a-f]{4}-", re.I)
+_TITLE_SEGMENT = re.compile(r"^(?=.{16,})[^/\s-]+(-[^/\s-]+){2,}$")  # three or more hyphenated words
 
 
 _SUFFIX = re.compile(

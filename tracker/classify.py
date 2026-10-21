@@ -8,10 +8,21 @@ import re
 from datetime import date, datetime, timezone
 
 from tracker.disclosures import fingerprint, parse_ai_screening, parse_salary, parse_vacancy
+from tracker.extract import (
+    classify_seniority,
+    countries_of,
+    level_of,
+    parse_employment_type,
+    parse_locations,
+    parse_min_years,
+    parse_sponsorship,
+    parse_workplace,
+)
 from tracker.models import Job, JobList
 
 _INTERN = re.compile(
-    r"\b(intern(ship)?|co-?op|student|placement"
+    # "placement" only as UK internships say it, not "Blob Placement"
+    r"\b(intern(ship)?|co-?op|student|(industrial|work|year[- ]long|summer|\d+[- ]month)\s+placement|placement\s+(student|year)"
     # banks' and law firms' internships
     r"|summer\s+(associate|analyst|engineer|program(me)?)"
     # French, German, Spanish and Italian: stage, stagiaire, alternance,
@@ -34,7 +45,7 @@ _PROGRAM = re.compile(
 )
 _NEW_GRAD = re.compile(
     r"\b(new\s*grad(uate)?|university\s*grad(uate)?|recent\s*grad(uate)?|"
-    r"early\s*career|entry[\s-]*level|junior|jr\.?|graduate)\b"
+    r"early\s*careers?|entry[\s-]*level|junior|jr\.?|graduate)\b"
     r"|\b(engineer|developer)\s*(i|1)\b",
     re.I,
 )
@@ -59,7 +70,17 @@ _NOT_ENGINEERING = re.compile(
     r"pre-?sales|marketing|customer\s+success|support\s+(specialist|representative|agent)|"
     r"product\s+(manager|marketing|owner)|program\s+manager|project\s+manager|"
     r"designer|ux\s+researcher|counsel|lawyer|paralegal|accountant|payroll|"
-    r"technical\s+writer|business\s+analyst|teller|advisor|financial\s+planner)\b",
+    r"technical\s+writer|business\s+analyst|teller|advisor|financial\s+planner|"
+    # banking and academia, whose titles share tech words ("Mobile Mortgage Specialist")
+    r"mortgage|faculty|professor|tenure[\s-]track|lecturer)\b",
+    re.I,
+)
+# technical titles that are customer-facing, or not software at all
+_NOT_TECH_ROLE = re.compile(
+    r"\b(sales|solutions?|pre-?sales|customer|field(\s+application)?)\s+(engineer|architect|consultant)"
+    r"|\bsolutions?\s+engineering\b|\bdeveloper\s+(relations|advocate)|\bdevrel\b"
+    # guards, not infosec (a Chief Information Security Officer stays security)
+    r"|\b(corporate|physical)\s+security\b|^\s*(un)?(armed\s+)?security\s+(guard|officer)\b",
     re.I,
 )
 _SECURITY = re.compile(
@@ -74,8 +95,11 @@ _ML = re.compile(
     r"infrastructure|platform|developer|software)|generative\s+ai|gen\s*ai|llms?|"
     # words between: "AI Applied Engineer", "AI Product Engineer" (not customer-facing
     # "AI Support Engineer", or "AI Benchmark Engineer", a language rating job)
-    r"ai(\s+(?!(sales|solutions?|support|customer|field|benchmark)\b)[a-z]+){1,2}\s+(engineer|developer|scientist)|"
-    r"applied\s+scientist|research\s+scientist|research\s+engineer|computer\s+vision|nlp|"
+    # "AI Data Developer" builds data pipelines: data engineering, below
+    r"ai(\s+(?!(sales|solutions?|support|customer|field|benchmark|data)\b)[a-z]+){1,2}\s+(engineer|developer|scientist)|"
+    r"applied\s+(scientist|ai)|research\s+scientist|research\s+engineer|computer\s+vision|nlp|"
+    # "ML Software Engineer", "ML Systems Software Development Engineer"
+    r"ml(\s+[a-z]+){1,3}\s+(engineer|developer|scientist)|"
     r"natural\s+language|perception|speech\s+recognition|reinforcement\s+learning|"
     r"inference\s+engineer|ai/ml)\b",
     re.I,
@@ -97,7 +121,7 @@ _HARDWARE = re.compile(
     r"verification|validation)|physical\s+design|design\s+verification|dft|analog|mixed[\s-]signal|"
     r"circuit|pcb|board\s+design|signal\s+integrity|power\s+integrity|layout\s+engineer|"
     r"embedded|firmware|electrical\s+engineer|post-?silicon|pre-?silicon|emulation|"
-    r"validation\s+engineer|packaging\s+engineer|thermal\s+engineer|optical\s+engineer)\b",
+    r"validation\s+engineer|packaging\s+engineer|thermal\s+engineer|optical\s+engineer|rf)\b",
     re.I,
 )
 _SDE = re.compile(
@@ -109,7 +133,7 @@ _SDE = re.compile(
     r"programmer|architect|specialist|lead)\b"
     r"|\b(swe|sde|sdet|sre|developer|programmer|software\s+engineer\w*)\b"
     r"|\bmember\s+of\s+technical\s+staff\b|\bmts\b"
-    r"|\b(engineering\s+manager|devops|site\s+reliability)\b",
+    r"|\b(engineering\s+manager|devops|site\s+reliability|full[\s-]?stack|forward\s+deployed)\b",
     re.I,
 )
 
@@ -135,25 +159,20 @@ _REMOTE = re.compile(r"\b(remote|anywhere|distributed|work\s+from\s+home)\b", re
 
 
 def classify_level(title: str) -> str:
-    # Order matters: "Senior Software Engineer Intern" does not exist,
-    # but "Intern, Senior Leadership Team" does, so intern wins first.
-    if _INTERN.search(title):
-        return "intern"
-    if _SENIOR.search(title):
-        return "senior"
-    if _PROGRAM.search(title) or _NEW_GRAD.search(title):
-        return "new_grad"
-    return "mid"
+    """The site's level from a title alone: the seniority the title states
+    (extract.classify_seniority), in the site's four levels. Intern words win
+    first: "Intern, Senior Leadership Team" exists, "Senior Engineer Intern" doesn't."""
+    return level_of(*classify_seniority(title))
 
 
 def classify_role(title: str) -> str:
     """The role type for a job title, or "other"."""
     if _NOT_ENGINEERING.search(title) and not re.search(r"\b(engineer|developer|scientist)\b", title, re.I):
         return "other"
-    if re.search(
-        r"\b(sales|solutions?|pre-?sales|customer)\s+(engineer|architect|consultant)\b", title, re.I
-    ):
+    if _NOT_TECH_ROLE.search(title):
         return "other"  # customer-facing technical roles
+    if re.search(r"\b(sdet|software\s+development\s+engineer\s+in\s+test)\b", title, re.I):
+        return "sde"  # test automation, even for firmware
     for role, pattern in ROLE_RULES:
         if pattern.search(title):
             return role
@@ -304,20 +323,39 @@ def is_upcoming(term: str, today: date) -> bool:
 
 def enrich(job: Job, skills: list[str]) -> Job:
     """Fill in every derived field: classification, skills and disclosures."""
-    job.level = classify_level(job.title)
+    # what the source didn't state in its own fields, from the text (stage C2, tracker/extract.py)
+    text = job.description or ""
+    if job.min_years_experience is None:  # a source's structured value (JSON-LD) wins
+        job.min_years_experience = parse_min_years(text)
+    seniority, from_title = classify_seniority(job.title, job.min_years_experience)
+    job.seniority = seniority
+    job.level = level_of(seniority, from_title)
     job.role_type = classify_role(job.title)
+    job.locations = parse_locations(job.location, text)
+    job.countries = countries_of(job.locations)
     job.is_canada = is_canada(job.location)
     job.is_remote = is_remote(job.location, job.source_remote)
+    job.workplace = (
+        job.workplace
+        or parse_workplace(job.title, job.location, text)
+        or ("remote" if job.source_remote else None)
+    )
+    job.employment_type = job.employment_type or parse_employment_type(job.title, text, seniority)
+    job.sponsorship = parse_sponsorship(text)
     job.skills = skills
     # a job list's own season labels win; otherwise read the title and description
     if not job.terms:
         job.terms = parse_terms(job.title, job.description, job.level, datetime.now(timezone.utc).year)
 
-    salary = parse_salary(job.description)
+    home = job.countries[0] if job.countries else None
+    # pay the source stated in its own fields (stage C1) wins over the text
+    salary = None if job.salary_min is not None else parse_salary(job.description, home)
     if salary:
         job.salary_min, job.salary_max, job.salary_period = salary.minimum, salary.maximum, salary.period
-        # An unlabelled "$" in a Canada-only posting is Canadian dollars.
-        job.salary_currency = salary.currency or ("CAD" if job.is_canada and not job.is_remote else None)
+        job.salary_currency = salary.currency
+    if job.salary_min is not None and job.salary_currency is None:
+        # an unlabelled "$" is the dollar of the posting's country
+        job.salary_currency = {"CA": "CAD", "US": "USD"}.get(home or "")
     # Text disclosures win, but keep a status the source itself reported
     # (e.g. Apple's pipeline flag) when the description says nothing.
     job.vacancy = parse_vacancy(job.description) or job.vacancy

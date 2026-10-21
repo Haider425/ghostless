@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<workzag-jobs>
+
+<position>
+    <id>1834171</id>
+    <subcompany>Personio SE &amp; Co. KG</subcompany>
+    <office>Munich</office>
+    <additionalOffices>
+        <office>Berlin</office>
+    </additionalOffices>
+    <department>Product and Tech</department>
+    <recruitingCategory>Engineering</recruitingCategory>
+    <name>Staff Software Engineer, Data Platform</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>The Role: How you&#039;ll make an impact at Personio</name>
+            <value>
+                <![CDATA[<strong>This position is hybrid based in either Dublin or Munich locations</strong><br><br>At Personio, your work transforms the way millions of people experience work every day. Join our Product &amp; Technology team, where we drive our customersâ outcomes by designing, ]]></value>
+        </jobDescription>
+        <jobDescription>
+            <name>Role Responsibilities: What you&#039;ll do</name>
+            <value>
+                <![CDATA[<ul><li>You will conceptualize and own technical solutions end-to-end. Organizing effective groups of engineers to brainstorm, design and deliver impactful work.</li><li>You will invest in experimenting and building <em>platform</em> solutions that improve the developer exp]]></value>
+        </jobDescription>
+        <jobDescription>
+            <name>Role Requirements: What you need to succeed</name>
+            <value>
+                <![CDATA[<ul><li>10+ years of software engineering experience building and designing scalable applications, <em>tools</em> or distributed systems. You understand the needs of software engineers working in product teams, youâve been in their shoes, and can empathize with them. You ]]></value>
+        </jobDescription>
+        <jobDescription>
+            <name>Why Personio</name>
+            <value>
+                <![CDATA[Personio is an equal opportunities employer, committed to building an integrative culture where everyone feels welcomed and supported. We embrace uniqueness and understand that our diverse, values-driven culture makes us stronger. We are proud to have an inclusive workplace]]></value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>permanent</employmentType>
+    <seniority>experienced</seniority>
+    <schedule>full-time</schedule>
+    <yearsOfExperience>7-10</yearsOfExperience>
+    <occupation>software_and_web_development</occupation>
+    <occupationCategory>it_software</occupationCategory>
+    <createdAt>2024-11-13T14:10:41+00:00</createdAt>
+</position>
+
+</workzag-jobs>

@@ -63,3 +63,58 @@ def plan_details(
 def split_queries(slug: str) -> list[str]:
     """Config slugs can hold several searches separated by `|`."""
     return [q.strip() for q in slug.split("|") if q.strip()]
+
+
+# ---------- structured fields (crawler plan, stage C1) ----------
+#
+# What a source states in its own fields wins over what the text suggests:
+# classify.enrich keeps these and reads the text only for what's missing.
+
+_EMPLOYMENT = {
+    "fulltime": "full_time", "parttime": "part_time", "intern": "internship", "internship": "internship",
+    "contract": "contract", "contractor": "contract", "temporary": "temporary", "temp": "temporary",
+    "seasonal": "temporary", "permanent": "full_time", "regular": "full_time",
+}  # fmt: skip
+_WORKPLACE = {
+    "remote": "remote",
+    "hybrid": "hybrid",
+    "onsite": "onsite",
+    "inoffice": "onsite",
+    "telecommute": "remote",
+}
+_PERIODS = {
+    "1year": "year", "year": "year", "peryearsalary": "year", "annual": "year", "yearly": "year",
+    "1hour": "hour", "hour": "hour", "perhourwage": "hour", "hourly": "hour",
+    "1month": "month", "month": "month", "permonthsalary": "month", "monthly": "month",
+}  # fmt: skip
+
+
+def _key(value) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+
+
+def employment_type_of(value) -> str | None:
+    """'FullTime', 'Full-time', 'FULL_TIME', 'Intern', ... -> full_time, internship, ..."""
+    return _EMPLOYMENT.get(_key(value))
+
+
+def workplace_of(value) -> str | None:
+    """'OnSite', 'on-site', 'Hybrid', 'remote', 'TELECOMMUTE' -> onsite, hybrid, remote."""
+    return _WORKPLACE.get(_key(value))
+
+
+def period_of(value) -> str | None:
+    return _PERIODS.get(_key(value))
+
+
+def set_pay(job, low, high, currency, period) -> None:
+    """Pay the source states in its own fields, when it's a usable range."""
+    try:
+        low, high = float(low), float(high if high is not None else low)
+    except (TypeError, ValueError):
+        return
+    if period is None or low <= 0 or high < low:
+        return
+    job.salary_min, job.salary_max, job.salary_period = low, high, period
+    currency = (currency or "").upper() or None
+    job.salary_currency = currency if currency in ("CAD", "USD", "GBP", "EUR", "AUD") else None

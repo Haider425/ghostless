@@ -1,0 +1,42 @@
+name: Monthly board discovery
+
+# Finds job boards (Greenhouse, Lever, Ashby, Workday) in Common Crawl's URL
+# index, read from its Hugging Face mirror, and registers new ones as
+# candidates. The daily ingest checks them, one request each, before reading
+# any. Off unless the repository variable GHOSTLESS_INDEX_SEEDING is 1
+# (Settings > Secrets and variables > Actions > Variables).
+
+on:
+  schedule:
+    - cron: "40 3 5 * *"   # the 5th of each month; Common Crawl publishes about monthly
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only count what would be registered"
+        type: boolean
+        default: true
+
+# never alongside the daily ingest
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  GHOSTLESS_CONTACT: https://github.com/${{ github.repository }}
+  GHOSTLESS_SOURCES: ${{ vars.GHOSTLESS_SOURCES }}  # extra hiring systems, e.g. workable,teamtailor
+  GHOSTLESS_INDEX_SEEDING: ${{ vars.GHOSTLESS_INDEX_SEEDING }}
+
+jobs:
+  seed:
+    if: ${{ vars.GHOSTLESS_INDEX_SEEDING == '1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ".[index]"   # pyarrow: this workflow only
+      - run: ghostless migrate
+      - run: ghostless seed-boards -v ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}

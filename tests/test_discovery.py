@@ -321,7 +321,7 @@ def test_postings_stored_twice_are_merged_and_nothing_a_person_saved_is_lost(con
     assert urls == ["https://leidos.example/careers/2", url]  # one copy each
     saved = conn.execute("SELECT job_id, status, notes FROM saved_jobs").fetchall()
     assert saved == [(ids["External"], "applied", "phone screen")]
-    assert merge_duplicates(conn) == {"boards": 0, "companies": 0, "jobs": 0}  # safe to run again
+    assert merge_duplicates(conn) == {"boards": 0, "companies": 0, "jobs": 0, "sites": 0}  # safe to run again
 
 
 @needs_db

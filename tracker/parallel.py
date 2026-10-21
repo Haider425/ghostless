@@ -34,6 +34,9 @@ PLATFORM_HOSTS = {
     "greenhouse": "boards-api.greenhouse.io",
     "lever": "api.lever.co",
     "ashby": "api.ashbyhq.com",
+    "workable": "apply.workable.com",
+    "rippling": "api.rippling.com",
+    "smartrecruiters": "jobs.smartrecruiters.com",
 }
 
 

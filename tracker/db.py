@@ -194,12 +194,15 @@ def save_company_jobs(
                               description, level, role_type, is_canada, is_remote, posted_at,
                               salary_min, salary_max, salary_period, salary_currency,
                               vacancy, ai_screening, fingerprint, terms, listed_in, source_updated_at,
-                              first_seen, last_seen)
+                              seniority, workplace, employment_type, sponsorship, min_years_experience,
+                              locations, countries, first_seen, last_seen)
             VALUES (%(company_id)s, %(external_id)s, %(title)s, %(location)s, %(department)s,
                     %(url)s, %(description)s, %(level)s, %(role_type)s, %(is_canada)s,
                     %(is_remote)s, %(posted_at)s, %(salary_min)s, %(salary_max)s,
                     %(salary_period)s, %(salary_currency)s, %(vacancy)s, %(ai_screening)s,
-                    %(fingerprint)s, %(terms)s, %(listed_in)s, %(source_updated_at)s, %(run)s, %(run)s)
+                    %(fingerprint)s, %(terms)s, %(listed_in)s, %(source_updated_at)s,
+                    %(seniority)s, %(workplace)s, %(employment_type)s, %(sponsorship)s,
+                    %(min_years_experience)s, %(locations)s, %(countries)s, %(run)s, %(run)s)
             ON CONFLICT (company_id, external_id) DO UPDATE SET
                 title = EXCLUDED.title,
                 location = EXCLUDED.location,
@@ -220,6 +223,13 @@ def save_company_jobs(
                 terms = EXCLUDED.terms,
                 listed_in = EXCLUDED.listed_in,
                 source_updated_at = EXCLUDED.source_updated_at,
+                seniority = EXCLUDED.seniority,
+                workplace = EXCLUDED.workplace,
+                employment_type = EXCLUDED.employment_type,
+                sponsorship = EXCLUDED.sponsorship,
+                min_years_experience = EXCLUDED.min_years_experience,
+                locations = EXCLUDED.locations,
+                countries = EXCLUDED.countries,
                 last_seen = EXCLUDED.last_seen,
                 is_active = true,
                 closed_at = NULL
@@ -248,6 +258,13 @@ def save_company_jobs(
                 "terms": job.terms,
                 "listed_in": job.listed_in,
                 "source_updated_at": job.source_updated_at,
+                "seniority": job.seniority,
+                "workplace": job.workplace,
+                "employment_type": job.employment_type,
+                "sponsorship": job.sponsorship,
+                "min_years_experience": job.min_years_experience,
+                "locations": Jsonb(job.locations),
+                "countries": job.countries,
                 "run": run_started,
             },
         ).fetchone()
