@@ -89,6 +89,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/company-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One page of employers, searched, filtered and sorted */
+        get: operations["company_list_company_list_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/company-names": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Employers' names and slugs: all of them, or the hiring ones matching q */
+        get: operations["company_names_company_names_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/terms": {
         parameters: {
             query?: never;
@@ -1224,6 +1258,52 @@ export interface components {
             weekly: components["schemas"]["WeekCount"][];
             /** Top Skills */
             top_skills: components["schemas"]["SkillCount"][];
+        };
+        /** CompanyName */
+        CompanyName: {
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Domain */
+            domain: string | null;
+            /** Tech Active Jobs */
+            tech_active_jobs: number;
+        };
+        /**
+         * CompanyPage
+         * @description One page of employers, with the totals the Companies page shows.
+         */
+        CompanyPage: {
+            /**
+             * Total
+             * @description employers matching the search and source
+             */
+            total: number;
+            /**
+             * Page
+             * @description the page returned (an out-of-range page gives the last one)
+             */
+            page: number;
+            /** Per Page */
+            per_page: number;
+            /**
+             * Employers
+             * @description every employer with postings
+             */
+            employers: number;
+            /**
+             * From Lists
+             * @description employers only known from the job lists
+             */
+            from_lists: number;
+            /**
+             * Total Open
+             * @description open tech roles across every employer
+             */
+            total_open: number;
+            /** Items */
+            items: components["schemas"]["Company"][];
         };
         /** Contact */
         Contact: {
@@ -2623,6 +2703,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Company"][];
+                };
+            };
+        };
+    };
+    company_list_company_list_get: {
+        parameters: {
+            query?: {
+                sort?: "open" | "new" | "fastest" | "risk";
+                /** @description part of the name, any case */
+                q?: string;
+                source?: "all" | "boards" | "lists";
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    company_names_company_names_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                limit?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyName"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

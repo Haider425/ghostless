@@ -11,6 +11,8 @@ export type JobDetail = Schemas["JobDetail"];
 export type JobPage = Schemas["JobPage"];
 export type Company = Schemas["Company"];
 export type CompanyDetail = Schemas["CompanyDetail"];
+export type CompanyPage = Schemas["CompanyPage"];
+export type CompanyName = Schemas["CompanyName"];
 export type WeekCount = Schemas["WeekCount"];
 export type Stats = Schemas["Stats"];
 export type SkillCount = Schemas["SkillCount"];
@@ -46,5 +48,7 @@ export type GhostRisk = NonNullable<Job["signals"]["risk"]>;
 export type JobQuery = NonNullable<operations["list_jobs_jobs_get"]["parameters"]["query"]>;
 export type SkillQuery = NonNullable<operations["top_skills_skills_top_get"]["parameters"]["query"]>;
 export type GapQuery = operations["skills_gap_skills_gap_get"]["parameters"]["query"];
+export type CompanyListQuery = NonNullable<operations["company_list_company_list_get"]["parameters"]["query"]>;
+export type CompanyNamesQuery = NonNullable<operations["company_names_company_names_get"]["parameters"]["query"]>;
 export type CalendarQuery = NonNullable<operations["calendar_calendar_get"]["parameters"]["query"]>;
 

@@ -9,7 +9,6 @@ users can store resumes so their matches follow them across devices.
 from __future__ import annotations
 
 import json
-import time
 from datetime import datetime
 from pathlib import PurePath
 from typing import Annotated, Any, Literal
@@ -19,7 +18,7 @@ from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from psycopg.rows import dict_row
 from pydantic import BaseModel, Field
 
-from tracker.api import events, queries
+from tracker.api import cache, events, queries
 from tracker.api.deps import Conn, CurrentUser, OptionalUser, client_ip, limiter
 from tracker.api.schemas import JobSummary
 from tracker.resume import ai
@@ -366,7 +365,7 @@ def analyze_plain(body: TextIn, request: Request, user: OptionalUser, conn: Conn
 def match(body: MatchIn, user: OptionalUser, conn: Conn):
     profile = _profile_for(conn, user, body.profile, body.resume_id)
     jobs = queries.jobs_by_ids(conn, body.job_ids)
-    texts = queries.descriptions(conn, [job["id"] for job in jobs])
+    texts = cache.descriptions(conn, [job["id"] for job in jobs])
     return {
         job["id"]: score_job(profile, {**job, "description": texts.get(job["id"], "")}).to_dict()
         for job in jobs
@@ -382,23 +381,9 @@ def tailor(body: TailorIn, request: Request, conn: Conn):
         raise HTTPException(status_code=404, detail="That job isn't in Ghostless anymore.")
     job = jobs[0]
     analysis = analyze_text(body.text)
-    texts = queries.descriptions(conn, [job["id"]])
+    texts = cache.descriptions(conn, [job["id"]])
     match = score_job(analysis["profile"], {**job, "description": texts.get(job["id"], "")})
     return {"job": job, "match": match.to_dict(), "strength": analysis["strength"]}
-
-
-_POOL_CACHE: dict[tuple, tuple[float, list[dict]]] = {}
-_POOL_SECONDS = 600
-
-
-def _job_pool(conn: psycopg.Connection, location: str, include_high_risk: bool) -> list[dict]:
-    key = (location, include_high_risk)
-    cached = _POOL_CACHE.get(key)
-    if cached and time.monotonic() - cached[0] < _POOL_SECONDS:
-        return cached[1]
-    jobs = queries.matching_pool(conn, location, include_high_risk)
-    _POOL_CACHE[key] = (time.monotonic(), jobs)
-    return jobs
 
 
 @router.post(
@@ -407,9 +392,9 @@ def _job_pool(conn: psycopg.Connection, location: str, include_high_risk: bool) 
 def recommendations(body: RecommendationsIn, request: Request, user: OptionalUser, conn: Conn):
     limiter.check(f"recommend:{client_ip(request)}", 60, 3600)
     profile = _profile_for(conn, user, body.profile, body.resume_id)
-    pool = _job_pool(conn, body.location, body.include_high_risk)
+    pool = cache.job_pool(conn, body.location, body.include_high_risk)
     ranked = recommend(
-        profile, pool, body.limit, body.offset, describe=lambda ids: queries.descriptions(conn, ids)
+        profile, pool, body.limit, body.offset, describe=lambda ids: cache.descriptions(conn, ids)
     )
     return {"total": len(pool), "items": [{"job": job, "match": m.to_dict()} for job, m in ranked]}
 

@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from tests.conftest import reset_database  # noqa: E402
 from tests.test_resume import STRONG  # noqa: E402
 from tracker import db  # noqa: E402
+from tracker.api import cache as api_cache  # noqa: E402
 from tracker.api import create_app  # noqa: E402
 from tracker.api import resumes as resume_routes  # noqa: E402
 from tracker.api.deps import limiter  # noqa: E402
@@ -53,7 +54,7 @@ def client():
         db.refresh_signals(conn)
         conn.commit()
     limiter.reset()
-    resume_routes._POOL_CACHE.clear()
+    api_cache.reset()
     with TestClient(create_app(DSN)) as c:
         yield c
 

@@ -16,17 +16,12 @@ export const metadata: Metadata = {
   description: "Every employer Ghostless tracks: open tech roles, new postings this week, time to fill and ghost risk.",
 };
 
+// The API sorts, filters and pages (/company-list), so only the page shown is read
 const SORTS = {
-  open: { label: "Most open roles", by: (a: Company, b: Company) => b.tech_active_jobs - a.tech_active_jobs },
-  new: { label: "Most new this week", by: (a: Company, b: Company) => b.new_last_7_days - a.new_last_7_days },
-  fastest: {
-    label: "Fastest to fill",
-    by: (a: Company, b: Company) => (a.typical_days_open ?? 9999) - (b.typical_days_open ?? 9999),
-  },
-  risk: {
-    label: "Most ghost risk",
-    by: (a: Company, b: Company) => b.high_risk_jobs / Math.max(1, b.active_jobs) - a.high_risk_jobs / Math.max(1, a.active_jobs),
-  },
+  open: { label: "Most open roles" },
+  new: { label: "Most new this week" },
+  fastest: { label: "Fastest to fill" },
+  risk: { label: "Most ghost risk" },
 } as const;
 type SortKey = keyof typeof SORTS;
 const PER_PAGE = 20;
@@ -50,25 +45,18 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
   const sort: SortKey = typeof raw === "string" && raw in SORTS ? (raw as SortKey) : "open";
   const q = typeof params.q === "string" ? params.q.trim().slice(0, 80) : "";
   const source: Source = typeof params.source === "string" && params.source in SOURCES ? (params.source as Source) : "all";
-  const everyone = await api.companies();
-  const fromLists = everyone.filter((c) => c.origin === "list").length;
-  const totalOpen = everyone.reduce((sum, c) => sum + c.tech_active_jobs, 0);
-  const needle = q.toLowerCase();
-  const companies = everyone
-    .filter((c) => (source === "all" ? true : source === "lists" ? c.origin === "list" : c.origin !== "list"))
-    .filter((c) => !needle || c.name.toLowerCase().includes(needle))
-    .sort((a, b) => SORTS[sort].by(a, b) || a.name.localeCompare(b.name));
-  const pages = Math.max(1, Math.ceil(companies.length / PER_PAGE));
-  const page = Math.min(pages, Math.max(1, Math.trunc(Number(params.page)) || 1));
-  const shown = companies.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const requested = Math.min(10_000, Math.max(1, Math.trunc(Number(params.page)) || 1));
+  const list = await api.companyList({ sort, q, source, page: requested, per_page: PER_PAGE });
+  const { employers, total, page } = list;
+  const shown: Company[] = list.items;
 
   return (
     <div className="mx-auto max-w-[80rem] px-4 pt-10 pb-20 sm:px-6 lg:px-20">
       <header className="mb-8 max-w-3xl">
         <h1 className="page-title">Companies</h1>
         <p className="page-lead">
-          {pluralize(everyone.length, "employer")} and {totalOpen.toLocaleString("en-CA")} open tech roles.{" "}
-          {(everyone.length - fromLists).toLocaleString("en-CA")} are read every day from their own career sites; the rest
+          {pluralize(employers, "employer")} and {list.total_open.toLocaleString("en-CA")} open tech roles.{" "}
+          {(employers - list.from_lists).toLocaleString("en-CA")} are read every day from their own career sites; the rest
           come from public internship and new grad lists until Ghostless finds their job board.
         </p>
       </header>
@@ -113,7 +101,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
         <div className="panel overflow-hidden">
           <table className="w-full text-sm">
             <caption className="sr-only">
-              Companies, sorted by {SORTS[sort].label.toLowerCase()}. {pluralize(companies.length, "company", "companies")}.
+              Companies, sorted by {SORTS[sort].label.toLowerCase()}. {pluralize(total, "company", "companies")}.
             </caption>
             <thead>
               <tr className="border-b border-line bg-sunken text-left text-meta text-ink-soft">
@@ -180,7 +168,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
         High ghost risk is the share of each employer&apos;s open postings, all roles, with high-risk signals; the small number is the
         count. A dash means none yet, or too few closed postings to tell.
       </p>
-      <Pagination page={page} total={companies.length} pageSize={PER_PAGE} href={(p) => href({ sort, q, source, page: p })} />
+      <Pagination page={page} total={total} pageSize={PER_PAGE} href={(p) => href({ sort, q, source, page: p })} />
     </div>
   );
 }

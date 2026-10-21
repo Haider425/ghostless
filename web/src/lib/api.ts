@@ -16,7 +16,18 @@ import type { components, paths } from "./api-schema";
 */
 
 export type * from "./api-types";
-import type { CalendarQuery, GapQuery, JobQuery, OAuthProvider, Profile, ReportRow, Settings, SkillQuery } from "./api-types";
+import type {
+  CalendarQuery,
+  CompanyListQuery,
+  CompanyNamesQuery,
+  GapQuery,
+  JobQuery,
+  OAuthProvider,
+  Profile,
+  ReportRow,
+  Settings,
+  SkillQuery,
+} from "./api-types";
 
 type Schemas = components["schemas"];
 
@@ -119,6 +130,10 @@ export const api = {
     orNull(call(publicClient.GET("/jobs/{job_id}", { params: { path: { job_id: id } } }), "the job")),
   terms: () => call(publicClient.GET("/terms"), "seasons"),
   companies: () => call(publicClient.GET("/companies"), "companies"),
+  /** One page of the Companies page, searched and sorted by the API (only that page is read). */
+  companyList: (query: CompanyListQuery) => call(publicClient.GET("/company-list", { params: { query } }), "companies"),
+  /** Names and slugs only: every employer (sitemap), or the hiring ones matching `q` (suggestions). */
+  companyNames: (query: CompanyNamesQuery = {}) => call(publicClient.GET("/company-names", { params: { query } }), "companies"),
   company: (slug: string) =>
     orNull(call(publicClient.GET("/companies/{slug}", { params: { path: { slug } } }), "the company")),
   weekly: (weeks = 12) => call(publicClient.GET("/trends/weekly", { params: { query: { weeks } } }), "weekly trends"),
