@@ -32,6 +32,7 @@ class Health:
         )
         self.guarded: list[dict] = []
         self.registered = 0
+        self.notes: list[str] = []
 
     def record(
         self,
@@ -57,6 +58,11 @@ class Health:
         with self._lock:
             self.guarded.append({"board": board, "found": found, "open": open_before})
 
+    def note(self, text: str) -> None:
+        """A line for the report, under the table."""
+        with self._lock:
+            self.notes.append(text)
+
     def boards_registered(self, count: int) -> None:
         with self._lock:
             self.registered += count
@@ -70,6 +76,7 @@ class Health:
                 },
                 "guarded": sorted(self.guarded, key=lambda g: -g["open"]),
                 "registered": self.registered,
+                "notes": list(self.notes),
             }
 
 
@@ -92,6 +99,8 @@ def render(report: dict, title: str = "Ingest health") -> str:
             )
     else:
         lines.append("Nothing was read.")
+    for text in report.get("notes") or []:
+        lines += ["", text]
     guarded = report.get("guarded") or []
     lines += ["", f"New boards found through the job lists: {report.get('registered', 0)}", ""]
     if guarded:

@@ -290,10 +290,10 @@ def test_weekly_full_read_lists_small_boards_and_skips_huge_ones(monkeypatch):
 
     company = Company("Acme", "workday", "acme.wd3.myworkdayjobs.com/External")
     monkeypatch.setattr(http, "request_json", board(45))
-    listed, complete = list_workday(company)
+    listed, complete, _ = list_workday(company)
     assert complete and len(listed) == 45 and len(calls) == 4  # a first look, then 3 pages
 
     calls.clear()
     monkeypatch.setattr(http, "request_json", board(2733))
-    listed, complete = list_workday(company)
+    listed, complete, _ = list_workday(company)
     assert not complete and calls == [0]  # one request, then skipped: closes nothing

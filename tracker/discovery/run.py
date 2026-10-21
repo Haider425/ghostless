@@ -24,6 +24,7 @@ import os
 import time
 import zlib
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 
 import psycopg
@@ -39,7 +40,7 @@ from tracker.skills import extract_skills
 from tracker.sources import FetchError, ats, complete_descriptions, fetch_jobs
 from tracker.sources.boards import fetch_board
 from tracker.sources.jsonld import fetch_jsonld
-from tracker.sources.workday import fetch_workday, list_workday
+from tracker.sources.workday import OFFSET_LIMIT, fetch_workday, list_workday
 
 log = logging.getLogger("tracker.discovery")
 
@@ -378,17 +379,21 @@ def _record_visit(
 FULL_READ_EVERY_DAYS = 7
 
 
+def full_read_day(slug: str, today: datetime) -> bool:
+    """Is today the board's day of the week for its full read?"""
+    return (
+        zlib.crc32(slug.lower().encode()) % FULL_READ_EVERY_DAYS
+        == today.date().toordinal() % FULL_READ_EVERY_DAYS
+    )
+
+
 def full_read_due(slug: str, last_full_read: datetime | None, today: datetime) -> bool:
     """On the board's weekday, unless read in the last 6 days; or any day once
     it's overdue (a missed run)."""
     age = None if last_full_read is None else (today - last_full_read).total_seconds() / 86400
     if age is not None and age > FULL_READ_EVERY_DAYS + 1:
         return True
-    on_its_day = (
-        zlib.crc32(slug.lower().encode()) % FULL_READ_EVERY_DAYS
-        == today.date().toordinal() % FULL_READ_EVERY_DAYS
-    )
-    return on_its_day and (age is None or age > FULL_READ_EVERY_DAYS - 1)
+    return full_read_day(slug, today) and (age is None or age > FULL_READ_EVERY_DAYS - 1)
 
 
 def full_read_workday(
@@ -402,25 +407,35 @@ def full_read_workday(
                JOIN companies c ON c.platform = b.platform AND c.board_slug = b.board_slug
                WHERE b.platform = 'workday' AND b.state = 'active' AND b.last_ok IS NOT NULL"""
         ).fetchall()
-    due = [
-        (Company(name=name, platform="workday", board_slug=slug, origin="discovered"), company_id)
+    mine = [
+        (Company(name=name, platform="workday", board_slug=slug, origin="discovered"), company_id, last)
         for slug, name, last, company_id in rows
-        if full_read_due(slug, last, run_started)
     ]
-    due = [(c, company_id) for c, company_id in due if in_shard(c, shard)]
+    mine = [row for row in mine if in_shard(row[0], shard)]
+    due = [(c, company_id) for c, company_id, last in mine if full_read_due(c.board_slug, last, run_started)]
+    # today's share that a run in the last 6 days already read (an earlier run today, say)
+    done = sum(
+        1
+        for c, _, last in mine
+        if full_read_day(c.board_slug, run_started) and not full_read_due(c.board_slug, last, run_started)
+    )
     if not due:
+        if done:
+            health.current.note(
+                f"Weekly Workday full read: nothing due; today's {done} boards were read in the last 6 days."
+            )
         return
     ids = {c.board_slug: company_id for c, company_id in due}
     timings: dict[str, float] = {}
 
-    def work(company: Company) -> int | None:
+    def work(company: Company) -> FullRead | None:
         began = time.perf_counter()
         try:
             return _full_read_one(dsn, company, ids[company.board_slug], run_started)
         finally:
             timings[company.board_slug] = time.perf_counter() - began
 
-    closed_total = 0
+    closed_total = too_big = 0
     for company, result in run_by_site([c for c, _ in due], site_of, work):
         seconds = timings.get(company.board_slug, 0.0)
         if isinstance(result, BaseException) or result is None:
@@ -428,34 +443,50 @@ def full_read_workday(
                 log.error("full read of %s: %s", company.name, result)
             health.current.record("discovered workday, weekly full read", ok=False, seconds=seconds)
             continue
-        closed_total += result
-        health.current.record("discovered workday, weekly full read", seconds=seconds, closed=result)
+        closed_total += result.closed
+        too_big += result.too_big
+        health.current.record(
+            "discovered workday, weekly full read", seconds=seconds, seen=result.seen, closed=result.closed
+        )
     stats["jobs_closed"] += closed_total
-    log.info(
-        "weekly full read: %d Workday boards, %d postings closed in %.0fs",
-        len(due),
-        closed_total,
-        time.perf_counter() - started,
+    summary = (
+        f"Weekly Workday full read: {len(due)} boards due ({too_big} over {OFFSET_LIMIT:,} postings, so"
+        f" nothing closed on them); {done} more of today's share were read in the last 6 days."
     )
+    health.current.note(summary)
+    log.info("%s %d postings closed in %.0fs", summary, closed_total, time.perf_counter() - started)
 
 
-def _full_read_one(dsn: str, company: Company, company_id: int, run_started: datetime) -> int | None:
-    """Closed postings, or None if the board couldn't be read."""
+@dataclass(frozen=True)
+class FullRead:
+    seen: int  # postings on the board
+    closed: int
+    too_big: bool  # over Workday's paging limit: only the first page was read
+
+
+def _full_read_one(dsn: str, company: Company, company_id: int, run_started: datetime) -> FullRead | None:
+    """What the board's full read found, or None if it couldn't be read."""
     try:
-        listed, complete = list_workday(company)
+        listed, complete, total = list_workday(company)
     except FetchError as exc:
         log.warning("full read of %s: fetch failed, nothing closed: %s", company.name, exc)
         return None
+    too_big = total > OFFSET_LIMIT
     with db.connect(dsn) as conn:
-        closed = db.close_missing_postings(conn, company_id, listed, run_started) if complete else 0
+        # every posting Workday says the board has was listed: a big drop is real
+        closed = (
+            db.close_missing_postings(conn, company_id, listed, run_started, whole_listing=True)
+            if complete
+            else 0
+        )
         # a partial listing closes nothing, and waits a week like a complete one
         conn.execute(
             "UPDATE discovered_boards SET last_full_read = now() WHERE platform = 'workday' AND board_slug = %s",
             (company.board_slug,),
         )
-    if not complete:
+    if not complete and not too_big:
         log.warning("full read of %s: the listing came back partial, nothing closed", company.name)
-    return closed
+    return FullRead(seen=total if too_big else len(listed), closed=closed, too_big=too_big)
 
 
 # ---------- 4. list-only jobs ----------
