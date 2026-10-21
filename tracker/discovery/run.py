@@ -28,7 +28,7 @@ from datetime import datetime
 
 import psycopg
 
-from tracker import db, health
+from tracker import db, dbtraffic, health
 from tracker.classify import enrich, keep_relevant
 from tracker.discovery import snowball
 from tracker.discovery.boards import board_from_url, company_key
@@ -82,31 +82,34 @@ def run(
 
     configured_boards = {(c.platform, c.board_slug.lower()) for c in configured}
     configured_names = {company_key(c.name) for c in configured}
-    registered = register_boards(dsn, items, configured_boards, configured_names)
-    health.current.boards_registered(registered)
-    if registered:
-        log.info("discovered %d new job boards", registered)
-    for item in items:  # entries on a company's own career site (GHOSTLESS_JSONLD)
-        snowball.note_list_entry(item.company, item.url, item.list_name)
-    snowball.register(dsn, configured_names)
-    checked = snowball.verify(dsn)
+    with dbtraffic.step("register boards"):
+        registered = register_boards(dsn, items, configured_boards, configured_names)
+        health.current.boards_registered(registered)
+        if registered:
+            log.info("discovered %d new job boards", registered)
+        for item in items:  # entries on a company's own career site (GHOSTLESS_JSONLD)
+            snowball.note_list_entry(item.company, item.url, item.list_name)
+        snowball.register(dsn, configured_names)
+    with dbtraffic.step("candidate checks"):
+        checked = snowball.verify(dsn)
     if checked["checked"]:
         health.current.record("candidate boards checked", seen=checked["checked"], new=checked["active"])
 
     if crawl:
         crawl_boards(dsn, run_started, stats)
-    save_list_jobs(
-        dsn,
-        items,
-        configured_names,
-        run_started,
-        stats,
-        close=all_lists_read,
-        configured_boards=configured_boards,
-    )
+    with dbtraffic.step("list-only postings"):
+        save_list_jobs(
+            dsn,
+            items,
+            configured_names,
+            run_started,
+            stats,
+            close=all_lists_read,
+            configured_boards=configured_boards,
+        )
     from tracker.discovery.dedupe import merge_duplicates
 
-    with db.connect(dsn) as conn:
+    with dbtraffic.step("dedupe"), db.connect(dsn) as conn:
         merge_duplicates(conn)
 
 
@@ -185,6 +188,17 @@ def crawl_boards(
     limit: int | None = None,
     shard: tuple[int, int] | None = None,
 ) -> None:
+    with dbtraffic.step("discovered boards"):
+        _crawl_due(dsn, run_started, stats, limit, shard)
+    with dbtraffic.step("weekly Workday full read"):
+        full_read_workday(dsn, run_started, stats, shard=shard)
+    with dbtraffic.step("register boards"):
+        snowball.register(dsn)  # boards linked from what was just read, checked on the next run
+
+
+def _crawl_due(
+    dsn: str, run_started: datetime, stats: dict, limit: int | None, shard: tuple[int, int] | None
+) -> None:
     started = time.perf_counter()
     with db.connect(dsn) as conn:
         due = _due_boards(conn, BOARDS_PER_RUN if limit is None else limit)
@@ -228,8 +242,6 @@ def crawl_boards(
         stats["jobs_new"] += new
         stats["jobs_closed"] += closed
     log.info("discovered boards: %d crawled in %.0fs", len(companies), time.perf_counter() - started)
-    full_read_workday(dsn, run_started, stats, shard=shard)
-    snowball.register(dsn)  # boards linked from what was just read, checked on the next run
 
 
 def _crawl_one(

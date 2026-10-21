@@ -105,6 +105,10 @@ def render(report: dict, title: str = "Ingest health") -> str:
             lines.append(f"- and {len(guarded) - 25} more")
     else:
         lines.append("No board returned suspiciously few postings.")
+    if report.get("database"):
+        from tracker import dbtraffic
+
+        lines += ["", dbtraffic.render(report["database"])]
     return "\n".join(lines) + "\n"
 
 

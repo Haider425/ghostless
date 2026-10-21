@@ -10,6 +10,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from tracker import health
+from tracker.dbtraffic import CountingCursor, traffic
 from tracker.models import Company, Job
 from tracker.sources.http import Validators
 
@@ -19,8 +20,11 @@ SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 
 def connect(dsn: str) -> psycopg.Connection:
-    # The timeout covers a serverless database waking from sleep.
-    return psycopg.connect(dsn, connect_timeout=30)
+    # The timeout covers a serverless database waking from sleep. Every result
+    # is counted (dbtraffic), since Neon caps how much is read out each month.
+    conn = psycopg.connect(dsn, connect_timeout=30, cursor_factory=CountingCursor)
+    traffic.connected()
+    return conn
 
 
 def apply_schema(conn: psycopg.Connection) -> None:

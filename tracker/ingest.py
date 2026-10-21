@@ -13,7 +13,7 @@ from pathlib import Path
 
 import psycopg
 
-from tracker import db, health
+from tracker import db, dbtraffic, health
 from tracker.accounts.store import purge_expired
 from tracker.classify import enrich, keep_relevant
 from tracker.config import database_url, load_companies, load_lists, select
@@ -149,6 +149,37 @@ def log_traffic(seconds_by_platform: dict[str, float] | None = None) -> None:
         )
 
 
+def log_database_reads() -> dict:
+    """Log what this run read from the database (Neon caps it monthly), by
+    step and the biggest queries; returned for the run's health report."""
+    report = dbtraffic.traffic.report()
+    log.info(
+        "read from the database: about %.1f MB (%.1f MB of results, %d connections)",
+        report["bytes"] / 1e6,
+        report["result_bytes"] / 1e6,
+        report["connections"],
+    )
+    for name, row in sorted(report["steps"].items(), key=lambda kv: -kv[1]["bytes"]):
+        log.info(
+            "  %s: %.2f MB, %d connections, %d queries, %d rows",
+            name,
+            row["bytes"] / 1e6,
+            row["connections"],
+            row["queries"],
+            row["rows"],
+        )
+    for row in report["queries"]:
+        log.info(
+            "  query %s (%s): %.2f MB in %d queries, %d rows",
+            row["query"],
+            row["step"],
+            row["bytes"] / 1e6,
+            row["queries"],
+            row["rows"],
+        )
+    return report
+
+
 _MULTI_LOCATION = re.compile(r"^\s*\d+\s+locations?\s*$", re.I)
 
 
@@ -186,6 +217,7 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
     run_started = datetime.now(timezone.utc)
     clock = time.perf_counter()
     stats = dict(companies_ok=0, companies_failed=0, jobs_seen=0, jobs_new=0, jobs_closed=0)
+    dbtraffic.traffic.reset()
 
     with db.connect(dsn) as conn:
         if shard is None:  # sharded runs start after a single `ghostless migrate`, so parts don't race
@@ -246,7 +278,9 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
         return len(jobs), new, closed
 
     log.info("collecting %d companies, %d sites at a time", len(companies), workers())
-    for company, result in run_by_site(companies, site_of, collect):
+    with dbtraffic.step("configured companies"):
+        results = list(run_by_site(companies, site_of, collect))
+    for company, result in results:
         source, seconds = f"configured {company.platform}", timings.get(company.name, 0.0)
         if isinstance(result, BaseException) or result is None:
             health.current.record(source, ok=False, seconds=seconds)
@@ -296,7 +330,8 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
         except Exception:
             log.exception("discovery failed; the companies above were still saved")
 
-    snowball.register(dsn)  # boards linked from postings, checked on the next run
+    with dbtraffic.step("register boards"):
+        snowball.register(dsn)  # boards linked from postings, checked on the next run
     stats["duration_seconds"] = round(time.perf_counter() - clock, 2)
     log_traffic(by_platform)
     if stats.get("boards_not_modified") or stats.get("discovered_not_modified"):
@@ -305,16 +340,17 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
             stats.get("boards_not_modified", 0),
             stats.get("discovered_not_modified", 0),
         )
+    if shard is None:
+        with dbtraffic.step("signals and clean-up"), db.connect(dsn) as conn:
+            db.refresh_signals(conn)
+            purge_expired(conn)  # old sessions, used email links, analytics past retention
     report = health.current.report()
+    report["database"] = log_database_reads()
     health.write_step_summary(
         report, f"Ingest health, part {shard[0]} of {shard[1]}" if shard else "Ingest health"
     )
     with db.connect(dsn) as conn:
         db.finish_run(conn, run_id, stats, report)
-        if shard is None:
-            db.refresh_signals(conn)
-            purge_expired(conn)  # old sessions, used email links, analytics past retention
-        conn.commit()
 
     log.info(
         "run complete: %d companies ok, %d failed, %d jobs seen, %d new, %d closed in %.0fs",
@@ -338,12 +374,14 @@ def finish() -> dict:
     run_started = datetime.now(timezone.utc)
     stats = dict(jobs_seen=0, jobs_new=0, jobs_closed=0)
     health.current.reset()
+    dbtraffic.traffic.reset()
     discovery.run(dsn, load_companies(), load_lists(), run_started, stats, crawl=False)
-    health.write_step_summary(health.current.report(), "Job lists")
-    with db.connect(dsn) as conn:
+    with dbtraffic.step("signals and clean-up"), db.connect(dsn) as conn:
         db.refresh_signals(conn)
         purge_expired(conn)
-        conn.commit()
+    report = health.current.report()
+    report["database"] = log_database_reads()
+    health.write_step_summary(report, "Job lists")
     log.info(
         "finished: %d list companies, %d new and %d closed list postings",
         stats.get("list_companies", 0),
