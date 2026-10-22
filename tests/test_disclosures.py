@@ -282,6 +282,8 @@ def test_only_description_fingerprints_can_be_duplicates():
         ((200000, 315000, "hour", "USD", "US"), (200000, 315000, "year")),  # a range titled "hourly"
         ((21, 21, "year", "USD", "US"), (21, 21, "hour")),
         ((8500, 10000, "year", "USD", "US"), (8500, 10000, "month")),  # an intern's monthly pay
+        ((1925, 1925, "year", "USD", "US"), None),  # "$1,925 per week": not a month either
+        ((1500, 2000, "month", "USD", "US"), (1500, 2000, "month")),  # stated monthly: kept
         ((200, 400000, "year", "USD", "US"), (200000, 400000, "year")),  # "$200 - $400,000"
         ((22000, 292000, "year", "USD", "US"), None),  # a dropped digit
         ((5000000, 5000000, "year", "USD", "US"), None),  # a research grant

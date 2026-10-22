@@ -155,7 +155,8 @@ def checked_pay(
       lakhs, zloty), so nothing is shown
     - "$200 - $400,000" a year: the low end lost its "k"
     - a period the amounts can't be ($200,000 an hour, $21 a year): the period
-      the amounts fit, trying hour, month, then year
+      the amounts fit, trying hour, month, then year. A month only from $4,000:
+      below that it may as well be a week ("$1,925 per week"), so nothing is shown
     - over a million a year (grants, other currencies), or a low end under a
       fifth of the high end (a dropped digit): nothing is shown
     """
@@ -167,7 +168,8 @@ def checked_pay(
     if low <= 0 or high < low or high > 5 * low:
         return None
     if period not in ("hour", "month", "year") or not _in_bounds(low, high, period):
-        period = next((p for p in ("hour", "month", "year") if _in_bounds(low, high, p)), None)
+        fits = [p for p in ("hour", "month", "year") if _in_bounds(low, high, p)]
+        period = next((p for p in fits if p != "month" or low >= 4_000), None)
     return (low, high, period) if period else None
 
 
