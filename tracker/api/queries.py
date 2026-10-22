@@ -47,10 +47,12 @@ SPREAD = (
     f"({LISTED} - (row_number() OVER (PARTITION BY j.company_id, {LISTED} ORDER BY {MIX}) - 1)"
     " * interval '12 hours')"
 )
+# pay as a yearly amount, so hourly, monthly and yearly ranges sort together
+YEARLY_PAY = "j.salary_max * CASE j.salary_period WHEN 'hour' THEN 2080 WHEN 'month' THEN 12 ELSE 1 END"
 SORTS = {
     "newest": f"{SPREAD} DESC, {MIX}",
     "oldest": f"{LISTED} ASC, {MIX}",
-    "salary": f"j.salary_max DESC NULLS LAST, {LISTED} DESC, {MIX}",
+    "salary": f"{YEARLY_PAY} DESC NULLS LAST, {LISTED} DESC, {MIX}",
     "company": f"c.name ASC, {LISTED} DESC, j.id DESC",
 }
 

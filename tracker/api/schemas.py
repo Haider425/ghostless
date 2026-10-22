@@ -15,7 +15,7 @@ GhostRisk = Literal["low", "medium", "high"]
 class Salary(BaseModel):
     min: float
     max: float
-    period: Literal["year", "hour"]
+    period: Literal["year", "month", "hour"] = Field(description="what the amounts are paid per")
     currency: str | None = Field(
         None, description="CAD, USD, GBP, EUR or AUD; null when the posting does not say"
     )

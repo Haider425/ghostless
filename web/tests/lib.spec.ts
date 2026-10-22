@@ -77,6 +77,7 @@ test.describe("format", () => {
     expect(formatSalary({ min: 30, max: 30, period: "hour", currency: "CAD" })).toBe("$30 an hour CAD");
     expect(formatSalary({ min: 96900, max: 145300, period: "year", currency: "GBP" })).toBe("£97k to £145k a year");
     expect(formatSalary({ min: 43600, max: 65400, period: "year", currency: "EUR" })).toBe("€44k to €65k a year");
+    expect(formatSalary({ min: 6500, max: 8000, period: "month", currency: "CAD" })).toBe("$6,500 to $8,000 a month CAD");
   });
 
   test("relative ages", () => {

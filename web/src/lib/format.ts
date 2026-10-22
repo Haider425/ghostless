@@ -113,10 +113,12 @@ export function formatSalary(salary: NonNullable<Job["salary"]>): string {
   // hourly rates with cents show both digits ($25.50, $32.00); whole rates show none ($30)
   const cents = hourly && (salary.min % 1 !== 0 || salary.max % 1 !== 0) ? 2 : 0;
   const money = new Intl.NumberFormat("en-CA", { minimumFractionDigits: cents, maximumFractionDigits: cents });
+  // yearly pay in thousands ($85k); hourly and monthly pay in full ($32, $6,500)
   const show = (value: number) =>
-    hourly ? `${symbol}${money.format(value)}` : `${symbol}${money.format(Math.round(value / 1000))}k`;
+    salary.period === "year" ? `${symbol}${money.format(Math.round(value / 1000))}k` : `${symbol}${money.format(value)}`;
   const range = salary.min === salary.max ? show(salary.min) : `${show(salary.min)} to ${show(salary.max)}`;
-  return `${range}${hourly ? " an hour" : " a year"}${currency ? ` ${currency}` : ""}`;
+  const per = { hour: " an hour", month: " a month", year: " a year" }[salary.period];
+  return `${range}${per}${currency ? ` ${currency}` : ""}`;
 }
 
 export function pluralize(count: number, one: string, many = `${one}s`): string {
