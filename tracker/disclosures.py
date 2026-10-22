@@ -141,7 +141,7 @@ def _currency(*tokens: str | None) -> str | None:
 # currencies are converted to US dollars and get lower floors, since a junior's
 # pay in zloty or rupees is lower than anywhere those bounds were set for.
 _OWN_UNITS = (None, "USD", "CAD", "AUD", "GBP", "EUR")
-_FLOORS = {"hour": 10, "month": 1_000, "year": 15_000}
+_FLOORS = {"hour": 7.25, "month": 1_000, "year": 15_000}  # an hour: the US federal minimum wage
 _FLOORS_CONVERTED = {"hour": 7, "month": 700, "year": 10_000}
 _CEILINGS = {"hour": 500, "month": 50_000, "year": 1_000_000}
 
