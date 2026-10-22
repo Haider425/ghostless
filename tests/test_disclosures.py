@@ -3,6 +3,7 @@ import pytest
 from tracker.classify import enrich
 from tracker.disclosures import (
     Salary,
+    checked_pay,
     fingerprint,
     has_description_hash,
     parse_ai_screening,
@@ -11,6 +12,7 @@ from tracker.disclosures import (
     vacancy_evidence,
 )
 from tracker.models import Job
+from tracker.sources.common import set_pay
 
 
 @pytest.mark.parametrize(
@@ -270,3 +272,40 @@ def test_fingerprint_separates_the_same_role_in_other_cities():
 def test_only_description_fingerprints_can_be_duplicates():
     assert has_description_hash(fingerprint("Analyst", "Toronto", "Some description"))
     assert not has_description_hash(fingerprint("Analyst", "Toronto"))
+
+
+@pytest.mark.parametrize(
+    "stated, shown",
+    [
+        ((90000, 110000, "year", "CAD", "CA"), (90000, 110000, "year")),
+        ((30, 38, "hour", None, None), (30, 38, "hour")),
+        ((200000, 315000, "hour", "USD", "US"), (200000, 315000, "year")),  # a range titled "hourly"
+        ((21, 21, "year", "USD", "US"), (21, 21, "hour")),
+        ((8500, 10000, "year", "USD", "US"), (8500, 10000, "month")),  # an intern's monthly pay
+        ((200, 400000, "year", "USD", "US"), (200000, 400000, "year")),  # "$200 - $400,000"
+        ((22000, 292000, "year", "USD", "US"), None),  # a dropped digit
+        ((5000000, 5000000, "year", "USD", "US"), None),  # a research grant
+        ((3000000, 5000000, "year", None, "IN"), None),  # rupees, in lakhs
+        ((24000, 72000, "year", None, "PL"), None),  # zloty
+    ],
+)
+def test_checked_pay(stated, shown):
+    assert checked_pay(*stated) == shown
+
+
+def test_pay_from_a_source_field_is_checked_like_pay_from_the_text():
+    job = Job(external_id="1", title="Software Engineer", url="", location="San Mateo, CA")
+    set_pay(job, 200000, 315000, "USD", "hour")
+    enrich(job, [])
+    assert (job.salary_min, job.salary_max, job.salary_period) == (200000, 315000, "year")
+
+    mercor = Job(external_id="2", title="Research Grant", url="", location="San Francisco, CA")
+    set_pay(mercor, 5000000, 5000000, "USD", "year")
+    enrich(mercor, [])
+    assert mercor.salary_min is None and mercor.salary_currency is None
+
+
+def test_a_currency_ghostless_cant_show_is_refused():
+    job = Job(external_id="1", title="Software Engineer", url="", location="Bengaluru, India")
+    set_pay(job, 3000000, 5000000, "INR", "year")
+    assert job.salary_min is None

@@ -129,14 +129,46 @@ def _currency(*tokens: str | None) -> str | None:
     return None
 
 
-def _plausible(low: float, high: float, period: str) -> bool:
-    if low > high or high > 3 * low:
-        return False
+def _in_bounds(low: float, high: float, period: str) -> bool:
+    """Amounts a tech posting can pay per hour, month or year."""
     if period == "hour":
         return 10 <= low and high <= 500
     if period == "month":
         return 1_000 <= low and high <= 50_000
     return 15_000 <= low and high <= 1_000_000
+
+
+def _plausible(low: float, high: float, period: str) -> bool:
+    return low <= high <= 3 * low and _in_bounds(low, high, period)
+
+
+SUPPORTED_CURRENCIES = ("CAD", "USD", "GBP", "EUR", "AUD")
+
+
+def checked_pay(
+    low: float, high: float, period: str | None, currency: str | None, country: str | None
+) -> tuple[float, float, str] | None:
+    """Pay as it will be shown, or None when it can't be trusted. Job boards'
+    own pay fields come here unchecked, and employers mistype them:
+
+    - no currency, outside the US and Canada: "$" can't be assumed (rupees in
+      lakhs, zloty), so nothing is shown
+    - "$200 - $400,000" a year: the low end lost its "k"
+    - a period the amounts can't be ($200,000 an hour, $21 a year): the period
+      the amounts fit, trying hour, month, then year
+    - over a million a year (grants, other currencies), or a low end under a
+      fifth of the high end (a dropped digit): nothing is shown
+    """
+    low, high = float(low), float(high)
+    if currency is None and country and country not in ("US", "CA"):
+        return None
+    if period == "year" and low < 1000 <= high and low * 1000 <= high:
+        low *= 1000
+    if low <= 0 or high < low or high > 5 * low:
+        return None
+    if period not in ("hour", "month", "year") or not _in_bounds(low, high, period):
+        period = next((p for p in ("hour", "month", "year") if _in_bounds(low, high, p)), None)
+    return (low, high, period) if period else None
 
 
 def _period(text: str, start: int, after: str, high: float) -> str:

@@ -7,7 +7,7 @@ misclassifications are fixed by adding a rule plus a test case.
 import re
 from datetime import date, datetime, timezone
 
-from tracker.disclosures import fingerprint, parse_ai_screening, parse_salary, parse_vacancy
+from tracker.disclosures import checked_pay, fingerprint, parse_ai_screening, parse_salary, parse_vacancy
 from tracker.extract import (
     classify_seniority,
     countries_of,
@@ -321,6 +321,15 @@ def is_upcoming(term: str, today: date) -> bool:
         return False
 
 
+def set_checked_pay(job: Job, country: str | None) -> None:
+    """Correct or drop pay that can't be right (disclosures.checked_pay)."""
+    pay = checked_pay(job.salary_min, job.salary_max, job.salary_period, job.salary_currency, country)
+    if pay is None:
+        job.salary_min = job.salary_max = job.salary_period = job.salary_currency = None
+    else:
+        job.salary_min, job.salary_max, job.salary_period = pay
+
+
 def enrich(job: Job, skills: list[str]) -> Job:
     """Fill in every derived field: classification, skills and disclosures."""
     # what the source didn't state in its own fields, from the text (stage C2, tracker/extract.py)
@@ -356,6 +365,8 @@ def enrich(job: Job, skills: list[str]) -> Job:
     if job.salary_min is not None and job.salary_currency is None:
         # an unlabelled "$" is the dollar of the posting's country
         job.salary_currency = {"CA": "CAD", "US": "USD"}.get(home or "")
+    if job.salary_min is not None:
+        set_checked_pay(job, home)
     # Text disclosures win, but keep a status the source itself reported
     # (e.g. Apple's pipeline flag) when the description says nothing.
     job.vacancy = parse_vacancy(job.description) or job.vacancy

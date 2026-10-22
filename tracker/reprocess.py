@@ -15,7 +15,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from tracker import db
-from tracker.classify import enrich, parse_terms
+from tracker.classify import enrich, parse_terms, set_checked_pay
 from tracker.models import Job
 from tracker.skills import extract_skills
 
@@ -57,6 +57,7 @@ def _derive(row: tuple) -> tuple:
         # pay a source gave in its own fields isn't in the text: keep it
         job.salary_min, job.salary_max = salary_min, salary_max
         job.salary_period, job.salary_currency = salary_period, salary_currency
+        set_checked_pay(job, job.countries[0] if job.countries else None)
     return (
         job.level,
         job.role_type,
