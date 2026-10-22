@@ -1,47 +1,52 @@
 # Ghostless design
 
-The approved design lives in Figma as "Ghostless redesign v2". It covers every page in light and dark, at desktop and phone widths. This file summarises the rules so the code stays consistent with it.
+The brand is direction B, "Friendly ghost", from the Figma file "Ghostless polish v3" (page "Brand directions"). It's warm, made for students and new grads, and built around one character: a friendly ghost with a magnifying glass who checks every posting. This file summarises the rules so the code stays consistent with it.
 
 ## Principles
 
-- **Your record first.** On a job, the posting record (true age, the employer's usual time, flags with quoted evidence) comes before everything else.
-- **Calm lists.** A job row is the title, company and "place · level · pay" as plain text, then the posting age. A risk tag appears only when a posting has flags, because "No flags" is the normal case. The match ring shows only when there's a resume.
-- **Grey for structure, colour for meaning.** Neutrals do the layout. Blue is for actions, links and selection. Ochre and brick are only for ghost risk, and errors use a separate danger colour.
-- **Confident type.** Inter throughout. Large, tightly set titles (40px pages, 76px home), 16px row titles, 15px UI text.
+- **The ghost does the explaining.** The mascot (`GhostMascot`) appears where a person needs reassurance or a nudge: the home hero, empty states, the 404 page. Never as decoration in dense views like the job list.
+- **Evidence, not a verdict.** Every number, note and quote on the home page comes from live data. The stamp says "High ghost risk", never "Fake".
+- **Warm paper, white cards.** The page is warm paper; content sits on white cards with a hairline and a soft shadow (`.card`, `.panel`). Recessed areas use the warm `sunken` tone (`.well`).
+- **Colour for meaning.** Blue is for actions, links and selection. Ochre and brick are only for ghost risk. The yellow highlighter and the pastel cards are brand accents on marketing surfaces (home), not status colours.
+- **Motion that explains, once.** The home hero tells its story in about five seconds and then stops; the ghost keeps a gentle float. Everything is static for reduced motion (system setting or Settings page).
+
+## Type
+
+- **Bricolage Grotesque** for every heading and the wordmark (`font-display`, `font-brand`).
+- **Figtree** for all interface and body text (`font-sans`, `font-friendly`).
+- **Caveat** only for the handwritten notes on the home page (`font-hand`).
+- Inter stays loaded as the fallback. All three brand faces are self-hosted by `next/font/google` at build time.
 
 ## Tokens
 
-All tokens are in `src/app/globals.css`, with light and dark values. Tailwind names in brackets.
+All tokens are in `src/app/globals.css`, with light and dark values (dark is warm too). Tailwind names in brackets.
 
 | Role | Light | Dark |
 |---|---|---|
-| Page (`paper`) | #ffffff | #191919 |
-| Soft cards, wells, hover (`sunken`) | #f7f6f3 | #202020 |
-| Raised panels, popovers (`surface`) | #ffffff | #252525 |
-| Track, pressed (`hover`) | #efeeea | #2c2c2c |
-| Hairline / strong border (`line`, `line-strong`) | #e9e9e7 / #d3d2ce | #2f2f2f / #3f3f3f |
-| Text (`ink`, `ink-soft`, `ink-faint`) | #191919 / #5f5e5b / #686763 | #ededec / #b4b3af / #9c9b97 |
-| Accent text / fill (`accent`, `accent-solid`) | #0a62c2 / #0a62c2 | #5ba4f0 / #1c6fcc |
-| Accent tint (`accent-tint`) | #e8f1fc | #1c2b3c |
-| Some flags (`ochre`, `ochre-tint`) | #8f5300 / #fbf0da | #e8ab4f / #3a2d17 |
-| High risk (`brick`, `brick-tint`) | #c0302a / #fdebea | #ff8075 / #40211f |
-| Errors, destructive (`danger`, `danger-tint`) | #c0302a / #fdebea | #ff8075 / #40211f |
+| Page (`paper`) | #fbf7f0 | #191713 |
+| Cards, popovers (`surface`) | #ffffff | #23201b |
+| Wells, hover fills (`sunken`) | #f3ede2 | #201d19 |
+| Track, pressed (`hover`) | #ece5d7 | #2b2722 |
+| Hairline / strong border (`line`, `line-strong`) | #e8e1d4 / #d6ccba | #34302a / #463f36 |
+| Text (`ink`, `ink-soft`, `ink-faint`) | #17140f / #5c564c / #6a6358 | #f3efe7 / #bdb6a9 / #9f978a |
+| Accent text / fill (`accent`, `accent-solid`) | #0a62c2 / #0a62c2 | #6aaef5 / #1c6fcc |
+| Some flags (`ochre`, `ochre-tint`) | #8a5000 / #fbefd6 | #e8ab4f / #3a2d17 |
+| High risk, errors (`brick`, `danger`) | #b42a24 | #ff8a7e |
 
-Every text colour passes WCAG AA (4.5:1) against every surface in both themes. The lowest pair is 4.88:1.
+Brand accents for the home page (`b-*`): yellow highlighter #ffd84a (text on it is always ink), pastels blush #ffe1d8, mint #ddf3e4, lilac #e8e2ff, sky #e3f0ff, butter #fff1c2, each with a dark counterpart.
+
+Every text colour passes WCAG AA (4.5:1) on every surface it's used on, in both themes. The lowest pair is 4.73:1. Faint text is never placed on the pastel cards.
 
 ## Shapes and parts
 
-- **Buttons (`.btn`):** 40px tall with a 10px radius. Large ones (`.btn-lg`) are 48px with a 12px radius. Primary buttons are a blue fill; secondary buttons are outlined.
-- **Filter pills (`.pill`):** rounded and outlined, with a blue tint when the filter is on.
-- **Search fields (`.field-soft`):** a soft grey fill with no border until focused.
-- **Containers:** cards (`.card`) are soft grey with a 16px radius, panels (`.panel`) are outlined with a 16px radius, and the posting record uses the soft card.
-- **Tags (`.tag`):** quiet grey pills for skills.
-- **Match:** a ring with the score inside (`Ring`), 40px in rows and 56px in panels.
+- **Buttons (`.btn`):** 40px tall, 12px radius; large 48px. Primary is blue, secondary outlined white.
+- **Cards (`.card`) and panels (`.panel`):** white, 1px hairline, 20px radius, soft shadow.
+- **Filter pills (`.pill`):** rounded, outlined; tinted when on.
+- **Quick links on home:** pastel pills with a coloured dot.
+- **Empty states (`EmptyState`):** the mascot, a title that says what's missing, one sentence, one action.
 
 ## Layout
 
-- A top navigation bar: Jobs, Companies, Resume, and Insights (Skills gap, Hiring calendar, How it works). On the right are Saved (or Applications when signed in), Log in and Sign up, or the avatar menu. On phones a full-width menu opens under the bar.
-- **Jobs:** the toolbar, then role tabs, then the list next to a sticky preview panel. On phones, rows link to the job's own page.
-- **Job page:** the header (logo, title, a row of facts with icons, Apply and Save), with the description on the left. The rail on the right holds the posting record, match, history and disclosures.
-- **Home:** the headline and search, a real posting record as proof, three live figures, three reasons and one call to action.
-- **Footer:** one line.
+- Top bar: the mascot wordmark, Jobs, Companies, Resume, Insights; Saved (or Applications), Log in, Sign up. On the home page the bar takes the warm paper so the page reads as one sheet.
+- **Home:** the badge with today's flagged count, the highlighted headline, the search, pastel quick links, the animated exhibit (a real high-risk posting checked by the ghost, with handwritten notes on desktop), the yellow live ticker, three pastel reason cards, and one call to action.
+- **Jobs, job page, companies, resume tools:** unchanged structure, on the brand's tokens and type.

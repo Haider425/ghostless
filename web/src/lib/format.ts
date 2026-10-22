@@ -143,7 +143,8 @@ export function percent(part: number, whole: number): string {
 
 /** Two letters for a company's fallback logo: "Granite Payments" -> "GP", "Stripe" -> "St". */
 export function initials(name: string): string {
-  const words = name.split(/\s+/).filter(Boolean);
+  const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   if (words.length >= 2) return `${words[0]![0]}${words[1]![0]}`.toUpperCase();
-  return name.slice(0, 2).replace(/^./, (c) => c.toUpperCase());
+  const word = words[0] ?? name;
+  return word.slice(0, 2).replace(/^./, (c) => c.toUpperCase());
 }

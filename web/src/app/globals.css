@@ -33,62 +33,91 @@
 :root {
   /* the sticky site header's height: anything sticky below it starts here */
   --header-h: 4rem;
-  --paper: #ffffff;
+  --paper: #fbf7f0;
   --surface: #ffffff;
-  --sunken: #f7f6f3;
-  --hover: #efeeea;
-  --ink: #191919;
-  --ink-soft: #5f5e5b;
-  --ink-faint: #686763;
-  --line: #e9e9e7;
-  --line-strong: #d3d2ce;
+  --sunken: #f3ede2;
+  --hover: #ece5d7;
+  --ink: #17140f;
+  --ink-soft: #5c564c;
+  --ink-faint: #6a6358;
+  --line: #e8e1d4;
+  --line-strong: #d6ccba;
   --accent: #0a62c2;
   --accent-solid: #0a62c2;
   --accent-hover: #08539f;
-  --accent-tint: #e8f1fc;
+  --accent-tint: #e6effa;
   --on-accent: #ffffff;
-  --ochre: #8f5300;
-  --ochre-tint: #fbf0da;
-  --brick: #c0302a;
-  --brick-tint: #fdebea;
-  --danger: #c0302a;
-  --danger-tint: #fdebea;
+  --ochre: #8a5000;
+  --ochre-tint: #fbefd6;
+  --brick: #b42a24;
+  --brick-tint: #fce6e1;
+  --danger: #b42a24;
+  --danger-tint: #fce6e1;
   --focus: #0a62c2;
   --logo: #ffffff;
-  --shadow: 0 1px 2px rgb(25 23 20 / 0.05), 0 16px 40px -12px rgb(25 23 20 / 0.16);
+  --shadow: 0 1px 2px rgb(23 20 15 / 0.05), 0 18px 44px -14px rgb(23 20 15 / 0.18);
+  --shadow-soft: 0 1px 2px rgb(23 20 15 / 0.04), 0 10px 28px -18px rgb(23 20 15 / 0.22);
   /* chart marks: the series and its comparison */
   --bar-new: #0a62c2;
   --bar-closed: #8f8e8a;
   --bar-have: #0a62c2;
   --bar-missing: #8f8e8a;
+
+  /* Brand (direction B, the home page): warm paper, a yellow highlighter,
+     pastel cards. Faint text is only used on paper or white. */
+  --b-paper: #fbf7f0;
+  --b-card: #ffffff;
+  --b-ink: #17140f;
+  --b-soft: #5c564c;
+  --b-faint: #6f685d;
+  --b-line: #e8e1d4;
+  --b-yellow: #ffd84a;
+  --b-on-yellow: #17140f;
+  --b-blush: #ffe1d8;
+  --b-mint: #ddf3e4;
+  --b-lilac: #e8e2ff;
+  --b-sky: #e3f0ff;
+  --b-butter: #fff1c2;
+  --b-red: #b42a24;
+  --b-green: #17603a;
+  --b-violet: #5b4bc4;
+  --b-shadow: 0 1px 2px rgb(23 20 15 / 0.05), 0 24px 60px -20px rgb(23 20 15 / 0.22);
   color-scheme: light;
 }
 
 /* Dark tokens: declared twice, for the system setting and for an explicit choice. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #191919; --surface: #252525; --sunken: #202020; --hover: #2c2c2c;
-    --ink: #ededec; --ink-soft: #b4b3af; --ink-faint: #9c9b97;
-    --line: #2f2f2f; --line-strong: #3f3f3f;
-    --accent: #5ba4f0; --accent-solid: #1c6fcc; --accent-hover: #2a7bd6; --accent-tint: #1c2b3c; --on-accent: #ffffff;
-    --ochre: #e8ab4f; --ochre-tint: #3a2d17; --brick: #ff8075; --brick-tint: #40211f;
-    --danger: #ff8075; --danger-tint: #40211f;
+    --paper: #191713; --surface: #23201b; --sunken: #201d19; --hover: #2b2722;
+    --ink: #f3efe7; --ink-soft: #bdb6a9; --ink-faint: #9f978a;
+    --line: #34302a; --line-strong: #463f36;
+    --accent: #6aaef5; --accent-solid: #1c6fcc; --accent-hover: #2a7bd6; --accent-tint: #1c2b3c; --on-accent: #ffffff;
+    --ochre: #e8ab4f; --ochre-tint: #3a2d17; --brick: #ff8a7e; --brick-tint: #40211f;
+    --danger: #ff8a7e; --danger-tint: #40211f;
     --focus: #5ba4f0; --logo: #e9e9e7;
-    --shadow: 0 0 0 1px rgb(255 255 255 / 0.04), 0 16px 40px -12px rgb(0 0 0 / 0.6);
+    --shadow: 0 0 0 1px rgb(255 255 255 / 0.04), 0 16px 40px -12px rgb(0 0 0 / 0.6); --shadow-soft: 0 0 0 1px rgb(255 255 255 / 0.02), 0 10px 28px -18px rgb(0 0 0 / 0.7);
     --bar-new: #3d8ae0; --bar-closed: #6f6e6a; --bar-have: #3d8ae0; --bar-missing: #6f6e6a;
+    --b-paper: #191713; --b-card: #23201b; --b-ink: #f3efe7; --b-soft: #bdb6a9; --b-faint: #9a9286; --b-line: #34302a;
+    --b-yellow: #ffd84a; --b-on-yellow: #17140f; --b-blush: #3a2722; --b-mint: #1e3326; --b-lilac: #2a2640; --b-sky: #1c2b3c; --b-butter: #3a3220;
+    --b-red: #ff8a7e; --b-green: #7fd6a0; --b-violet: #b4a9ff;
+    --b-shadow: 0 0 0 1px rgb(255 255 255 / 0.05), 0 24px 60px -20px rgb(0 0 0 / 0.7);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --paper: #191919; --surface: #252525; --sunken: #202020; --hover: #2c2c2c;
-  --ink: #ededec; --ink-soft: #b4b3af; --ink-faint: #9c9b97;
-  --line: #2f2f2f; --line-strong: #3f3f3f;
-  --accent: #5ba4f0; --accent-solid: #1c6fcc; --accent-hover: #2a7bd6; --accent-tint: #1c2b3c; --on-accent: #ffffff;
-  --ochre: #e8ab4f; --ochre-tint: #3a2d17; --brick: #ff8075; --brick-tint: #40211f;
-  --danger: #ff8075; --danger-tint: #40211f;
+  --paper: #191713; --surface: #23201b; --sunken: #201d19; --hover: #2b2722;
+  --ink: #f3efe7; --ink-soft: #bdb6a9; --ink-faint: #9f978a;
+  --line: #34302a; --line-strong: #463f36;
+  --accent: #6aaef5; --accent-solid: #1c6fcc; --accent-hover: #2a7bd6; --accent-tint: #1c2b3c; --on-accent: #ffffff;
+  --ochre: #e8ab4f; --ochre-tint: #3a2d17; --brick: #ff8a7e; --brick-tint: #40211f;
+  --danger: #ff8a7e; --danger-tint: #40211f;
   --focus: #5ba4f0; --logo: #e9e9e7;
-  --shadow: 0 0 0 1px rgb(255 255 255 / 0.04), 0 16px 40px -12px rgb(0 0 0 / 0.6);
+  --shadow: 0 0 0 1px rgb(255 255 255 / 0.04), 0 16px 40px -12px rgb(0 0 0 / 0.6); --shadow-soft: 0 0 0 1px rgb(255 255 255 / 0.02), 0 10px 28px -18px rgb(0 0 0 / 0.7);
   --bar-new: #3d8ae0; --bar-closed: #6f6e6a; --bar-have: #3d8ae0; --bar-missing: #6f6e6a;
+  --b-paper: #191713; --b-card: #23201b; --b-ink: #f3efe7; --b-soft: #bdb6a9; --b-faint: #9a9286; --b-line: #34302a;
+  --b-yellow: #ffd84a; --b-on-yellow: #17140f; --b-blush: #3a2722; --b-mint: #1e3326; --b-lilac: #2a2640; --b-sky: #1c2b3c; --b-butter: #3a3220;
+  --b-red: #ff8a7e; --b-green: #7fd6a0; --b-violet: #b4a9ff;
+  --b-shadow: 0 0 0 1px rgb(255 255 255 / 0.05), 0 24px 60px -20px rgb(0 0 0 / 0.7);
   color-scheme: dark;
 }
 
@@ -125,16 +154,38 @@
   --color-bar-new: var(--bar-new);
   --color-bar-closed: var(--bar-closed);
   --shadow-pop: var(--shadow);
+  --shadow-soft: var(--shadow-soft);
+  --shadow-brand: var(--b-shadow);
+  --color-b-paper: var(--b-paper);
+  --color-b-card: var(--b-card);
+  --color-b-ink: var(--b-ink);
+  --color-b-soft: var(--b-soft);
+  --color-b-faint: var(--b-faint);
+  --color-b-line: var(--b-line);
+  --color-b-yellow: var(--b-yellow);
+  --color-b-on-yellow: var(--b-on-yellow);
+  --color-b-blush: var(--b-blush);
+  --color-b-mint: var(--b-mint);
+  --color-b-lilac: var(--b-lilac);
+  --color-b-sky: var(--b-sky);
+  --color-b-butter: var(--b-butter);
+  --color-b-red: var(--b-red);
+  --color-b-green: var(--b-green);
+  --color-b-violet: var(--b-violet);
 
-  /* Inter, self-hosted through next/font in layout.tsx */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Figtree for text and Bricolage Grotesque for headings (next/font in layout.tsx); Inter as fallback */
+  --font-sans: var(--font-figtree), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Brand faces, through next/font/google in layout.tsx */
+  --font-brand: var(--font-bricolage), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-friendly: var(--font-figtree), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-hand: var(--font-caveat), "Segoe Print", "Bradley Hand", cursive;
 
-  /* Shape: controls 10px, cards 16px */
+  /* Shape: controls 12px, cards 20px (brand B: soft, friendly) */
   --radius-md: 0.5rem;
-  --radius-lg: 0.625rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.25rem;
 
   /* Type scale: 12 13 14 15 16 18 20 24 30 36 44 56 76 */
   --text-xs: 0.75rem;
@@ -176,7 +227,6 @@
     font-family: var(--font-sans);
     font-size: 1rem;
     line-height: 1.5;
-    font-feature-settings: "cv11", "ss01";
   }
   h1, h2, h3 {
     font-family: var(--font-display);
@@ -320,8 +370,17 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-2xl);
     background: var(--surface);
+    box-shadow: var(--shadow-soft);
   }
+  /* content cards: white on the warm page, lifted a little */
   .card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-2xl);
+    background: var(--surface);
+    box-shadow: var(--shadow-soft);
+  }
+  /* a recessed area inside a card (the posting record's well, inputs' group) */
+  .well {
     border-radius: var(--radius-2xl);
     background: var(--sunken);
   }
@@ -468,3 +527,84 @@
   body:has(.print-portal) .print-portal { display: block; }
   body { background: #fff !important; }
 }
+
+/* ---------- Home page (brand direction B) ---------- */
+
+/* The header and footer take the home page's warm paper, so it reads as one sheet. */
+body:has(.home-b) > header,
+body:has(.home-b) > footer {
+  background: var(--b-paper);
+  border-color: var(--b-line);
+}
+body:has(.home-b) {
+  background: var(--b-paper);
+}
+.home-b h1,
+.home-b h2,
+.home-b h3 {
+  font-family: var(--font-brand);
+}
+
+/* Hero exhibit: the posting lands, the ghost checks it, the notes write themselves in.
+   Plays once. Everything is visible from the start for reduced motion. */
+@keyframes hx-drop {
+  from { opacity: 0; transform: translateY(28px) rotate(-1.5deg); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hx-pop {
+  0% { opacity: 0; transform: scale(0.6); }
+  70% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes hx-slide-in {
+  from { opacity: 0; transform: translateX(80px) rotate(12deg); }
+  to { opacity: 1; transform: translateX(0) rotate(-8deg); }
+}
+@keyframes hx-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -6px; }
+}
+@keyframes hx-lens {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(-14deg); }
+  60% { transform: rotate(8deg); }
+}
+@keyframes hx-write {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes hx-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes hx-stamp {
+  0% { opacity: 0; transform: scale(2.4) rotate(22deg); }
+  60% { opacity: 1; transform: scale(0.94) rotate(6deg); }
+  100% { opacity: 1; transform: scale(1) rotate(8deg); }
+}
+@keyframes hx-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ticker {
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hx-card { animation: hx-drop 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .hx-pop { animation: hx-pop 0.45s cubic-bezier(0.3, 1.4, 0.5, 1) both; animation-delay: var(--d, 0s); }
+  .hx-mascot { animation: hx-slide-in 0.9s 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) both, hx-float 3.4s 1.8s ease-in-out infinite; }
+  .hx-mascot .ghost-lens { transform-box: fill-box; transform-origin: 30% 80%; animation: hx-lens 1.6s 1.4s ease-in-out both; }
+  .hx-note { animation: hx-write 0.7s steps(18, end) both; animation-delay: var(--d, 0s); }
+  .hx-arrow path { stroke-dasharray: 260; stroke-dashoffset: 260; animation: hx-draw 0.6s ease-out forwards; animation-delay: var(--d, 0s); }
+  .hx-stamp { animation: hx-stamp 0.5s 3s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+  .hx-rise { animation: hx-rise 0.5s ease-out both; animation-delay: var(--d, 0s); }
+  .ticker-track { animation: ticker 48s linear infinite; }
+  .ticker:hover .ticker-track { animation-play-state: paused; }
+  .reveal { transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); transition-delay: var(--d, 0s); }
+  .reveal-pending:not(.is-in) { opacity: 0; transform: translateY(18px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hx-stamp { transform: rotate(8deg); }
+  .hx-mascot { transform: rotate(-8deg); }
+}
+

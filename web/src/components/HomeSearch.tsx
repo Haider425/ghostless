@@ -95,12 +95,12 @@ export function HomeSearch() {
     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-left ${i === active ? "bg-sunken" : "hover:bg-sunken"}`;
 
   return (
-    <div ref={box} className="relative mt-10 w-full max-w-180 text-left">
+    <div ref={box} className="relative mt-9 w-full max-w-170 text-left">
       <form action="/jobs" method="get" role="search">
         <label htmlFor={`${id}-q`} className="sr-only">
           Search jobs
         </label>
-        <div className="flex flex-col gap-2.5 rounded-[1.125rem] border border-line bg-sunken p-2 sm:flex-row sm:items-center sm:pl-5">
+        <div className="flex flex-col gap-2.5 rounded-[1.25rem] border border-line bg-surface p-2 shadow-brand sm:flex-row sm:items-center sm:pl-5">
           <div className="relative flex min-w-0 flex-1 items-center">
             <SearchIcon className="pointer-events-none absolute left-3 size-6 text-ink-faint sm:left-0" />
             <input
@@ -121,13 +121,13 @@ export function HomeSearch() {
               onFocus={() => setOpen(true)}
               onKeyDown={onKeyDown}
               maxLength={100}
-              placeholder="Search roles, companies or skills"
+              placeholder="Try “data intern toronto” or “Shopify”"
               autoComplete="off"
               className="h-12 w-full min-w-0 rounded-lg bg-transparent pr-3 pl-12 text-lg text-ink placeholder:text-ink-faint focus:outline-none focus-visible:outline-2 sm:pl-10"
             />
           </div>
           <button type="submit" className="btn btn-primary btn-lg">
-            Search
+            Find real jobs
           </button>
         </div>
       </form>

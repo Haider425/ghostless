@@ -1,3 +1,5 @@
+import { GhostMascot } from "./GhostMascot";
+
 /** The Ghostless mark: a ghost outline struck through. */
 export function GhostMark({ className = "" }: { className?: string }) {
   return (
@@ -18,8 +20,8 @@ export function GhostMark({ className = "" }: { className?: string }) {
 export function Wordmark() {
   return (
     <span className="inline-flex items-center gap-2 text-ink">
-      <GhostMark className="size-[22px]" />
-      <span className="text-lg font-bold tracking-[-0.02em]">Ghostless</span>
+      <GhostMascot withLens={false} className="h-[30px] w-[26px]" />
+      <span className="font-brand text-[1.3rem] font-bold tracking-[-0.03em]">Ghostless</span>
     </span>
   );
 }
