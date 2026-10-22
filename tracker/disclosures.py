@@ -17,6 +17,8 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 
+from tracker import currency
+
 # ---------- Salary ----------
 #
 # Pay is written many ways: "$95K-$120K", "CAD $40 - CAD $45 per hour",
@@ -29,10 +31,14 @@ from dataclasses import dataclass, field
 # no currency symbol, and lone amounts, only count right after a pay word, so
 # "200 - 300 engineers" or "a $5 gift card" never become a salary.
 
-# 1,234,567 · 120 000 · 111.800 (European thousands: three digits after each dot) · 25.50
-_NUMBER = r"\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?(?![\d,])|\d+(?:\.\d+)?"
-_CODE = r"CAD|USD|GBP|EUR|AUD"
-_SYMBOL = r"(?:C|CA|US|A)?\$|£|€"
+# 1,234,567 · 30,00,000 (Indian lakhs) · 120 000 · 111.800 (European thousands: three digits after each dot) · 25.50
+_NUMBER = r"\d{1,2}(?:,\d{2})+,\d{3}(?![\d,])|\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?(?![\d,])|\d+(?:\.\d+)?"
+# ISO codes Ghostless knows (tracker/currency.py), except those that are also words
+# in postings ("PHP" the language, "try", "Ron", French "ils", "CRC" checks): those
+# count only from a source's own pay field or their sign (₱, ₺, ₪)
+_CODE_IS_A_WORD = {"PHP", "TRY", "RON", "ILS", "PEN", "ARS", "SAR", "COP", "CRC"}
+_CODE = "|".join(code for code in currency.TO_USD if code not in _CODE_IS_A_WORD)
+_SYMBOL = r"(?:C|CA|US|AU?|SG?|HK|NZ|R|MX)?\$|£|€|₹|₩|₱|₪|₺"
 # a symbol (optionally after a code: "CAD $40"), or a code on its own ("CAD 80,000")
 _CURRENCY = rf"(?:(?:{_CODE})\s?)?(?:{_SYMBOL})|\b(?:{_CODE})\b"
 _TO = r"\s*(?:-|–|—|to|and|à)\s*"
@@ -100,7 +106,7 @@ class Salary:
     minimum: float
     maximum: float
     period: str  # "year" | "month" | "hour"
-    currency: str | None  # "CAD" | "USD" | "GBP" | "EUR" | "AUD" | None when not stated
+    currency: str | None  # an ISO code (tracker/currency.py), None when not stated
     text: str = field(default="", compare=False)  # the sentence it came from
 
 
@@ -111,66 +117,73 @@ def _to_number(raw: str, thousands: bool) -> float:
     return value * 1000 if thousands else value
 
 
+# a dollar sign with its country: S$ Singapore, HK$ Hong Kong, NZ$ New Zealand, R$ Brazil
+_DOLLARS = {"C$": "CAD", "CA$": "CAD", "US$": "USD", "A$": "AUD", "AU$": "AUD", "S$": "SGD",
+            "SG$": "SGD", "HK$": "HKD", "NZ$": "NZD", "R$": "BRL", "MX$": "MXN"}  # fmt: skip
+_SIGNS = {"£": "GBP", "€": "EUR", "₹": "INR", "₩": "KRW", "₱": "PHP", "₪": "ILS", "₺": "TRY"}
+
+
 def _currency(*tokens: str | None) -> str | None:
     for token in tokens:
         if not token:
             continue
         upper = token.upper().replace(" ", "")
-        if upper.startswith(("CAD", "C$", "CA$")):
-            return "CAD"
-        if upper.startswith(("USD", "US$")):
-            return "USD"
-        if upper.startswith(("GBP", "£")):
-            return "GBP"
-        if upper.startswith(("EUR", "€")):
-            return "EUR"
-        if upper.startswith(("AUD", "A$")):
-            return "AUD"
+        if upper[:3] in currency.TO_USD:
+            return upper[:3]
+        for sign, code in (*_DOLLARS.items(), *_SIGNS.items()):
+            if upper.startswith(sign):
+                return code
     return None
 
 
-def _in_bounds(low: float, high: float, period: str) -> bool:
-    """Amounts a tech posting can pay per hour, month or year."""
+def _in_bounds(low: float, high: float, period: str, code: str | None = None) -> bool:
+    """Amounts a tech posting can pay per hour, month or year, compared in US dollars."""
+    low, high = currency.to_usd(low, code), currency.to_usd(high, code)
     if period == "hour":
-        return 10 <= low and high <= 500
+        return 7 <= low and high <= 500
     if period == "month":
-        return 1_000 <= low and high <= 50_000
-    return 15_000 <= low and high <= 1_000_000
+        return 700 <= low and high <= 50_000
+    return 10_000 <= low and high <= 1_000_000
 
 
-def _plausible(low: float, high: float, period: str) -> bool:
-    return low <= high <= 3 * low and _in_bounds(low, high, period)
-
-
-SUPPORTED_CURRENCIES = ("CAD", "USD", "GBP", "EUR", "AUD")
+def _plausible(low: float, high: float, period: str, code: str | None = None) -> bool:
+    return low <= high <= 3 * low and _in_bounds(low, high, period, code)
 
 
 def checked_pay(
-    low: float, high: float, period: str | None, currency: str | None, country: str | None
-) -> tuple[float, float, str] | None:
-    """Pay as it will be shown, or None when it can't be trusted. Job boards'
-    own pay fields come here unchecked, and employers mistype them:
+    low: float, high: float, period: str | None, code: str | None, country: str | None
+) -> tuple[float, float, str, str | None] | None:
+    """Pay as it will be shown (min, max, period, currency), or None when it can't
+    be trusted. Job boards' own pay fields come here unchecked, and employers
+    mistype them:
 
-    - no currency, outside the US and Canada: "$" can't be assumed (rupees in
-      lakhs, zloty), so nothing is shown
+    - no currency named: the posting country's own (rupees in India, zloty in
+      Poland); none at all only when the country is unknown, which counts as dollars
     - "$200 - $400,000" a year: the low end lost its "k"
     - a period the amounts can't be ($200,000 an hour, $21 a year): the period
-      the amounts fit, trying hour, month, then year. A month only from $4,000:
-      below that it may as well be a week ("$1,925 per week"), so nothing is shown
-    - over a million a year (grants, other currencies), or a low end under a
-      fifth of the high end (a dropped digit): nothing is shown
+      the amounts fit, trying hour, month, then year. In US and Canadian
+      dollars a month only from about US$4,000: below that it may as well be an
+      intern's week ("$1,925 per week"), so nothing is shown
+    - over about US$1M a year (grants), a low end under a fifth of the high end
+      (a dropped digit), or a currency Ghostless doesn't know: nothing is shown
     """
     low, high = float(low), float(high)
-    if currency is None and country and country not in ("US", "CA"):
+    code = code or currency.of_country(country)
+    if code is None and country and country not in ("US", "CA"):
+        return None  # a country with a currency Ghostless doesn't know
+    if code is not None and not currency.known(code):
         return None
     if period == "year" and low < 1000 <= high and low * 1000 <= high:
         low *= 1000
     if low <= 0 or high < low or high > 5 * low:
         return None
-    if period not in ("hour", "month", "year") or not _in_bounds(low, high, period):
-        fits = [p for p in ("hour", "month", "year") if _in_bounds(low, high, p)]
-        period = next((p for p in fits if p != "month" or low >= 4_000), None)
-    return (low, high, period) if period else None
+    if period not in ("hour", "month", "year") or not _in_bounds(low, high, period, code):
+        fits = [p for p in ("hour", "month", "year") if _in_bounds(low, high, p, code)]
+        weekly_risk = code in (None, "USD", "CAD")  # intern stipends stated per week
+        period = next(
+            (p for p in fits if p != "month" or not weekly_risk or currency.to_usd(low, code) >= 4_000), None
+        )
+    return (low, high, period, code) if period else None
 
 
 def _period(text: str, start: int, after: str, high: float) -> str:
@@ -303,11 +316,13 @@ def parse_salary(text: str, country: str | None = None) -> Salary | None:
         period = _period(text, start, after, high)
         if bare and period == "hour" and not _HOURLY.search(after):
             continue  # a bare small range is only pay when it says "per hour"
-        if not _plausible(low, high, period):
-            continue
         code_after = _CODE_NEARBY.match(after)
-        currency = _currency(*tokens, code_after and code_after.group(1))
-        found.append((rank, Salary(low, high, period, currency, _around(text, start, end)), start))
+        code = _currency(*tokens, code_after and code_after.group(1))
+        if code is None and country not in (None, "US", "CA") and any(t and t.strip() == "$" for t in tokens):
+            code = currency.DOLLAR_COUNTRIES.get(country, "USD")  # "$" in London is the US dollar
+        if not _plausible(low, high, period, code or currency.of_country(country)):
+            continue
+        found.append((rank, Salary(low, high, period, code, _around(text, start, end)), start))
     if not found:
         return None
     first_rank, first, _ = found[0]

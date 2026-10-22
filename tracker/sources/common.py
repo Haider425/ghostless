@@ -4,8 +4,8 @@ import os
 import re
 from datetime import datetime
 
+from tracker import currency as currencies
 from tracker.classify import classify_role, is_canada, is_remote, title_worth_storing
-from tracker.disclosures import SUPPORTED_CURRENCIES
 
 _MULTI_LOCATION = re.compile(r"\b\d+\s+locations?\b", re.I)
 
@@ -115,7 +115,7 @@ def set_pay(job, low, high, currency, period) -> None:
     except (TypeError, ValueError):
         return
     currency = (currency or "").upper() or None
-    if period is None or low <= 0 or high < low or currency not in (None, *SUPPORTED_CURRENCIES):
-        return  # a currency Ghostless can't show (INR, PLN): the text may still say it in one it can
+    if period is None or low <= 0 or high < low or (currency is not None and not currencies.known(currency)):
+        return  # a currency Ghostless doesn't know: the text may still state the pay in one it does
     job.salary_min, job.salary_max, job.salary_period = low, high, period
     job.salary_currency = currency

@@ -78,6 +78,10 @@ test.describe("format", () => {
     expect(formatSalary({ min: 96900, max: 145300, period: "year", currency: "GBP" })).toBe("£97k to £145k a year");
     expect(formatSalary({ min: 43600, max: 65400, period: "year", currency: "EUR" })).toBe("€44k to €65k a year");
     expect(formatSalary({ min: 6500, max: 8000, period: "month", currency: "CAD" })).toBe("$6,500 to $8,000 a month CAD");
+    expect(formatSalary({ min: 3000000, max: 5000000, period: "year", currency: "INR" })).toBe("₹30L to ₹50L a year");
+    expect(formatSalary({ min: 200000, max: 400000, period: "year", currency: "SGD" })).toBe("SGD 200k to SGD 400k a year");
+    expect(formatSalary({ min: 16000, max: 24000, period: "month", currency: "PLN" })).toBe("PLN 16,000 to PLN 24,000 a month");
+    expect(formatSalary({ min: 512925, max: 683900, period: "year", currency: "SEK" })).toBe("SEK 512.9k to SEK 683.9k a year");
   });
 
   test("relative ages", () => {

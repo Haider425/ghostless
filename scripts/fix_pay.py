@@ -5,7 +5,8 @@ postings show $200,000 an hour, $21 a year, research grants of $5M, or rupee
 and zloty amounts as dollars. New postings now go through
 tracker.disclosures.checked_pay; this applies the same check to stored ones:
 
-    correct   the period or a lost "k" is fixed ($200,000 an hour -> a year)
+    correct   the period, a lost "k" or the currency is fixed ($200,000 an hour
+              -> a year; 3,000,000 with no currency in India -> rupees)
     clear     the pay can't be trusted, so the posting shows "Pay not listed"
 
     python scripts/fix_pay.py            show what it would do (reads only)
@@ -28,7 +29,8 @@ from tracker.disclosures import checked_pay
 
 @dataclass
 class Plan:
-    correct: list[tuple[int, float, float, str]] = field(default_factory=list)  # (id, min, max, period)
+    # (id, min, max, period, currency)
+    correct: list[tuple[int, float, float, str, str | None]] = field(default_factory=list)
     clear: list[int] = field(default_factory=list)
     examples: list[str] = field(default_factory=list)
     checked: int = 0
@@ -45,9 +47,10 @@ def decide(rows) -> Plan:
         if pay is None:
             plan.clear.append(job_id)
             plan.examples.append(f"  clear   #{job_id}: {before}")
-        elif pay != (low, high, period):
+        elif pay != (low, high, period, currency):
             plan.correct.append((job_id, *pay))
-            plan.examples.append(f"  correct #{job_id}: {before} -> {pay[0]:,.0f}-{pay[1]:,.0f} a {pay[2]}")
+            after = f"{pay[0]:,.0f}-{pay[1]:,.0f} {pay[3] or '?'} a {pay[2]}"
+            plan.examples.append(f"  correct #{job_id}: {before} -> {after}")
     return plan
 
 
@@ -62,8 +65,9 @@ def plan_for(conn: psycopg.Connection) -> Plan:
 def apply(conn: psycopg.Connection, plan: Plan) -> None:
     with conn.cursor() as cur:
         cur.executemany(
-            "UPDATE jobs SET salary_min = %s, salary_max = %s, salary_period = %s WHERE id = %s",
-            [(low, high, period, job_id) for job_id, low, high, period in plan.correct],
+            "UPDATE jobs SET salary_min = %s, salary_max = %s, salary_period = %s, salary_currency = %s"
+            " WHERE id = %s",
+            [(low, high, period, code, job_id) for job_id, low, high, period, code in plan.correct],
         )
         if plan.clear:
             cur.execute(

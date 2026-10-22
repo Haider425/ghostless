@@ -2255,7 +2255,7 @@ export interface components {
             period: "year" | "month" | "hour";
             /**
              * Currency
-             * @description CAD, USD, GBP, EUR or AUD; null when the posting does not say
+             * @description ISO 4217 code: CAD, USD, GBP, EUR, INR, PLN, SGD, ...; when the posting doesn't name one, its country's currency; null only when neither is known (then it's dollars)
              */
             currency?: string | null;
         };

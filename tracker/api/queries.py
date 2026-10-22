@@ -17,6 +17,7 @@ from psycopg.rows import dict_row
 
 from tracker import insights
 from tracker.classify import is_upcoming, term_start
+from tracker.currency import usd_case_sql
 from tracker.disclosures import ai_screening_evidence, parse_salary, vacancy_evidence
 
 TECH_ROLES = ["sde", "data_eng", "data", "ml", "hardware", "security"]
@@ -47,8 +48,12 @@ SPREAD = (
     f"({LISTED} - (row_number() OVER (PARTITION BY j.company_id, {LISTED} ORDER BY {MIX}) - 1)"
     " * interval '12 hours')"
 )
-# pay as a yearly amount, so hourly, monthly and yearly ranges sort together
-YEARLY_PAY = "j.salary_max * CASE j.salary_period WHEN 'hour' THEN 2080 WHEN 'month' THEN 12 ELSE 1 END"
+# pay as a yearly amount in US dollars, so hourly, monthly and yearly ranges in
+# any currency sort together (rough rates, tracker/currency.py)
+YEARLY_PAY = (
+    "j.salary_max * CASE j.salary_period WHEN 'hour' THEN 2080 WHEN 'month' THEN 12 ELSE 1 END"
+    f" * {usd_case_sql('j.salary_currency')}"
+)
 SORTS = {
     "newest": f"{SPREAD} DESC, {MIX}",
     "oldest": f"{LISTED} ASC, {MIX}",

@@ -27,20 +27,22 @@ ROWS = [
     (10275, 21, 21, "year", "USD", "US"),  # Protective Life: $21 an hour
     (15822, 200, 400000, "year", "USD", "US"),  # Normal Computing: "$200 - $400,000"
     (11628, 5000000, 5000000, "year", "USD", "US"),  # Mercor: a research grant
-    (13384, 5000000, 8000000, "year", None, "IN"),  # AiPrise: rupees
+    (13384, 3000000, 5000000, "year", None, "IN"),  # AiPrise: rupees with no currency named
+    (2, 65, 65, "hour", None, "IN"),  # 65 rupees an hour can't be right
     (1, 90000, 110000, "year", "CAD", "CA"),  # fine: left alone
 ]
 
 
 def test_decide():
     plan = fix.decide(ROWS)
-    assert plan.checked == 6
+    assert plan.checked == 7
     assert plan.correct == [
-        (9898, 200000, 315000, "year"),
-        (10275, 21, 21, "hour"),
-        (15822, 200000, 400000, "year"),
+        (9898, 200000, 315000, "year", "USD"),
+        (10275, 21, 21, "hour", "USD"),
+        (15822, 200000, 400000, "year", "USD"),
+        (13384, 3000000, 5000000, "year", "INR"),
     ]
-    assert plan.clear == [11628, 13384]
+    assert plan.clear == [11628, 2]
 
 
 def test_apply_changes_only_what_it_plans_and_a_second_run_finds_nothing():

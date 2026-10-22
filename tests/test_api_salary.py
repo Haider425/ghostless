@@ -18,13 +18,13 @@ DSN = os.environ.get("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(not DSN, reason="TEST_DATABASE_URL not set")
 
 
-def job(ext_id, pay):
+def job(ext_id, pay, location="Toronto, ON"):
     title = "Software Engineer"
     j = Job(
         external_id=ext_id,
         title=title,
         url=f"https://acme.example/{ext_id}",
-        location="Toronto, ON",
+        location=location,
         description=f"Python. {pay}",
     )
     return enrich(j, extract_skills(title))
@@ -49,6 +49,8 @@ def client():
                 job("hourly", "Pay: $40 - $45 per hour."),  # about $94k a year
                 job("monthly", "Salary: $8,000 - $9,000 per month."),  # $108k a year
                 job("yearly", "Salary $90,000 - $100,000 per year."),
+                # about US$60k a year: rupees sort by what they're worth, not their number
+                job("rupees", "Salary: INR 3,000,000 - 5,000,000 per year.", "Bengaluru, India"),
                 job("unpaid", "No pay listed."),
             ],
             when,
@@ -59,8 +61,8 @@ def client():
             dict(
                 companies_ok=1,
                 companies_failed=0,
-                jobs_seen=4,
-                jobs_new=4,
+                jobs_seen=5,
+                jobs_new=5,
                 jobs_closed=0,
                 duration_seconds=1.0,
             ),
@@ -75,6 +77,14 @@ def test_monthly_pay_is_returned_and_pay_sorts_by_the_yearly_amount(client):
     response = client.get("/jobs", params={"sort": "salary"})
     assert response.status_code == 200, response.text
     items = response.json()["items"]
-    assert [item["url"].rsplit("/", 1)[-1] for item in items] == ["monthly", "yearly", "hourly", "unpaid"]
+    assert [item["url"].rsplit("/", 1)[-1] for item in items] == [
+        "monthly",
+        "yearly",
+        "hourly",
+        "rupees",
+        "unpaid",
+    ]
     monthly = items[0]["salary"]
     assert monthly["period"] == "month" and (monthly["min"], monthly["max"]) == (8000.0, 9000.0)
+    rupees = items[3]["salary"]
+    assert (rupees["currency"], rupees["period"], rupees["max"]) == ("INR", "year", 5000000.0)

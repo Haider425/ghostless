@@ -327,7 +327,7 @@ def set_checked_pay(job: Job, country: str | None) -> None:
     if pay is None:
         job.salary_min = job.salary_max = job.salary_period = job.salary_currency = None
     else:
-        job.salary_min, job.salary_max, job.salary_period = pay
+        job.salary_min, job.salary_max, job.salary_period, job.salary_currency = pay
 
 
 def enrich(job: Job, skills: list[str]) -> Job:
@@ -362,9 +362,7 @@ def enrich(job: Job, skills: list[str]) -> Job:
     if salary:
         job.salary_min, job.salary_max, job.salary_period = salary.minimum, salary.maximum, salary.period
         job.salary_currency = salary.currency
-    if job.salary_min is not None and job.salary_currency is None:
-        # an unlabelled "$" is the dollar of the posting's country
-        job.salary_currency = {"CA": "CAD", "US": "USD"}.get(home or "")
+    # pay that names no currency is in the posting country's own (checked_pay)
     if job.salary_min is not None:
         set_checked_pay(job, home)
     # Text disclosures win, but keep a status the source itself reported
