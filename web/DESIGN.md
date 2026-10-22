@@ -43,6 +43,7 @@ Every text colour passes WCAG AA (4.5:1) on every surface it's used on, in both 
 - **Cards (`.card`) and panels (`.panel`):** white, 1px hairline, 20px radius, soft shadow.
 - **Filter pills (`.pill`):** rounded, outlined; tinted when on.
 - **Quick links on home:** pastel pills with a coloured dot.
+- **Company logos (`CompanyLogo`):** the company's site icon on a white tile with a hairline. Websites come from companies.yaml and, for every other company, from `ghostless domains` (part of the nightly run). Without one, the initials in Bricolage on one of three soft tints (warm, lilac, sky), picked from the name; never a status pastel.
 - **Status chips (`.chip` with `.chip-good`, `.chip-warn`, `.chip-bad`, `.chip-neutral`):** fully rounded, 24px tall (`.chip-md` is larger). Every pair passes AA (5.16:1 or more) in both themes. No icons in age chips.
 - **Empty states (`EmptyState`):** the mascot, a title that says what's missing, one sentence, one action.
 - **Loading:** the floating mascot with one line of what's happening ("Checking today's postings…"), above skeleton rows. The float stops for reduced motion.

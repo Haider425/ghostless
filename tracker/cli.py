@@ -105,6 +105,14 @@ def _parser() -> argparse.ArgumentParser:
     admin.add_argument("action", choices=["add", "remove", "list"])
     admin.add_argument("email", nargs="?", help="the account's email (for add and remove)")
 
+    domains = commands.add_parser(
+        "domains", help="find company websites, for logos (also part of ingest, a few hundred a night)"
+    )
+    domains.add_argument("--dry-run", action="store_true", help="only show what would be filled in")
+    domains.add_argument(
+        "--all", action="store_true", help="look up every company that's due, not a night's share"
+    )
+    domains.add_argument("-v", "--verbose", action="store_true", help="list every website found")
     commands.add_parser(
         "reprocess", help="re-derive pay, disclosures and repost links for stored postings (no fetching)"
     )
@@ -159,6 +167,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "dedupe":
         _dedupe()
+        return
+    if args.command == "domains":
+        _domains(args)
         return
     if args.command == "admin":
         _admin(args)
@@ -313,6 +324,22 @@ def _dedupe() -> None:
         f"Removed {result['boards']} duplicate boards, {result['companies']} duplicate companies "
         f"and {result['jobs']} duplicate postings."
     )
+
+
+def _domains(args: argparse.Namespace) -> None:
+    from tracker import db, domains
+    from tracker.config import database_url
+
+    logging.basicConfig(level=logging.WARNING, format="      ↳ %(message)s", stream=sys.stdout)
+    dsn = database_url()
+    if not args.dry_run:
+        with db.connect(dsn) as conn:
+            db.apply_schema(conn)
+    report = domains.fill(dsn, lookups=None if args.all else domains.LOOKUPS_PER_RUN, dry_run=args.dry_run)
+    if args.verbose:
+        for name, domain, source in report.found:
+            print(f"  {name:40} {domain:32} {source}")
+    print(("Would fill in: " if args.dry_run else "Filled in: ") + report.summary())
 
 
 def _admin(args: argparse.Namespace) -> None:

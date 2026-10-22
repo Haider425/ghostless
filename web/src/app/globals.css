@@ -520,10 +520,17 @@
     display: none;
   }
   /* Lettered logo tiles: one warm neutral, so logos never add colour to a list. */
+  /* a company without a known logo: its initials on one of three soft tints,
+     picked from the name so a company always gets the same one. Never the
+     status pastels (mint, butter, blush), which mean good, caution and problem. */
   .logo-tile {
-    background: var(--sunken);
-    color: var(--ink-soft);
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--ink);
+    background: var(--fill);
   }
+  .logo-tile-1 { background: var(--b-lilac); }
+  .logo-tile-2 { background: var(--b-sky); }
 }
 
 /* Reduced motion: the system setting, or the visitor's choice in Settings. */
