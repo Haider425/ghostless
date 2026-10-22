@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from dataclasses import dataclass
 
 from tracker import db, settings
@@ -209,7 +210,8 @@ def verify(dsn: str, budget: int | None = None) -> dict[str, int]:
     if settings.snowball() or settings.index_seeding():  # boards from links or from the URL index
         platforms += list(ATS_PLATFORMS) + sorted(settings.sources())
     budget = settings.verify_per_run() if budget is None else budget
-    counts = dict(checked=0, active=0, empty=0, failed=0, dead=0, replaced=0)
+    deadline = time.monotonic() + 60 * settings.verify_minutes()
+    counts = dict(checked=0, active=0, empty=0, failed=0, dead=0, replaced=0, deferred=0)
     if not platforms or budget <= 0:
         return counts
     with db.connect(dsn) as conn:
@@ -224,7 +226,9 @@ def verify(dsn: str, budget: int | None = None) -> dict[str, int]:
         ).fetchall()
     companies = {(p, s): (n, u) for p, s, n, u in rows}
 
-    def work(company: Company) -> Check:
+    def work(company: Company) -> Check | None:
+        if time.monotonic() > deadline:
+            return None  # out of time: stays a candidate for the next run
         return check(
             company.platform, company.board_slug, companies[(company.platform, company.board_slug)][1]
         )
@@ -233,16 +237,20 @@ def verify(dsn: str, budget: int | None = None) -> dict[str, int]:
         Company(name=n, platform=p, board_slug=s, origin="discovered") for (p, s), (n, _) in companies.items()
     ]
     for company, result in run_by_site(targets, site_of, work):
+        if result is None:
+            counts["deferred"] += 1
+            continue
         if isinstance(result, BaseException):
             log.error("candidate %s: %s", company.board_slug, result)
             result = Check("failed")
         counts["checked"] += 1
         state = _record(dsn, company, result)
         counts[state] = counts.get(state, 0) + 1
-    if counts["checked"]:
+    if counts["checked"] or counts["deferred"]:
         log.info(
-            "candidates checked: %d (%d active, %d empty, %d failed, %d dead, %d replaced)",
+            "candidates checked: %d (%d active, %d empty, %d failed, %d dead, %d replaced); %d left for the next run",
             counts["checked"], counts["active"], counts["empty"], counts["failed"], counts["dead"], counts["replaced"],
+            counts["deferred"],
         )  # fmt: skip
     return counts
 

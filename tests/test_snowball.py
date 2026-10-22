@@ -255,6 +255,27 @@ def test_candidate_states(conn, monkeypatch):
 
 
 @needs_db
+def test_candidates_not_checked_in_time_wait_for_the_next_run(conn, monkeypatch):
+    monkeypatch.setenv("GHOSTLESS_SNOWBALL", "1")
+    for slug in ("one", "two"):
+        conn.execute(
+            "INSERT INTO discovered_boards (platform, board_slug, company_name, state)"
+            " VALUES ('lever', %s, %s, 'candidate')",
+            (slug, slug),
+        )
+    conn.commit()
+    monkeypatch.setattr(snowball, "check", lambda *a: pytest.fail("no time left: nothing is checked"))
+    monkeypatch.setattr(snowball.settings, "verify_minutes", lambda: 0)  # the budget is already spent
+
+    counts = snowball.verify(DSN)
+    assert counts["checked"] == 0 and counts["deferred"] == 2
+    assert states(conn) == {"one": "candidate", "two": "candidate"}
+    assert (
+        conn.execute("SELECT count(*) FROM discovered_boards WHERE next_due IS NOT NULL").fetchone()[0] == 0
+    )
+
+
+@needs_db
 def test_checks_are_switched_off_by_default(conn, monkeypatch):
     conn.execute(
         "INSERT INTO discovered_boards (platform, board_slug, company_name, state) VALUES ('lever', 'x', 'x', 'candidate')"
