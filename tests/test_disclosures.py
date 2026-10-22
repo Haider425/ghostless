@@ -3,6 +3,7 @@ import pytest
 from tracker.classify import enrich
 from tracker.disclosures import (
     Salary,
+    checked_pay,
     fingerprint,
     has_description_hash,
     parse_ai_screening,
@@ -11,6 +12,7 @@ from tracker.disclosures import (
     vacancy_evidence,
 )
 from tracker.models import Job
+from tracker.sources.common import set_pay
 
 
 @pytest.mark.parametrize(
@@ -270,3 +272,76 @@ def test_fingerprint_separates_the_same_role_in_other_cities():
 def test_only_description_fingerprints_can_be_duplicates():
     assert has_description_hash(fingerprint("Analyst", "Toronto", "Some description"))
     assert not has_description_hash(fingerprint("Analyst", "Toronto"))
+
+
+@pytest.mark.parametrize(
+    "stated, shown",
+    [
+        ((90000, 110000, "year", "CAD", "CA"), (90000, 110000, "year", "CAD")),
+        ((90000, 110000, "year", None, "CA"), (90000, 110000, "year", "CAD")),  # the country's dollar
+        ((30, 38, "hour", None, None), (30, 38, "hour", None)),  # no country: dollars
+        ((200000, 315000, "hour", "USD", "US"), (200000, 315000, "year", "USD")),  # a range titled "hourly"
+        ((21, 21, "year", "USD", "US"), (21, 21, "hour", "USD")),
+        ((8500, 10000, "year", "USD", "US"), (8500, 10000, "month", "USD")),  # an intern's monthly pay
+        ((1925, 1925, "year", "USD", "US"), None),  # "$1,925 per week": not a month either
+        ((1500, 2000, "month", "USD", "US"), (1500, 2000, "month", "USD")),  # stated monthly: kept
+        ((200, 400000, "year", "USD", "US"), (200000, 400000, "year", "USD")),  # "$200 - $400,000"
+        ((22000, 292000, "year", "USD", "US"), None),  # a dropped digit
+        ((5000000, 5000000, "year", "USD", "US"), None),  # a research grant
+        # other currencies: kept in their own, and judged by what they're worth
+        ((3000000, 5000000, "year", None, "IN"), (3000000, 5000000, "year", "INR")),  # rupees, in lakhs
+        ((3000000, 5000000, "year", "INR", "US"), (3000000, 5000000, "year", "INR")),
+        ((16000, 24000, "year", None, "PL"), (16000, 24000, "month", "PLN")),  # zloty a month
+        ((200000, 400000, "year", None, "SG"), (200000, 400000, "year", "SGD")),
+        ((230000000, 315000000, "year", None, "KR"), (230000000, 315000000, "year", "KRW")),
+        ((65, 65, "hour", None, "IN"), None),  # 65 rupees an hour: under a dollar
+        ((6333, 12500, "year", None, "PL"), (6333, 12500, "month", "PLN")),  # a junior's zloty a month
+        ((133200, 185000, "year", None, "IN"), (133200, 185000, "month", "INR")),
+        ((100000, 150000, "year", "XYZ", "US"), None),  # a currency Ghostless doesn't know
+    ],
+)
+def test_checked_pay(stated, shown):
+    assert checked_pay(*stated) == shown
+
+
+def test_pay_from_a_source_field_is_checked_like_pay_from_the_text():
+    job = Job(external_id="1", title="Software Engineer", url="", location="San Mateo, CA")
+    set_pay(job, 200000, 315000, "USD", "hour")
+    enrich(job, [])
+    assert (job.salary_min, job.salary_max, job.salary_period) == (200000, 315000, "year")
+
+    mercor = Job(external_id="2", title="Research Grant", url="", location="San Francisco, CA")
+    set_pay(mercor, 5000000, 5000000, "USD", "year")
+    enrich(mercor, [])
+    assert mercor.salary_min is None and mercor.salary_currency is None
+
+
+def test_pay_in_another_currency_is_kept_in_it():
+    job = Job(external_id="1", title="Software Engineer", url="", location="Bengaluru, India")
+    set_pay(job, 3000000, 5000000, "INR", "year")
+    enrich(job, [])
+    assert (job.salary_min, job.salary_max, job.salary_period, job.salary_currency) == (
+        3000000,
+        5000000,
+        "year",
+        "INR",
+    )
+
+    unknown = Job(external_id="2", title="Software Engineer", url="", location="Austin, TX")
+    set_pay(unknown, 100000, 150000, "XYZ", "year")
+    assert unknown.salary_min is None
+
+
+@pytest.mark.parametrize(
+    "text, country, pay",
+    [
+        ("Pay: ₹30,00,000 - ₹50,00,000 per annum", "IN", (3000000, 5000000, "year", "INR")),
+        ("CTC INR 18,00,000 to 24,00,000", "IN", (1800000, 2400000, "year", "INR")),
+        ("S$6,000 - S$9,000 per month", "SG", (6000, 9000, "month", "SGD")),
+        ("Salary: $120,000 - $150,000 per year", "GB", (120000, 150000, "year", "USD")),  # "$" in London
+        ("We write PHP and Go. Salary $90,000 - $110,000 per year", "US", (90000, 110000, "year", None)),
+    ],
+)
+def test_pay_in_other_currencies_from_the_text(text, country, pay):
+    salary = parse_salary(text, country)
+    assert (salary.minimum, salary.maximum, salary.period, salary.currency) == pay

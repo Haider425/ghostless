@@ -105,10 +105,44 @@ export function formatMonthDay(isoDate: string): string {
 
 /** Pound and euro amounts carry their own symbol; dollar amounts name their currency at the end. */
 const SYMBOLS: Record<string, string> = { GBP: "£", EUR: "€" };
+const DOLLARS = new Set(["USD", "CAD", "AUD"]);
+const PER = { hour: " an hour", month: " a month", year: " a year" } as const;
 
-export function formatSalary(salary: NonNullable<Job["salary"]>): string {
-  const symbol = SYMBOLS[salary.currency ?? ""] ?? "$";
-  const currency = symbol === "$" ? (salary.currency ?? "") : "";
+/**
+ * Any other currency, the way its own readers write it: rupees in lakhs (₹30L),
+ * others with their sign or code (SGD 200k, PLN 16,000, ₩230M). Yearly pay is
+ * shortened; hourly and monthly pay is shown in full.
+ */
+function formatForeignSalary(salary: NonNullable<Job["salary"]>, code: string): string {
+  const locale = code === "INR" ? "en-IN" : "en-CA";
+  const money = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: code,
+    ...(salary.period === "year"
+      ? { notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1 }
+      : { minimumFractionDigits: 0, maximumFractionDigits: salary.period === "hour" ? 2 : 0 }),
+  });
+  const show = (value: number) => money.format(value).replace(/(\d)K\b/, "$1k");
+  const range = salary.min === salary.max ? show(salary.min) : `${show(salary.min)} to ${show(salary.max)}`;
+  return `${range}${PER[salary.period]}`;
+}
+
+/**
+ * Pay as the posting states it. Pay whose currency isn't known (the API sends
+ * null) is never shown as dollars: the amounts appear without a symbol, and
+ * outside compact rows the text says the currency isn't stated.
+ */
+export function formatSalary(salary: NonNullable<Job["salary"]>, options: { compact?: boolean } = {}): string {
+  const code = salary.currency ?? "";
+  if (code && !DOLLARS.has(code) && !SYMBOLS[code]) {
+    try {
+      return formatForeignSalary(salary, code);
+    } catch {
+      // a code this browser doesn't know: fall through to the plain format, naming the code
+    }
+  }
+  const symbol = !code ? "" : (SYMBOLS[code] ?? (DOLLARS.has(code) ? "$" : ""));
+  const suffix = !code ? (options.compact ? "" : " (currency not stated)") : SYMBOLS[code] ? "" : ` ${code}`;
   const hourly = salary.period === "hour";
   // hourly rates with cents show both digits ($25.50, $32.00); whole rates show none ($30)
   const cents = hourly && (salary.min % 1 !== 0 || salary.max % 1 !== 0) ? 2 : 0;
@@ -117,8 +151,7 @@ export function formatSalary(salary: NonNullable<Job["salary"]>): string {
   const show = (value: number) =>
     salary.period === "year" ? `${symbol}${money.format(Math.round(value / 1000))}k` : `${symbol}${money.format(value)}`;
   const range = salary.min === salary.max ? show(salary.min) : `${show(salary.min)} to ${show(salary.max)}`;
-  const per = { hour: " an hour", month: " a month", year: " a year" }[salary.period];
-  return `${range}${per}${currency ? ` ${currency}` : ""}`;
+  return `${range}${PER[salary.period]}${suffix}`;
 }
 
 export function pluralize(count: number, one: string, many = `${one}s`): string {

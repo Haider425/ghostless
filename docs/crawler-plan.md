@@ -192,7 +192,8 @@ Sites are found from companies' `domain` fields and from links in B1. Pages are 
 |---|---|---|
 | `GHOSTLESS_SNOWBALL` | off | B1: notes Greenhouse, Lever, Ashby and Workday boards linked from postings (addresses and descriptions), registers them as candidates, and checks them |
 | `GHOSTLESS_JSONLD` | off | B3: notes career sites from job list entries, checks them, and reads the active ones |
-| `GHOSTLESS_VERIFY_PER_RUN` | 100 | candidates checked per run, one request each |
+| `GHOSTLESS_VERIFY_PER_RUN` | 16000 | candidates checked per run, one request each |
+| `GHOSTLESS_VERIFY_MINUTES` | 45 | time a run may spend on those checks; the rest wait for the next run |
 | `GHOSTLESS_JSONLD_PAGES_PER_SITE` | 25 | job pages read per career site per run |
 | `GHOSTLESS_JSONLD_SITEMAPS` | 3 | sitemap files read per career site per run |
 | `GHOSTLESS_JSONLD_URLS` | 2000 | job links considered per career site |

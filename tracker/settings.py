@@ -14,7 +14,8 @@ variables in the GitHub workflow):
 
 Limits, with their defaults (only used when the switch above is on):
 
-    GHOSTLESS_VERIFY_PER_RUN=100         candidate boards and sites checked per run, one request each
+    GHOSTLESS_VERIFY_PER_RUN=16000       candidate boards and sites checked per run, one request each
+    GHOSTLESS_VERIFY_MINUTES=45          ...within this time; the rest wait for the next run
     GHOSTLESS_JSONLD_PAGES_PER_SITE=25   job pages read per career site per run
     GHOSTLESS_JSONLD_SITEMAPS=3          sitemap files read per career site per run
     GHOSTLESS_JSONLD_URLS=2000           job links considered per career site
@@ -49,7 +50,14 @@ def index_seeding() -> bool:
 
 
 def verify_per_run() -> int:
-    return _number("GHOSTLESS_VERIFY_PER_RUN", 100, high=1000)
+    return _number("GHOSTLESS_VERIFY_PER_RUN", 16_000, high=20_000)
+
+
+def verify_minutes() -> int:
+    """How long one run may spend checking candidates. Checks go at each site's
+    polite rate (tracker/sources/http.py), so thousands take a while; whatever
+    isn't checked in time stays a candidate for the next run."""
+    return _number("GHOSTLESS_VERIFY_MINUTES", 45, low=1, high=180)
 
 
 def jsonld_pages_per_site() -> int:

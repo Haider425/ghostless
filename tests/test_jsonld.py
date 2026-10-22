@@ -229,16 +229,18 @@ def test_settings_are_off_by_default_and_bounded(monkeypatch):
         "GHOSTLESS_SNOWBALL",
         "GHOSTLESS_JSONLD",
         "GHOSTLESS_VERIFY_PER_RUN",
+        "GHOSTLESS_VERIFY_MINUTES",
         "GHOSTLESS_JSONLD_PAGES_PER_SITE",
     ):
         monkeypatch.delenv(name, raising=False)
     assert not settings.snowball() and not settings.jsonld()
-    assert settings.verify_per_run() == 100 and settings.jsonld_pages_per_site() == 25
+    assert settings.verify_per_run() == 16_000 and settings.jsonld_pages_per_site() == 25
+    assert settings.verify_minutes() == 45
     monkeypatch.setenv("GHOSTLESS_SNOWBALL", "1")
     monkeypatch.setenv("GHOSTLESS_VERIFY_PER_RUN", "999999")
     monkeypatch.setenv("GHOSTLESS_JSONLD_PAGES_PER_SITE", "lots")
     assert (
-        settings.snowball() and settings.verify_per_run() == 1000 and settings.jsonld_pages_per_site() == 25
+        settings.snowball() and settings.verify_per_run() == 20_000 and settings.jsonld_pages_per_site() == 25
     )
 
 

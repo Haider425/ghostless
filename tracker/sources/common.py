@@ -4,6 +4,7 @@ import os
 import re
 from datetime import datetime
 
+from tracker import currency as currencies
 from tracker.classify import classify_role, is_canada, is_remote, title_worth_storing
 
 _MULTI_LOCATION = re.compile(r"\b\d+\s+locations?\b", re.I)
@@ -113,8 +114,8 @@ def set_pay(job, low, high, currency, period) -> None:
         low, high = float(low), float(high if high is not None else low)
     except (TypeError, ValueError):
         return
-    if period is None or low <= 0 or high < low:
-        return
-    job.salary_min, job.salary_max, job.salary_period = low, high, period
     currency = (currency or "").upper() or None
-    job.salary_currency = currency if currency in ("CAD", "USD", "GBP", "EUR", "AUD") else None
+    if period is None or low <= 0 or high < low or (currency is not None and not currencies.known(currency)):
+        return  # a currency Ghostless doesn't know: the text may still state the pay in one it does
+    job.salary_min, job.salary_max, job.salary_period = low, high, period
+    job.salary_currency = currency

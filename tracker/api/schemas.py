@@ -17,7 +17,10 @@ class Salary(BaseModel):
     max: float
     period: Literal["year", "month", "hour"] = Field(description="what the amounts are paid per")
     currency: str | None = Field(
-        None, description="CAD, USD, GBP, EUR or AUD; null when the posting does not say"
+        None,
+        description="ISO 4217 code: CAD, USD, GBP, EUR, INR, PLN, SGD, ...; when the posting doesn't name "
+        "one, its country's currency; null when neither is known: the currency is unknown, so never "
+        "show the amounts as dollars",
     )
 
 

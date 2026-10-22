@@ -21,6 +21,7 @@ env:
   GHOSTLESS_SOURCES: ${{ vars.GHOSTLESS_SOURCES }}  # extra hiring systems, e.g. workable,teamtailor
   GHOSTLESS_INDEX_SEEDING: ${{ vars.GHOSTLESS_INDEX_SEEDING }}  # checks boards from discover.yml
   GHOSTLESS_VERIFY_PER_RUN: ${{ vars.GHOSTLESS_VERIFY_PER_RUN }}
+  GHOSTLESS_VERIFY_MINUTES: ${{ vars.GHOSTLESS_VERIFY_MINUTES }}
   GHOSTLESS_JSONLD_PAGES_PER_SITE: ${{ vars.GHOSTLESS_JSONLD_PAGES_PER_SITE }}
 
 jobs:
@@ -59,7 +60,8 @@ jobs:
     needs: collect
     if: ${{ !cancelled() }}   # still runs if a part failed, so the rest is saved
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # candidate checks may take up to GHOSTLESS_VERIFY_MINUTES (45) of this
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
