@@ -335,6 +335,46 @@ def test_level_and_role_mismatches_lower_the_score_and_say_why():
     assert any("hardware and embedded" in s for s in match.suggestions)
 
 
+@pytest.mark.parametrize(
+    "degree_line, asks, points",
+    [
+        # resume profiles say "bachelors" and "masters"; postings say "bachelor" and "master"
+        (
+            "Bachelor of Computer Science, Expected April 2028",
+            "Pursuing a Bachelor's degree in Computer Science.",
+            10,
+        ),
+        ("Master of Science in Computer Science, 2026", "Master's degree in Computer Science required.", 10),
+        (
+            "Master of Science in Computer Science, 2026",
+            "Bachelor's degree in Computer Science required.",
+            10,
+        ),
+        ("Bachelor of Science in Computer Science, 2025", "Master's degree in Computer Science required.", 2),
+    ],
+)
+def test_degrees_on_the_resume_count_toward_the_degree_a_posting_asks_for(degree_line, asks, points):
+    resume = f"""Alex Rivera
+alex@example.com
+
+EDUCATION
+University of Waterloo, {degree_line}
+
+SKILLS
+Python, SQL
+"""
+    profile = build_profile(resume).to_dict()
+    job = {
+        "title": "Software Engineer",
+        "level": "new_grad",
+        "role_type": "sde",
+        "skills": ["Python"],
+        "description": f"What you'll need\n- Python and SQL\n- {asks}\n",
+    }
+    education = next(p for p in score_job(profile, job).breakdown if p.key == "education")
+    assert education.points == points
+
+
 def test_jobs_without_descriptions_are_scored_cautiously():
     profile = build_profile(STRONG, TODAY).to_dict()
     match = score_job(profile, {**JOB, "skills": []})

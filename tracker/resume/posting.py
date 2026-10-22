@@ -96,6 +96,15 @@ _DEGREE = (
     ),
 )
 DEGREE_RANK = {"bachelor": 1, "master": 2, "phd": 3}
+
+
+def degree_rank(name: str | None) -> int:
+    """A degree's rank, whichever way it's spelled: postings say "bachelor" and
+    "master", resume profiles (tracker.resume.profile) say "bachelors" and
+    "masters". A diploma, or no degree, is 0."""
+    return DEGREE_RANK.get((name or "").removesuffix("s"), 0)
+
+
 _FIELDS = (
     "computer science",
     "computer engineering",
