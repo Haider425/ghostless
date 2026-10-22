@@ -37,6 +37,8 @@
   --surface: #ffffff;
   --sunken: #f3ede2;
   --hover: #ece5d7;
+  /* tags and neutral chips: the sunken tone in light, lifted in dark so they show on cards */
+  --fill: #f3ede2;
   --ink: #17140f;
   --ink-soft: #5c564c;
   --ink-faint: #6a6358;
@@ -88,7 +90,7 @@
 /* Dark tokens: declared twice, for the system setting and for an explicit choice. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #191713; --surface: #23201b; --sunken: #201d19; --hover: #2b2722;
+    --paper: #191713; --surface: #23201b; --sunken: #201d19; --hover: #2b2722; --fill: #322d27;
     --ink: #f3efe7; --ink-soft: #bdb6a9; --ink-faint: #9f978a;
     --line: #34302a; --line-strong: #463f36;
     --accent: #6aaef5; --accent-solid: #1c6fcc; --accent-hover: #2a7bd6; --accent-tint: #1c2b3c; --on-accent: #ffffff;
@@ -105,7 +107,7 @@
   }
 }
 :root[data-theme="dark"] {
-  --paper: #191713; --surface: #23201b; --sunken: #201d19; --hover: #2b2722;
+  --paper: #191713; --surface: #23201b; --sunken: #201d19; --hover: #2b2722; --fill: #322d27;
   --ink: #f3efe7; --ink-soft: #bdb6a9; --ink-faint: #9f978a;
   --line: #34302a; --line-strong: #463f36;
   --accent: #6aaef5; --accent-solid: #1c6fcc; --accent-hover: #2a7bd6; --accent-tint: #1c2b3c; --on-accent: #ffffff;
@@ -449,7 +451,7 @@
   .chip-good { background: var(--b-mint); color: var(--b-green); }
   .chip-warn { background: var(--b-butter); color: var(--ochre); }
   .chip-bad { background: var(--b-blush); color: var(--brick); }
-  .chip-neutral { background: var(--sunken); color: var(--ink-soft); }
+  .chip-neutral { background: var(--fill); color: var(--ink-soft); }
 
   /* ---------- Metadata ---------- */
   /* a quiet chip for facts: level, season, skill */
@@ -460,7 +462,7 @@
     height: 1.75rem;
     padding-inline: 0.75rem;
     border-radius: 999px;
-    background: var(--sunken);
+    background: var(--fill);
     font-size: var(--text-sm);
     font-weight: 500;
     line-height: 1;
