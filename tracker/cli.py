@@ -105,6 +105,18 @@ def _parser() -> argparse.ArgumentParser:
     admin.add_argument("action", choices=["add", "remove", "list"])
     admin.add_argument("email", nargs="?", help="the account's email (for add and remove)")
 
+    label_resume = commands.add_parser(
+        "label-resume", help="build and label the resume evaluation set (eval/resume)"
+    )
+    label_resume.add_argument(
+        "action", nargs="?", default="label", choices=["label", "pool", "status"],
+        help="label pairs (default), pool: choose postings to label, status: progress",
+    )  # fmt: skip
+    label_resume.add_argument(
+        "--db", metavar="URL", help="for pool: the database to read postings from (use a local copy)"
+    )
+    label_resume.add_argument("--per", type=int, default=8, help="for pool: postings per resume (default 8)")
+    label_resume.add_argument("--only", metavar="ID", help="one resume only, by its id")
     domains = commands.add_parser(
         "domains", help="find company websites, for logos (also part of ingest, a few hundred a night)"
     )
@@ -170,6 +182,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "domains":
         _domains(args)
+        return
+    if args.command == "label-resume":
+        _label_resume(args)
         return
     if args.command == "admin":
         _admin(args)
@@ -324,6 +339,22 @@ def _dedupe() -> None:
         f"Removed {result['boards']} duplicate boards, {result['companies']} duplicate companies "
         f"and {result['jobs']} duplicate postings."
     )
+
+
+def _label_resume(args: argparse.Namespace) -> None:
+    from tracker.resume import label
+
+    if args.action == "pool":
+        if not args.db:
+            raise SystemExit(
+                "pool reads postings from a database: pass --db with a local copy's URL "
+                '(or --db "$DATABASE_URL" to read Neon, which counts toward its transfer)'
+            )
+        label.pool(args.db, per_resume=args.per, only=args.only)
+    elif args.action == "status":
+        label.status()
+    else:
+        label.label(only=args.only)
 
 
 def _domains(args: argparse.Namespace) -> None:

@@ -1,6 +1,6 @@
 # Resume models: plan
 
-**Status: proposal, waiting for approval. No code until it's approved.**
+**Status: approved 22 October 2026, with three changes: the two audit bugs fixed first (done), a few real resumes in the held-out set (section 5), and Neon's Build plan figures as given (5 GB storage, 25 GB transfer a month).**
 
 Based on `docs/resume-model-audit.md` (what's wrong today) and
 `docs/resume-model-research.md` (models, taxonomies, data, storage).
@@ -171,10 +171,17 @@ measured on our CPU.
 I write them; you review them. They live in `eval/resume/personas/`, are
 synthetic, and are clearly marked as such.
 
+**A few real resumes, for evaluation only.** You'll provide some real resumes
+(yours, and friends' with their permission). They:
+- live only in `eval/resume/private/resumes/`, which is git-ignored and never committed;
+- are never logged: tools print names and ids, never resume text;
+- go **only into the held-out set**, so they're never used for tuning, choosing thresholds or training;
+- can be deleted at any time by deleting the files, together with their labels.
+
 **Postings for labelling.** Real open postings, referenced **by id and text
-hash** in the repo. The full posting text is snapshotted to a private local
-folder (`data/private/`, git-ignored), so labels stay usable after a posting
-closes. Employer text doesn't get republished in the public repo.
+hash** in the repo. The full posting text is snapshotted to the same private
+folder (`eval/resume/private/`), so labels stay usable after a posting closes.
+Employer text doesn't get republished in the public repo.
 
 **Your labels.** At least **150 resume–job pairs**, aiming for 300. Each pair
 gets:
@@ -208,7 +215,7 @@ label, and saves after each answer. Estimate: about 30–45 seconds a pair, so
 
 **Built first, before any model work.**
 
-- **Split.** About 30% of the **personas**, with all their pairs, form the held-out set. Splitting by persona, not by pair, means no tuning ever sees those resumes. The split is frozen with a hash file, and a test fails if it changes.
+- **Split.** About 30% of the **personas**, with all their pairs, form the held-out set, plus **every real resume**. Splitting by persona, not by pair, means no tuning ever sees those resumes. The split is frozen with a hash file, and a test fails if it changes.
 - **Command.** `ghostless evaluate-resume [--holdout] [--system NAME]` runs any system on the set and writes a report.
 
 **Metrics:**
@@ -255,7 +262,7 @@ Not built now, but the stage 4 tables are shaped for it:
 - **Label time is the main cost.** 300 pairs is about 2–3 hours of your time, and the quality of everything after stage 1 depends on it.
 - **Taxonomy coverage.** ESCO's coverage of frameworks and tools is unknown until measured. O\*NET and our own list should cover tech well.
 - **Your API host's memory and CPU** decide int8 vs fp32 and whether the model stays loaded. This gets measured in stage 4.
-- **Neon plan:** Neon's docs don't show a "Build" plan; the estimates use your figures (5 GB, 25 GB a month). Even with generous rounding, embeddings stay under 200 MB.
+- **Neon Build plan** (5 GB storage, 25 GB transfer a month): embeddings stay under 200 MB even with generous rounding, and add only a few KB of transfer per recommendation.
 - **Non-English postings** are out of scope for now (bge-small is English-only).
 
 ## 10. What I need from you to start

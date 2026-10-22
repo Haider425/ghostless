@@ -1,0 +1,16 @@
+{
+  "holdout": [
+    "ai-research-phd-montreal",
+    "backend-mid-toronto",
+    "cafe-supervisor-toronto",
+    "dotnet-mid-quebec",
+    "embedded-coop-hamilton",
+    "highschool-toronto",
+    "ios-ng-montreal",
+    "ml-ng-vancouver",
+    "quant-dev-ng-nyc",
+    "security-student-ottawa",
+    "senior-frontend-remote-us"
+  ],
+  "sha256": "55bd749dc60bf693430680a89d3e0727472ed92b5607fb169d03f8eba049cac2"
+}

@@ -143,8 +143,7 @@ Neon offers pgvector 0.8.6 (checked against the database), with `halfvec`
 need `maintenance_work_mem` (no more than 50–60% of the compute's memory).
 At our size the index builds in seconds, so that's not a concern.
 
-Note: Neon's current docs don't list a "Build" plan. This estimate uses your
-figures: 5 GB storage, 25 GB transfer a month.
+Plan: Neon Build, with 5 GB storage and 25 GB transfer a month.
 
 **Storage per posting (384 dimensions):**
 
