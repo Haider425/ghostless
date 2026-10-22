@@ -127,7 +127,12 @@ function formatForeignSalary(salary: NonNullable<Job["salary"]>, code: string): 
   return `${range}${PER[salary.period]}`;
 }
 
-export function formatSalary(salary: NonNullable<Job["salary"]>): string {
+/**
+ * Pay as the posting states it. Pay whose currency isn't known (the API sends
+ * null) is never shown as dollars: the amounts appear without a symbol, and
+ * outside compact rows the text says the currency isn't stated.
+ */
+export function formatSalary(salary: NonNullable<Job["salary"]>, options: { compact?: boolean } = {}): string {
   const code = salary.currency ?? "";
   if (code && !DOLLARS.has(code) && !SYMBOLS[code]) {
     try {
@@ -136,8 +141,8 @@ export function formatSalary(salary: NonNullable<Job["salary"]>): string {
       // a code this browser doesn't know: fall through to the plain format, naming the code
     }
   }
-  const symbol = SYMBOLS[code] ?? "$";
-  const currency = symbol === "$" ? (salary.currency ?? "") : "";
+  const symbol = !code ? "" : (SYMBOLS[code] ?? (DOLLARS.has(code) ? "$" : ""));
+  const suffix = !code ? (options.compact ? "" : " (currency not stated)") : SYMBOLS[code] ? "" : ` ${code}`;
   const hourly = salary.period === "hour";
   // hourly rates with cents show both digits ($25.50, $32.00); whole rates show none ($30)
   const cents = hourly && (salary.min % 1 !== 0 || salary.max % 1 !== 0) ? 2 : 0;
@@ -146,7 +151,7 @@ export function formatSalary(salary: NonNullable<Job["salary"]>): string {
   const show = (value: number) =>
     salary.period === "year" ? `${symbol}${money.format(Math.round(value / 1000))}k` : `${symbol}${money.format(value)}`;
   const range = salary.min === salary.max ? show(salary.min) : `${show(salary.min)} to ${show(salary.max)}`;
-  return `${range}${PER[salary.period]}${currency ? ` ${currency}` : ""}`;
+  return `${range}${PER[salary.period]}${suffix}`;
 }
 
 export function pluralize(count: number, one: string, many = `${one}s`): string {

@@ -19,7 +19,8 @@ class Salary(BaseModel):
     currency: str | None = Field(
         None,
         description="ISO 4217 code: CAD, USD, GBP, EUR, INR, PLN, SGD, ...; when the posting doesn't name "
-        "one, its country's currency; null only when neither is known (then it's dollars)",
+        "one, its country's currency; null when neither is known: the currency is unknown, so never "
+        "show the amounts as dollars",
     )
 
 

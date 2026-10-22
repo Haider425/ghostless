@@ -52,6 +52,8 @@ def client():
                 # about US$60k a year: rupees sort by what they're worth, not their number
                 job("rupees", "Salary: INR 3,000,000 - 5,000,000 per year.", "Bengaluru, India"),
                 job("unpaid", "No pay listed."),
+                # no currency named and no country to tell: the currency is unknown
+                job("unknown", "Salary: 61,000 - 65,000 per year.", "Remote"),
             ],
             when,
         )
@@ -61,8 +63,8 @@ def client():
             dict(
                 companies_ok=1,
                 companies_failed=0,
-                jobs_seen=5,
-                jobs_new=5,
+                jobs_seen=6,
+                jobs_new=6,
                 jobs_closed=0,
                 duration_seconds=1.0,
             ),
@@ -81,10 +83,13 @@ def test_monthly_pay_is_returned_and_pay_sorts_by_the_yearly_amount(client):
         "monthly",
         "yearly",
         "hourly",
+        "unknown",  # no currency: sorted as if dollars, shown without one
         "rupees",
         "unpaid",
     ]
     monthly = items[0]["salary"]
     assert monthly["period"] == "month" and (monthly["min"], monthly["max"]) == (8000.0, 9000.0)
-    rupees = items[3]["salary"]
+    unknown = items[3]["salary"]
+    assert unknown["currency"] is None and (unknown["min"], unknown["max"]) == (61000.0, 65000.0)
+    rupees = items[4]["salary"]
     assert (rupees["currency"], rupees["period"], rupees["max"]) == ("INR", "year", 5000000.0)

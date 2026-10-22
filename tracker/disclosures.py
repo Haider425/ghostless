@@ -136,14 +136,22 @@ def _currency(*tokens: str | None) -> str | None:
     return None
 
 
+# Dollars, pounds and euros (and pay with no currency) are judged in their own
+# units, with the bounds the text parser was built and measured with. Other
+# currencies are converted to US dollars and get lower floors, since a junior's
+# pay in zloty or rupees is lower than anywhere those bounds were set for.
+_OWN_UNITS = (None, "USD", "CAD", "AUD", "GBP", "EUR")
+_FLOORS = {"hour": 10, "month": 1_000, "year": 15_000}
+_FLOORS_CONVERTED = {"hour": 7, "month": 700, "year": 10_000}
+_CEILINGS = {"hour": 500, "month": 50_000, "year": 1_000_000}
+
+
 def _in_bounds(low: float, high: float, period: str, code: str | None = None) -> bool:
-    """Amounts a tech posting can pay per hour, month or year, compared in US dollars."""
-    low, high = currency.to_usd(low, code), currency.to_usd(high, code)
-    if period == "hour":
-        return 7 <= low and high <= 500
-    if period == "month":
-        return 700 <= low and high <= 50_000
-    return 10_000 <= low and high <= 1_000_000
+    """Amounts a tech posting can pay per hour, month or year."""
+    floors = _FLOORS
+    if code not in _OWN_UNITS:
+        low, high, floors = currency.to_usd(low, code), currency.to_usd(high, code), _FLOORS_CONVERTED
+    return floors[period] <= low and high <= _CEILINGS[period]
 
 
 def _plausible(low: float, high: float, period: str, code: str | None = None) -> bool:
@@ -158,7 +166,8 @@ def checked_pay(
     mistype them:
 
     - no currency named: the posting country's own (rupees in India, zloty in
-      Poland); none at all only when the country is unknown, which counts as dollars
+      Poland). When the country is unknown too, the currency stays unknown (None):
+      the amounts are judged like dollars here but never shown as dollars
     - "$200 - $400,000" a year: the low end lost its "k"
     - a period the amounts can't be ($200,000 an hour, $21 a year): the period
       the amounts fit, trying hour, month, then year. In US and Canadian

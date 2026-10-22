@@ -33,7 +33,7 @@ export function JobCard({
 }) {
   const Heading = headingLevel;
   const risk = job.signals.risk;
-  const facts = [shortLocation(job.location), LEVEL_LABELS[job.level], job.salary ? formatSalary(job.salary) : null].filter(Boolean);
+  const facts = [shortLocation(job.location), LEVEL_LABELS[job.level], job.salary ? formatSalary(job.salary, { compact: true }) : null].filter(Boolean);
   return (
     <article
       className={`job-card group relative flex gap-3.5 rounded-2xl p-4 transition-colors hover:bg-surface ${
