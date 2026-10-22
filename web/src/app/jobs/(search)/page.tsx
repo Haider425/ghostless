@@ -46,6 +46,12 @@ function resultsLabel(total: number, role: RoleScope): string {
  * The next eight seasons (the API lists only seasons that haven't started),
  * plus any season already chosen, so a shared link's filter can still be unticked.
  */
+function emptyTitle(q: string, filtered: boolean): string {
+  if (q && filtered) return `No postings match “${q}” with these filters.`;
+  if (q) return `No postings match “${q}”.`;
+  return "No postings match these filters.";
+}
+
 function seasonOptions(upcoming: { term: string; jobs: number }[], chosen: string[]) {
   const shown = upcoming.slice(0, 8);
   const missing = chosen.filter((term) => !shown.some((s) => s.term === term));
@@ -140,13 +146,17 @@ export default async function JobsPage({ searchParams }: Props) {
               <Pagination page={filters.page} total={page.total} pageSize={PAGE_SIZE} href={(p) => jobsHref(filters, { page: p })} />
             </>
           ) : (
-            <EmptyState title="No postings match these filters">
-              <p>
-                Try removing a filter or searching for a broader title.{" "}
-                <Link href="/jobs" className="link">
-                  Clear everything
+            <EmptyState
+              title={emptyTitle(filters.q, activeFilterCount(filters) > 0)}
+              action={
+                <Link href="/jobs" className="btn btn-secondary">
+                  {activeFilterCount(filters) > 0 ? "Clear filters" : "Clear search"}
                 </Link>
-                .
+              }
+            >
+              <p>
+                {activeFilterCount(filters) > 0 ? "Remove a filter or try a broader title." : "Try a broader title, a company or a skill."} The
+                ghost checked every open posting.
               </p>
             </EmptyState>
           )}

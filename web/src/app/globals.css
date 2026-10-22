@@ -430,6 +430,27 @@
     background: var(--sunken);
   }
 
+  /* ---------- Status chips: pastel, always words (and a shape where it matters) ----------
+     Colour carries the status only together with the text: fresh/good is mint,
+     a warning is butter, a problem is blush, anything else is the warm neutral. */
+  .chip {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.375rem;
+    height: 1.5rem;
+    padding-inline: 0.625rem;
+    border-radius: 999px;
+    font-size: var(--text-meta);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .chip-md { height: 1.75rem; padding-inline: 0.75rem; font-size: var(--text-sm); }
+  .chip-good { background: var(--b-mint); color: var(--b-green); }
+  .chip-warn { background: var(--b-butter); color: var(--ochre); }
+  .chip-bad { background: var(--b-blush); color: var(--brick); }
+  .chip-neutral { background: var(--sunken); color: var(--ink-soft); }
+
   /* ---------- Metadata ---------- */
   /* a quiet chip for facts: level, season, skill */
   .tag {
@@ -600,6 +621,7 @@ body:has(.home-b) {
   .hx-rise { animation: hx-rise 0.5s ease-out both; animation-delay: var(--d, 0s); }
   .ticker-track { animation: ticker 48s linear infinite; }
   .ticker:hover .ticker-track { animation-play-state: paused; }
+  .ghost-float { animation: hx-float 3.4s ease-in-out infinite; }
   .reveal { transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); transition-delay: var(--d, 0s); }
   .reveal-pending:not(.is-in) { opacity: 0; transform: translateY(18px); }
 }

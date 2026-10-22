@@ -1,3 +1,4 @@
+import { GhostMascot } from "@/components/GhostMascot";
 import { Bone, JobRowsSkeleton } from "@/components/Skeleton";
 
 /* Shown while the first search results load. Later filter changes keep the old results on screen instead. */
@@ -13,10 +14,16 @@ export default function Loading() {
       <Bone className="mt-6 h-6 w-2/3" />
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,32rem)_minmax(0,1fr)]">
         <div>
-          <Bone className="mb-3 h-5 w-36" />
+          <p className="mb-2 flex items-center gap-2.5 px-1 text-ui font-semibold text-ink-soft lg:px-4">
+            <GhostMascot className="ghost-float h-7 w-6" withLens={false} />
+            Checking today&apos;s postings…
+          </p>
           <JobRowsSkeleton />
         </div>
-        <div className="panel hidden h-[36rem] animate-pulse lg:block" />
+        <div className="panel hidden h-[36rem] flex-col items-center justify-center gap-4 text-center lg:flex">
+          <GhostMascot className="ghost-float w-24" />
+          <p className="text-ui font-semibold text-ink-soft">Pulling up the posting record…</p>
+        </div>
       </div>
     </div>
   );
