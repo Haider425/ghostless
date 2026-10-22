@@ -2249,9 +2249,10 @@ export interface components {
             max: number;
             /**
              * Period
+             * @description what the amounts are paid per
              * @enum {string}
              */
-            period: "year" | "hour";
+            period: "year" | "month" | "hour";
             /**
              * Currency
              * @description CAD, USD, GBP, EUR or AUD; null when the posting does not say

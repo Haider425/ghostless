@@ -17,6 +17,7 @@ import {
 import { AgeStrip } from "./AgeStrip";
 import { ApplyLink } from "./ApplyLink";
 import { CompanyLogo } from "./CompanyLogo";
+import { GhostMascot } from "./GhostMascot";
 import { CalendarIcon, ExternalIcon, LevelIcon, PayIcon, PinIcon, QuoteIcon, RoleIcon } from "./Icons";
 import { RiskBadge } from "./RiskBadge";
 import { SaveButton } from "./SaveButton";
@@ -88,7 +89,8 @@ export function JobHeader({ job, titleAs = "h1", showPageLink = false }: { job: 
             <span className="sr-only"> (opens in a new tab)</span>
           </ApplyLink>
         ) : (
-          <p className="inline-flex h-12 items-center rounded-xl bg-sunken px-5 text-ui font-medium text-ink-soft">
+          <p className="inline-flex h-12 items-center gap-2.5 rounded-xl bg-sunken pr-5 pl-3 text-ui font-semibold text-ink-soft">
+            <GhostMascot className="h-8 w-7" withLens={false} />
             This posting closed{job.closed_at ? ` on ${formatDate(job.closed_at)}` : ""}
           </p>
         )}
@@ -115,7 +117,7 @@ export function JobHeader({ job, titleAs = "h1", showPageLink = false }: { job: 
 
 function Evidence({ children }: { children: ReactNode }) {
   return (
-    <blockquote className="mt-2 flex gap-2.5 rounded-lg bg-surface px-3.5 py-2.5 text-ui text-ink">
+    <blockquote className="mt-2 flex gap-2.5 rounded-xl bg-surface px-3.5 py-2.5 text-ui text-ink">
       <QuoteIcon className="mt-0.5 size-4 shrink-0 text-ink-faint" />
       <span>
         {children}
@@ -206,10 +208,10 @@ export function PostingRecord({ job, headingAs = "h2" }: { job: JobDetail; headi
         </p>
       )}
       {flags.length > 0 ? (
-        <ul className="space-y-3.5 pt-1">
+        <ul className="space-y-2.5 pt-1">
           {flags.map((flag) => (
-            <li key={flag} className={`border-l-[3px] pl-3 text-ui ${job.signals.risk === "high" ? "border-brick" : "border-ochre"}`}>
-              <p className="font-semibold text-ink">{FLAG_TEXT[flag]!.short}</p>
+            <li key={flag} className={`rounded-xl px-4 py-3 text-ui ${job.signals.risk === "high" ? "bg-b-blush" : "bg-b-butter"}`}>
+              <p className={`font-semibold ${job.signals.risk === "high" ? "text-brick" : "text-ochre"}`}>{FLAG_TEXT[flag]!.short}</p>
               {flagDetail(flag, job)}
             </li>
           ))}
@@ -253,12 +255,14 @@ export function PostingHistory({ job, headingAs = "h2" }: { job: JobDetail; head
   );
 }
 
-function Row({ label, value, quote, note }: { label: string; value: string; quote?: string | null; note?: string }) {
+type Tone = "good" | "warn" | "bad";
+
+function Row({ label, value, quote, note, tone }: { label: string; value: string; quote?: string | null; note?: string; tone?: Tone }) {
   return (
-    <div className="py-3 text-ui sm:grid sm:grid-cols-[8.5rem_1fr] sm:gap-4">
+    <div className="py-3 text-ui sm:grid sm:grid-cols-[8.5rem_1fr] sm:items-baseline sm:gap-4">
       <dt className="text-ink-soft">{label}</dt>
       <dd className="min-w-0">
-        <span className="font-medium text-ink">{value}</span>
+        {tone ? <span className={`chip chip-md chip-${tone}`}>{value}</span> : <span className="font-medium text-ink">{value}</span>}
         {quote && <Evidence>{quote}</Evidence>}
         {note && <span className="mt-0.5 block text-sm text-ink-faint">{note}</span>}
       </dd>
@@ -297,6 +301,7 @@ export function Disclosures({ job, headingAs = "h2" }: { job: JobDetail; heading
                   : NOT_IN_TEXT
           }
           quote={job.evidence.vacancy}
+          tone={job.vacancy === "existing" ? "good" : job.vacancy === "not_existing" ? "bad" : undefined}
           note={job.vacancy ? undefined : "Ontario requires this in postings from employers with 25 or more staff."}
         />
         <Row
@@ -311,6 +316,7 @@ export function Disclosures({ job, headingAs = "h2" }: { job: JobDetail; heading
                   : NOT_IN_TEXT
           }
           quote={job.evidence.ai_screening}
+          tone={job.ai_screening === true ? "warn" : job.ai_screening === false ? "good" : undefined}
         />
         <Row label="First seen" value={formatDate(job.first_seen)} />
         <Row label="Last checked" value={formatDate(job.last_seen)} />
@@ -384,22 +390,25 @@ export function JobDescription({ job, headingAs = "h2" }: { job: JobDetail; head
           )}
         </div>
       ) : (
-        <div className="card p-5 text-ui text-ink-soft">
-          <p>
-            {job.listed_in
-              ? "This posting comes from a public job list, which doesn't include descriptions. Read it on the employer's site."
-              : "Ghostless hasn't loaded this posting's description yet. Large employers' descriptions are fetched a batch at a time, so it should appear within a few daily runs."}
-          </p>
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="link mt-2 inline-flex items-center gap-1"
-          >
-            Read it on {possessive(job.company)} site
-            <ExternalIcon className="size-3.5" />
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
+        <div className="card flex gap-4 p-5 text-ui text-ink-soft">
+          <GhostMascot className="h-12 w-10 shrink-0" withLens={false} />
+          <div>
+            <p>
+              {job.listed_in
+                ? "This posting comes from a public job list, which doesn't include descriptions. Read it on the employer's site."
+                : "Ghostless hasn't loaded this posting's description yet. Large employers' descriptions are fetched a batch at a time, so it should appear within a few daily runs."}
+            </p>
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="link mt-2 inline-flex items-center gap-1"
+            >
+              Read it on {possessive(job.company)} site
+              <ExternalIcon className="size-3.5" />
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          </div>
         </div>
       )}
     </section>

@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS companies (
 -- Recreated on every run so adding a platform also updates existing databases.
 -- v1.4: website domain, for logos
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS domain TEXT;
+-- v2.5: when tracker/domains.py last looked for a company's website, so a company
+-- without one is looked up again a month later, not every night
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS domain_checked_at TIMESTAMPTZ;
 
 ALTER TABLE companies DROP CONSTRAINT IF EXISTS companies_platform_check;
 ALTER TABLE companies ADD CONSTRAINT companies_platform_check

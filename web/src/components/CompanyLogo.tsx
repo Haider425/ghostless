@@ -9,10 +9,18 @@ import { initials } from "@/lib/format";
   A company's logo, from its website's icon via Google's favicon service.
   Images go through Next's image optimizer, so visitors' browsers never
   contact Google directly. Without a known domain, or if the icon fails to
-  load, a lettered tile in one neutral colour stands in.
+  load, the company's initials stand in, on one of three soft tints.
 */
 
 const SIZES = { sm: 36, md: 44, lg: 56 } as const;
+const TINTS = ["", "logo-tile-1", "logo-tile-2"];
+
+/** The same tint for a company every time, from its name. */
+function tint(name: string): number {
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  return Math.abs(hash) % TINTS.length;
+}
 
 export function CompanyLogo({
   name,
@@ -42,10 +50,7 @@ export function CompanyLogo({
     );
   }
   return (
-    <span
-      aria-hidden="true"
-      className={`${box} logo-tile grid shrink-0 place-items-center font-semibold`}
-    >
+    <span aria-hidden="true" className={`${box} logo-tile ${TINTS[tint(name)]} grid shrink-0 place-items-center`}>
       {initials(name)}
     </span>
   );

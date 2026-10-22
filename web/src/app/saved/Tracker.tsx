@@ -10,6 +10,7 @@ import { RiskBadge } from "@/components/RiskBadge";
 import type { ApplicationStatus, SavedEntry } from "@/lib/api-types";
 import { TIME_ZONE, ago, possessive, shortLocation } from "@/lib/format";
 import { useSavedJobs } from "@/lib/saved";
+import { GhostMascot } from "@/components/GhostMascot";
 
 const STATUSES: { value: ApplicationStatus; label: string }[] = [
   { value: "saved", label: "Interested" },
@@ -29,7 +30,8 @@ const STATUS_STYLE: Record<ApplicationStatus, string> = {
 
 export function EmptySaved() {
   return (
-    <div className="card px-6 py-14 text-center">
+    <div className="card px-6 py-12 text-center">
+      <GhostMascot className="mx-auto mb-4 w-16" />
       <h2 className="text-xl font-bold text-ink">Nothing saved yet</h2>
       <p className="mx-auto mt-2 max-w-sm text-sm text-ink-soft">
         Use the bookmark on any job to keep it here while you decide where to apply.

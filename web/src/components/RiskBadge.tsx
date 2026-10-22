@@ -1,11 +1,11 @@
 import type { GhostRisk } from "@/lib/api";
 import { RISK_LABELS } from "@/lib/format";
 
-/* "No flags" is the common case, so it stays quiet; only flagged postings get a filled badge. */
+/* Pastel status chips: mint for no flags, butter for some, blush for high. Lists only show flagged postings. */
 const STYLES: Record<GhostRisk, string> = {
-  low: "text-ink-soft",
-  medium: "bg-ochre-tint text-ochre",
-  high: "bg-brick-tint text-brick",
+  low: "chip-good",
+  medium: "chip-warn",
+  high: "chip-bad",
 };
 
 /** Shape differs per level too, so risk never depends on colour alone. */
@@ -37,11 +37,7 @@ export function RiskBadge({ risk, size = "sm" }: { risk: GhostRisk | null | unde
     return <span className="text-meta text-ink-faint">Signals pending</span>;
   }
   return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full font-medium ${STYLES[risk]} ${
-        size === "md" ? "h-7 text-sm" : "h-6 text-meta"
-      } ${risk === "low" ? "" : size === "md" ? "pr-3 pl-2.5" : "pr-2.5 pl-2"}`}
-    >
+    <span className={`chip ${size === "md" ? "chip-md" : ""} ${STYLES[risk]}`}>
       <Glyph risk={risk} />
       {RISK_LABELS[risk]}
     </span>

@@ -246,6 +246,17 @@ def reuse_details(jobs, stored: dict[str, tuple[str, str]]) -> None:
             job.location = location
 
 
+def fill_domains(dsn: str) -> None:
+    """Company websites for logos, a night's share. Never fails the run."""
+    from tracker import domains
+
+    try:
+        with dbtraffic.step("company websites"):
+            domains.fill(dsn)
+    except Exception:
+        log.exception("looking up company websites failed; the postings were still saved")
+
+
 def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
     """The whole pipeline, or with `shard` (part, total) one machine's share of
     the companies and discovered boards. Sharded runs leave the job lists,
@@ -368,6 +379,8 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
 
     with dbtraffic.step("register boards"):
         snowball.register(dsn)  # boards linked from postings, checked on the next run
+    if shard is None and not only:
+        fill_domains(dsn)
     stats["duration_seconds"] = round(time.perf_counter() - clock, 2)
     log_traffic(by_platform)
     if stats.get("boards_not_modified") or stats.get("discovered_not_modified"):
@@ -412,6 +425,7 @@ def finish() -> dict:
     health.current.reset()
     dbtraffic.traffic.reset()
     discovery.run(dsn, load_companies(), load_lists(), run_started, stats, crawl=False)
+    fill_domains(dsn)
     with dbtraffic.step("signals and clean-up"), db.connect(dsn) as conn:
         db.refresh_signals(conn)
         purge_expired(conn)

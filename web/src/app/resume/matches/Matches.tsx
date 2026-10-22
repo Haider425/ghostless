@@ -12,6 +12,7 @@ import type { Match, Recommendation, RecommendationPage } from "@/lib/api-types"
 import { LEVELS, TECH_ROLES } from "@/lib/filters";
 import { LEVEL_LABELS, ROLE_TABS } from "@/lib/format";
 import { type ActiveResume, resumeQuery, useActiveResume } from "@/lib/resume";
+import { GhostMascot } from "@/components/GhostMascot";
 
 const LOCATIONS = [
   { value: "any", label: "Anywhere" },
@@ -142,7 +143,8 @@ export function Matches() {
   if (!resume) {
     return (
       <div className="card mt-8 p-10 text-center">
-        <p className="text-xl font-bold text-ink">Add your resume first</p>
+        <GhostMascot className="mx-auto mb-4 w-16" />
+        <p className="font-display text-xl font-bold text-ink">Add your resume first</p>
         <p className="mx-auto mt-2 max-w-md text-ui text-ink-soft">Upload a PDF or Word file, or build one, and your matches appear here.</p>
         <div className="mt-6 flex justify-center gap-3">
           <Link href="/resume" className="btn btn-primary btn-lg">Upload resume</Link>

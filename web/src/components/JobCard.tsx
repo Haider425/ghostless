@@ -36,9 +36,9 @@ export function JobCard({
   const facts = [shortLocation(job.location), LEVEL_LABELS[job.level], job.salary ? formatSalary(job.salary) : null].filter(Boolean);
   return (
     <article
-      className={`job-card group relative flex gap-3.5 rounded-xl p-4 transition-colors hover:bg-sunken ${
-        // the selection only shows where the preview pane does
-        selected ? "lg:bg-sunken" : ""
+      className={`job-card group relative flex gap-3.5 rounded-2xl p-4 transition-colors hover:bg-surface ${
+        // the selection only shows where the preview pane does: a white card on the warm page
+        selected ? "lg:bg-surface lg:shadow-soft lg:ring-1 lg:ring-line" : ""
       }`}
     >
       <CompanyLogo name={job.company} domain={job.company_domain} />

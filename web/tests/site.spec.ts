@@ -14,10 +14,12 @@ async function openDropdown(page: Page, label: string) {
 test("home shows a live example, live figures and one way into the jobs", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("actually hiring");
-  await expect(page.getByText("A real posting from today's data")).toBeVisible();
+  await expect(page.getByRole("region", { name: "A real posting from today's data" })).toBeVisible();
   await expect(page.getByRole("link", { name: "See this posting's full record" })).toHaveAttribute("href", /^\/jobs\/\d+$/);
-  await expect(page.getByText("open tech roles", { exact: true })).toBeVisible();
-  await expect(page.getByText("first seen this week", { exact: true })).toBeVisible();
+  // today's figures, in the ticker (read out once, as a list)
+  const figures = page.getByRole("region", { name: "Today's numbers" }).getByRole("listitem");
+  await expect(figures.filter({ hasText: /^[\d,]+ open tech roles$/ })).toHaveCount(1);
+  await expect(figures.filter({ hasText: /^[\d,]+ first seen this week$/ })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "What job boards don't tell you." })).toBeVisible();
   const cta = page.getByRole("link", { name: /^Search [\d,]+ open tech roles$/ });
   await expect(cta).toHaveAttribute("href", "/jobs");
@@ -29,7 +31,7 @@ test("home shows a live example, live figures and one way into the jobs", async 
 test("searching from the home page lands on filtered results", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("combobox", { name: "Search jobs" }).fill("intern");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("button", { name: "Find real jobs", exact: true }).click();
   await expect(page).toHaveURL(/\/jobs\?q=intern/);
   await expect(page.getByRole("heading", { name: /jobs? matching/ })).toBeVisible();
   const titles = await page.getByRole("region", { name: /jobs? matching/ }).getByRole("article").getByRole("heading").allTextContents();

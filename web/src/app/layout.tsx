@@ -1,6 +1,7 @@
 import "./globals.css";
 
 import type { Metadata, Viewport } from "next";
+import { Bricolage_Grotesque, Caveat, Figtree } from "next/font/google";
 import localFont from "next/font/local";
 import { type ReactNode, Suspense } from "react";
 
@@ -27,6 +28,15 @@ const inter = localFont({
   adjustFontFallback: "Arial",
 });
 
+/*
+  The brand faces (self-hosted at build time, no requests to Google):
+  Bricolage Grotesque for headlines and the wordmark, Figtree for the home
+  page's text, Caveat for the handwritten notes.
+*/
+const brand = Bricolage_Grotesque({ subsets: ["latin"], weight: ["600", "700", "800"], variable: "--font-bricolage", display: "swap" });
+const friendly = Figtree({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-figtree", display: "swap" });
+const hand = Caveat({ subsets: ["latin"], weight: ["700"], variable: "--font-caveat", display: "swap" });
+
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
@@ -47,8 +57,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#191919" },
+    { media: "(prefers-color-scheme: light)", color: "#fbf7f0" },
+    { media: "(prefers-color-scheme: dark)", color: "#191713" },
   ],
 };
 
@@ -58,7 +68,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     ? { id: user.id, name: user.name ?? null, email: user.email, role: user.role, emailVerified: user.email_verified }
     : null;
   return (
-    <html lang="en-CA" {...htmlAttributes(prefs)} className={inter.variable} suppressHydrationWarning>
+    <html lang="en-CA" {...htmlAttributes(prefs)} className={`${inter.variable} ${brand.variable} ${friendly.variable} ${hand.variable}`} suppressHydrationWarning>
       <body className="flex min-h-dvh flex-col antialiased">
         <SiteProvider value={{ viewer, prefs, aiEnabled }}>
           <Suspense>

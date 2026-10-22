@@ -1,7 +1,6 @@
 import type { Job } from "@/lib/api";
 import { pluralize } from "@/lib/format";
 
-import { ClockIcon } from "./Icons";
 
 /*
   How long a posting has really been open, against how long this employer
@@ -37,15 +36,21 @@ function shortAge(signals: Job["signals"]): string {
   return `Open ${pluralize(days, "day")}`;
 }
 
-/** One line for job rows: "Open 12 days". The employer's usual time is on the job's own page. */
+/** Postings Ghostless saw appear in the last few days. */
+const FRESH_DAYS = 3;
+
+/**
+ * A row's age as a status chip: mint while fresh (seen appearing in the last
+ * few days), butter once it's past the employer's usual time, the warm
+ * neutral otherwise. The employer's usual time is on the job's own page.
+ */
 export function AgeNote({ signals, isActive = true }: { signals: Job["signals"]; isActive?: boolean }) {
   const overdue = isOverdue(signals);
+  const fresh = isActive && signals.age_known !== false && signals.days_open <= FRESH_DAYS;
+  const tone = !isActive ? "chip-neutral" : overdue ? "chip-warn" : fresh ? "chip-good" : "chip-neutral";
   return (
-    <span className={`age-note inline-flex items-center gap-1.5 text-meta font-medium tabular-nums ${overdue ? "text-ochre" : "text-ink-soft"}`}>
-      <ClockIcon className="size-3.5 shrink-0 opacity-80" />
-      <span title={isActive ? ageSentence(signals) : undefined}>
-        {isActive ? shortAge(signals) : `Was open ${pluralize(signals.days_open, "day")}`}
-      </span>
+    <span className={`age-note chip tabular-nums ${tone}`} title={isActive ? ageSentence(signals) : undefined}>
+      {isActive ? shortAge(signals) : `Was open ${pluralize(signals.days_open, "day")}`}
     </span>
   );
 }
