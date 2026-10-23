@@ -133,7 +133,22 @@ def load_real_resumes(folder: Path | None = None, read_file=None) -> list[Resume
         from tracker.resume.extract import extract_text
 
         def read_file(path: Path) -> str:
-            return extract_text(path.read_bytes(), path.name)
+            from tracker.resume import ocr
+            from tracker.resume.extract import UnreadableResume
+
+            data = path.read_bytes()
+            try:
+                return extract_text(data, path.name)
+            except UnreadableResume:
+                # a scanned PDF: read the picture of the text, locally (tracker/resume/ocr.py)
+                if path.suffix.lower() != ".pdf" or not ocr.available():
+                    raise
+                text = ocr.pdf_text(data)
+                if len(text.split()) < 30:
+                    raise UnreadableResume(
+                        "Even text recognition found almost no text in this file."
+                    ) from None
+                return text
 
     from tracker.resume.extract import UnreadableResume
 

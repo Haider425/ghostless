@@ -52,6 +52,20 @@ transfer.
 3. **Edit that file**: role, level, location, country, remote_ok and title words. Then run `pool` again: it now chooses that resume's postings.
 4. Label as usual.
 
+**Scanned resumes** (PDFs that are pictures, with no text in them) are read by
+text recognition, on your machine only (`tracker/resume/ocr.py`). It takes a
+one-time setup:
+
+```
+pip install -e ".[ocr]"
+mkdir -p ~/.cache/ghostless/ocr
+curl -L -o ~/.cache/ghostless/ocr/en_PP-OCRv3_rec_infer.onnx \
+  https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx
+```
+
+That's RapidOCR's English model (9 MB, Apache-2.0). Without it, scanned files
+are skipped and named by id. Expect a few seconds per page.
+
 Real resumes are always held out, never used for tuning, and their text is never logged. To remove one, delete its file, its `.yaml` and its lines in `private/pairs.jsonl` and `private/labels.jsonl`.
 
 **Which database for `pool`.** Use a local copy. Passing Neon's URL works, but

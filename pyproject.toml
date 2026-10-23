@@ -36,6 +36,9 @@ ai = ["anthropic>=1.0"]
 # Only for the monthly discover workflow (Common Crawl index seeding); never
 # needed by ingest or the API
 index = ["pyarrow>=17"]
+# Only for reading scanned resumes in the evaluation set (tracker/resume/ocr.py);
+# never needed by ingest or the API
+ocr = ["rapidocr-onnxruntime>=1.4", "pypdfium2>=4.30"]
 dev = ["ghostless[api,ai]", "pytest>=8.0", "ruff>=0.6", "httpx>=0.27"]
 
 [project.scripts]
