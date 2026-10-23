@@ -471,6 +471,49 @@ def agreement_report(examples: int = 12) -> None:
             print(
                 f"     you: {lab.fit}{f' ({lab.note})' if lab.note else ''} · pre-label: {pre.fit}, {pre.reason}"
             )
+    second_pass_report(examples=5)
+
+
+def second_pass_report(examples: int = 5) -> None:
+    """How the blind second pass (second_labels.jsonl) agrees with the
+    pre-labels. Where they agree, that's the answer key; where they don't,
+    the pair is left out of scores (evalset.answer_key)."""
+    second = evalset.load_second()
+    if not second:
+        return
+    prelabels = evalset.load_prelabels()
+    postings = evalset.load_postings()
+    as_labels = [Label(s.resume, s.job, s.fit, s.terms, note=s.reason) for s in second.values()]
+    result = evalset.agreement(as_labels, prelabels)
+    print(f"\nSecond pass (blind, by {next(iter(second.values())).by}) vs pre-labels: {result.pairs} pairs")
+    if not result.pairs:
+        return
+    print(f"  agree {result.agree} of {result.pairs} ({result.share:.0%}), Cohen's kappa {result.kappa:.2f}")
+    for fit in evalset.FITS:
+        agreed, total = result.by_label.get(fit, (0, 0))
+        if total:
+            print(f"  second pass said {fit:6}: pre-label agreed {agreed} of {total} ({agreed / total:.0%})")
+    print("  pre-label (rows) vs second pass (columns):  " + "  ".join(f"{f:>6}" for f in evalset.FITS))
+    for fit in evalset.FITS:
+        row = result.confusion[fit]
+        print(
+            f"    {fit:6}                                    "
+            + "  ".join(f"{row[f]:>6}" for f in evalset.FITS)
+        )
+    key = evalset.answer_key()
+    print(
+        f"  answer key: {sum(1 for k in key.answers if k in second)} agreed pairs used "
+        f"(Claude-labelled, provisional); {len(key.disputed)} disputed, left out of scores"
+    )
+    if result.disagreements:
+        print(
+            f"\nWhere they differ ({min(examples, len(result.disagreements))} of {len(result.disagreements)}):"
+        )
+        for lab, pre in result.disagreements[:examples]:
+            job = postings.get(lab.job, {})
+            print(f"  {lab.resume} × {job.get('company', '?')} | {job.get('title', lab.job)}")
+            print(f"     pre-label: {pre.fit}, {pre.reason}")
+            print(f"     second:    {lab.fit}, {lab.note}")
 
 
 def status() -> None:

@@ -10,6 +10,8 @@ The labelled set the resume models are measured on (`docs/resume-model-plan.md`,
 | `pairs.jsonl` | the postings chosen for each persona, by id and text hash (see "Balancing the pools") | yes |
 | `labels.jsonl` | your labels for the persona pairs | yes |
 | `prelabels.jsonl` | Claude's label and one-line reason for each persona pair, kept apart from yours | yes |
+| `second_labels.jsonl` | a second, blind Claude pass over the held-out pairs (it never saw the pre-labels) | yes |
+| `results/` | the latest `ghostless evaluate-resume` numbers for each system (ids and numbers only) | yes |
 | `private/` | everything else, **git-ignored, never committed** | no |
 | `private/postings.jsonl` | the text of every chosen posting, so labels outlive the posting | no |
 | `private/resumes/` | real resumes, shared with permission | no |
@@ -104,9 +106,27 @@ labelling, since it teaches the model what *doesn't* transfer.
 
 ## How it's scored
 
+```
+ghostless evaluate-resume              # today's matcher on the held-out set
+ghostless evaluate-resume --tuning     # on the tuning set (against the pre-labels)
+```
+
 Ranking is measured with graded relevance: strong = 2, okay = 1, weak = 0, so
 an okay posting counts as a partial match. NDCG@10 per person, then averaged;
-see `docs/resume-model-plan.md` for the full list of measures.
+see `docs/resume-model-plan.md` for the full list of measures, and
+`docs/resume-model-results.md` for the results so far.
+
+**The answer key** (`evalset.answer_key`), most trusted first:
+
+1. a person's label, from `labels.jsonl`;
+2. otherwise, where the pre-label and the blind second pass agree, that label.
+   Reports call these **"Claude-labelled, provisional"**;
+3. pairs the two Claude passes disagree on are left out of the scores.
+
+`ghostless label-resume agreement` shows how the two passes agree, with
+examples. Users' feedback (applied = strong, saved = okay, not interested =
+weak, only with their consent: `tracker/resume/feedback.py`) is in the same
+form, so it can take the place of these labels later.
 
 ## Adding real resumes (evaluation only)
 

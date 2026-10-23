@@ -128,6 +128,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     label_resume.add_argument("--per", type=int, default=8, help="for pool: postings per resume (default 8)")
     label_resume.add_argument("--only", metavar="ID", help="one resume only, by its id")
+    evaluate_resume = commands.add_parser(
+        "evaluate-resume", help="measure a resume system on the evaluation set (eval/resume), offline"
+    )
+    evaluate_resume.add_argument(
+        "--system", default="baseline", help="which system to measure (default: baseline, today's matcher)"
+    )
+    which = evaluate_resume.add_mutually_exclusive_group()
+    which.add_argument("--holdout", action="store_true", help="the held-out set (the default)")
+    which.add_argument("--tuning", action="store_true", help="the tuning set instead")
     domains = commands.add_parser(
         "domains", help="find company websites, for logos (also part of ingest, a few hundred a night)"
     )
@@ -196,6 +205,13 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "label-resume":
         _label_resume(args)
+        return
+    if args.command == "evaluate-resume":
+        from tracker.resume import evaluate
+
+        if args.system not in evaluate.SYSTEMS:
+            raise SystemExit(f"unknown system {args.system!r}; known: {', '.join(evaluate.SYSTEMS)}")
+        evaluate.run(args.system, "tuning" if args.tuning else "holdout")
         return
     if args.command == "admin":
         _admin(args)

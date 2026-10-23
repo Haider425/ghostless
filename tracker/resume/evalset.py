@@ -37,6 +37,7 @@ SPLIT = ROOT / "split.json"
 PAIRS = ROOT / "pairs.jsonl"
 LABELS = ROOT / "labels.jsonl"
 PRELABELS = ROOT / "prelabels.jsonl"  # labels made in advance, each with a reason
+SECOND = ROOT / "second_labels.jsonl"  # a second, independent pass, made blind to the pre-labels
 PRIVATE = ROOT / "private"
 
 ROLES = ("sde", "data", "data_eng", "ml", "hardware", "security")
@@ -302,6 +303,69 @@ def load_labels() -> dict[tuple[str, int], Label]:
 
 def load_prelabels() -> dict[tuple[str, int], PreLabel]:
     return {(row["resume"], row["job"]): PreLabel(**row) for row in read_jsonl(PRELABELS)}
+
+
+@dataclass
+class SecondLabel:
+    """A second label made blind (it never saw the pre-labels), with a reason
+    and a judgement on each suggested word."""
+
+    resume: str
+    job: int
+    fit: str
+    reason: str
+    terms: dict[str, bool] = field(default_factory=dict)
+    by: str = "claude-agent"
+
+
+def load_second() -> dict[tuple[str, int], SecondLabel]:
+    return {(row["resume"], row["job"]): SecondLabel(**row) for row in read_jsonl(SECOND)}
+
+
+# Where an answer comes from, most trusted first. A person's label always wins;
+# without one, a pair counts only when two independent Claude passes agree.
+HUMAN = "human"
+CLAUDE_AGREED = "claude-agreed"  # reports call these "Claude-labelled, provisional"
+
+
+@dataclass
+class Answer:
+    fit: str
+    source: str  # HUMAN or CLAUDE_AGREED
+
+
+@dataclass
+class AnswerKey:
+    answers: dict[tuple[str, int], Answer] = field(default_factory=dict)
+    disputed: dict[tuple[str, int], tuple[str, str]] = field(default_factory=dict)  # (pre-label, second)
+    terms: dict[tuple[str, int], dict[str, bool]] = field(default_factory=dict)  # fair to suggest?
+
+    @property
+    def provisional(self) -> bool:
+        return any(a.source != HUMAN for a in self.answers.values())
+
+
+def answer_key(pairs: list[Pair] | None = None) -> AnswerKey:
+    """The labels evaluation scores against: a person's label if there is one;
+    otherwise the pre-label where the blind second pass agrees with it. Pairs
+    the two Claude passes disagree on are set aside (`disputed`), not scored.
+    Users' feedback (`feedback_labels`) can take the place of all of these later."""
+    labels, pre, second = load_labels(), load_prelabels(), load_second()
+    key = AnswerKey()
+    for pair in pairs if pairs is not None else load_pairs():
+        k = pair.key()
+        if k in labels and labels[k].fit in FITS:
+            key.answers[k] = Answer(labels[k].fit, HUMAN)
+            if labels[k].terms:
+                key.terms[k] = labels[k].terms
+        elif k in pre and k in second:
+            if pre[k].fit == second[k].fit:
+                key.answers[k] = Answer(pre[k].fit, CLAUDE_AGREED)
+            else:
+                key.disputed[k] = (pre[k].fit, second[k].fit)
+        if k not in key.terms and k in second and second[k].terms:
+            key.terms[k] = second[k].terms
+    return key
 
 
 @dataclass
