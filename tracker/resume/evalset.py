@@ -32,12 +32,14 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2] / "eval" / "resume"
 PERSONAS = ROOT / "personas.yaml"
+PERSONAS_FIELDS = ROOT / "personas_fields.yaml"  # 60 more, outside tech
 SPLIT = ROOT / "split.json"
 PAIRS = ROOT / "pairs.jsonl"
 LABELS = ROOT / "labels.jsonl"
 PRIVATE = ROOT / "private"
 
 ROLES = ("sde", "data", "data_eng", "ml", "hardware", "security")
+TARGET_ROLES = ROLES + ("other",)  # other: someone staying in a field Ghostless doesn't list
 LEVELS = ("intern", "new_grad", "mid", "senior")
 FITS = ("strong", "okay", "weak")
 HOLDOUT_SHARE = 0.3
@@ -62,6 +64,8 @@ class Resume:
     text: str = field(repr=False)  # never in a repr, so never in a log line by accident
     real: bool = False  # a real person's resume from private/: evaluation only, always held out
     notes: str = ""
+    field: str = ""  # the person's own field (accounting, healthcare...), for telling fields apart
+    pairs: int = 8  # postings to label for this person
 
 
 @dataclass
@@ -90,13 +94,17 @@ class Label:
 
 def _target(raw: dict) -> Target:
     target = Target(**{k: v for k, v in raw.items() if k in Target.__dataclass_fields__})
-    if target.role not in ROLES or target.level not in LEVELS:
+    if target.role not in TARGET_ROLES or target.level not in LEVELS:
         raise ValueError(f"unknown target role or level: {target.role}, {target.level}")
     return target
 
 
-def load_personas(path: Path = PERSONAS) -> list[Resume]:
-    items = yaml.safe_load(path.read_text(encoding="utf-8")) or []
+def load_personas(paths: tuple[Path, ...] | None = None) -> list[Resume]:
+    """Every synthetic resume: the 40 in tech, then the 60 in other fields."""
+    items = []
+    for path in paths or (PERSONAS, PERSONAS_FIELDS):
+        if path.exists():
+            items += yaml.safe_load(path.read_text(encoding="utf-8")) or []
     return [
         Resume(
             id=item["id"],
@@ -104,6 +112,8 @@ def load_personas(path: Path = PERSONAS) -> list[Resume]:
             target=_target(item["target"]),
             text=item["resume"],
             notes=item.get("notes", ""),
+            field=item.get("field", ""),
+            pairs=int(item.get("pairs", 8)),
         )
         for item in items
     ]
@@ -181,6 +191,17 @@ def make_split(persona_ids: list[str]) -> dict:
 
 def split_hash(holdout: list[str]) -> str:
     return hashlib.sha256("\n".join(sorted(holdout)).encode()).hexdigest()
+
+
+def extend_split(path: Path, persona_ids: list[str]) -> dict:
+    """The split with personas added since it was written. The hash decides each
+    persona once, so a persona never changes sides; adding personas only adds ids."""
+    split = make_split(persona_ids)
+    if path.exists():
+        before = load_split(path)
+        if not before <= set(split["holdout"]):
+            raise ValueError("held-out personas would change sides: the split must not change")
+    return split
 
 
 def load_split(path: Path = SPLIT) -> set[str]:
@@ -296,7 +317,8 @@ def choose_pairs(
     shuffled = jobs[:]
     rng.shuffle(shuffled)
     fits_title = [j for j in shuffled if _title_fits(j, target)]
-    take([by_id[i] for i in baseline if i in by_id], "baseline", 3)
+    # few postings for someone (3 for people outside tech): today's top two and one random
+    take([by_id[i] for i in baseline if i in by_id], "baseline", min(3, per_resume - 1))
     take(
         [j for j in fits_title if j.get("level") == target.level and _in_country(j, target.country)],
         "target",
@@ -324,4 +346,10 @@ def choose_pairs(
         per_resume,
     )
     take(same_role, "target", per_resume)
+    # people outside tech: postings at their level in their country, as plain near misses
+    take(
+        [j for j in shuffled if j.get("level") == target.level and _in_country(j, target.country)],
+        "random",
+        per_resume,
+    )
     return chosen

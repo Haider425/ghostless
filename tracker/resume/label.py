@@ -12,6 +12,7 @@ while labelling and never written to a log.
 
 from __future__ import annotations
 
+import json
 import random
 import shutil
 import sys
@@ -52,9 +53,9 @@ def pool(dsn: str, per_resume: int = 8, only: str | None = None, seed: int = SEE
                   f"to private/resumes/{resume.id.removeprefix('real-')}.yaml. Check it, then run pool again.")  # fmt: skip
     resumes = [r for r in resumes if r.id not in guessed]  # chosen only once the target is confirmed
 
-    if not evalset.SPLIT.exists():
-        split = evalset.make_split([r.id for r in evalset.load_personas()])
-        evalset.SPLIT.write_text(__import__("json").dumps(split, indent=2) + "\n", encoding="utf-8")
+    split = evalset.extend_split(evalset.SPLIT, [r.id for r in evalset.load_personas()])
+    if not evalset.SPLIT.exists() or evalset.load_split() != set(split["holdout"]):
+        evalset.SPLIT.write_text(json.dumps(split, indent=2) + "\n", encoding="utf-8")
         print(f"held out {len(split['holdout'])} personas (eval/resume/split.json)")
 
     existing = evalset.load_pairs()
@@ -89,8 +90,9 @@ def pool(dsn: str, per_resume: int = 8, only: str | None = None, seed: int = SEE
         new_pairs: list[Pair] = []
         for n, resume in enumerate(todo, 1):
             profile = analyze_text(resume.text)["profile"]
-            baseline = [job["id"] for job, _ in recommend(profile, jobs, 10, describe=describe)]
-            chosen = evalset.choose_pairs(resume.target, baseline, jobs, rng, per_resume)
+            # today's top 30, of which the first few with a description are taken
+            baseline = [job["id"] for job, _ in recommend(profile, jobs, 30, describe=describe)]
+            chosen = evalset.choose_pairs(resume.target, baseline, jobs, rng, min(per_resume, resume.pairs))
             described = describe([job_id for job_id, _ in chosen])
             for job_id, source in chosen:
                 job = {**by_id[job_id], "description": described.get(job_id, "")}
@@ -142,7 +144,8 @@ def _show_resume(resume: Resume) -> None:
     t = resume.target or evalset.Target("?", "?")
     where = t.location + (" or remote" if t.remote_ok and "remote" not in t.location.lower() else "")
     print(f"RESUME  {resume.id}{'  (real, held out)' if resume.real else ''}")
-    print(f"Wants:  {t.role} · {t.level} · {where}")
+    field = f" · field: {resume.field}" if resume.field else ""
+    print(f"Wants:  {t.role} · {t.level} · {where}{field}")
     print(f"        {resume.summary}")
     print("-" * _width())
     print(_wrap(resume.text.strip()))

@@ -128,6 +128,7 @@ Checked for licence **and** whether they contain real people's data without cons
 | netsol/resume-score-details | 1,031 resumes with GPT-4o job descriptions and scores | "cc" (variant unstated) | Resume source unstated; labels come from GPT-4o | **Don't use** |
 | cnamuangtoun/resume-job-description-fit | Resume–job pairs with fit labels | **None** | Unknown | **Don't use** |
 | Kaggle "Resume Dataset" (LiveCareer) | ~2.4K resumes | CC0 claimed | Scraped from a resume site; real people | **Don't use** |
+| Kaggle hadikp/resume-data-pdf | ~8,900 image PDFs in ~45 fields | MIT (set by the re-uploader) | Converted from youssefkhalil/resumes-images-datasets, described as "Collected Resumes from the internet"; no consent | **Don't use** (checked 22 October 2026) |
 | jjzha/skillspan | 14.5K job-ad sentences with skill spans | CC BY 4.0 | Job ads only (the public parts) | **Use** to evaluate skill extraction |
 | TechWolf/skill-extraction-tech | Tech job-ad sentences labelled with ESCO skills | CC BY 4.0 | Job ads | **Use** to evaluate skill extraction |
 | TechWolf/Synthetic-ESCO-skill-sentences | 100K+ synthetic skill sentences | CC BY 4.0 | Synthetic | **Use** for weak training pairs |

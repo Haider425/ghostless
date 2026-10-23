@@ -4,9 +4,10 @@ The labelled set the resume models are measured on (`docs/resume-model-plan.md`,
 
 | File | What it is | Committed? |
 |---|---|---|
-| `personas.yaml` | 40 synthetic resumes, each with the role, level and place it targets | yes |
-| `split.json` | the 11 personas held out from all tuning (frozen: a test fails if it changes) | yes |
-| `pairs.jsonl` | 8 postings chosen for each persona, by id and text hash | yes |
+| `personas.yaml` | 40 synthetic resumes in tech, each with the role, level and place it targets | yes |
+| `personas_fields.yaml` | 60 more in twelve other fields (accounting to hospitality), including 12 people moving into tech | yes |
+| `split.json` | the 30 personas held out from all tuning, chosen by a hash of their id: adding personas never moves one | yes |
+| `pairs.jsonl` | the postings chosen for each persona (8 in tech, 6 moving into tech, 3 outside tech), by id and text hash | yes |
 | `labels.jsonl` | your labels for the persona pairs | yes |
 | `private/` | everything else, **git-ignored, never committed** | no |
 | `private/postings.jsonl` | the text of every chosen posting, so labels outlive the posting | no |
@@ -39,7 +40,10 @@ posting **and** something this person plausibly has. Press Enter if none are.
 - **weak:** not a fit (wrong field, wrong level, a hard requirement they don't meet, or the wrong country for them).
 
 Pairs come round-robin across resumes, so stopping early still covers every
-person. The goal is all 320, and at least 150.
+person. There are 536 in all: the 320 for the tech personas matter most (at
+least 150 of them). The 216 for people outside tech are quick: most are clearly
+weak, and that's still worth labelling, since it teaches the model what *doesn't*
+transfer.
 
 ## Adding real resumes (evaluation only)
 

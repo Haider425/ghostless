@@ -1,0 +1,1016 @@
+# More synthetic resumes, outside tech (docs/resume-model-plan.md, stage 1).
+#
+# Same rules as personas.yaml: every person is invented (example.com emails,
+# 555 numbers). Twelve fields, five people each: a student or new grad, a
+# mid-career and a senior person who stay in their field (target role
+# "other": Ghostless lists tech jobs, so almost every posting should be weak
+# for them), and one or two moving into tech, whose earlier work partly
+# transfers. `field` is the person's field, for checking that a model can tell
+# fields apart. `pairs` is how many postings to label for them.
+
+# ---------- accounting and finance ----------
+- id: acct-coop-toronto
+  field: accounting
+  pairs: 3
+  summary: "Accounting student looking for an audit co-op"
+  target: {role: other, level: intern, location: "Toronto, ON", country: CA, remote_ok: false, titles: [audit, accounting, tax]}
+  resume: |
+    Leah Morgan
+    leah.morgan@example.com | 416-555-0301
+    EDUCATION
+    York University, Bachelor of Commerce (Accounting), Expected 2028
+    EXPERIENCE
+    Bookkeeping Assistant (part time), Dufferin Dental Group, Sep 2025 - Present
+    - Reconcile 3 bank accounts monthly in QuickBooks; cut month-end close by 2 days
+    - Prepare HST filings for 4 clinics
+    SKILLS
+    QuickBooks, Excel (pivot tables, VLOOKUP), IFRS basics, Caseware (learning)
+
+- id: cpa-mid-calgary
+  field: accounting
+  pairs: 3
+  summary: "CPA, 5 years in public accounting and industry, Calgary"
+  target: {role: other, level: mid, location: "Calgary, AB", country: CA, remote_ok: true, titles: [accountant, controller, cpa]}
+  resume: |
+    Devon Price
+    devon.price@example.com | 403-555-0304
+    EXPERIENCE
+    Senior Accountant, Rocky Ridge Energy, May 2023 - Present
+    - Lead month-end close for 3 entities; close in 5 business days, down from 9
+    - Prepared lease schedules under IFRS 16 for 140 equipment leases
+    Staff Accountant, Bow & Partners LLP, Sep 2020 - Apr 2023
+    - Audited 25 private companies; led fieldwork for 6
+    EDUCATION
+    University of Alberta, Bachelor of Commerce, 2020; CPA, 2023
+    SKILLS
+    IFRS, consolidations, SAP, Excel, Power Query, audit, tax provisions
+
+- id: controller-senior-vancouver
+  field: accounting
+  pairs: 3
+  summary: "Corporate controller, 15 years, manufacturing, Vancouver"
+  target: {role: other, level: senior, location: "Vancouver, BC", country: CA, remote_ok: false, titles: [controller, finance director, vp finance]}
+  resume: |
+    Margaret Sun
+    margaret.sun@example.com | 604-555-0307
+    EXPERIENCE
+    Corporate Controller, Pacific Timber Products, Jan 2016 - Present
+    - Run a finance team of 12 across 4 mills with $420M revenue
+    - Led an ERP move from Great Plains to NetSuite, on time and 8% under budget
+    Finance Manager, Coastline Foods, 2010 - 2015
+    EDUCATION
+    University of British Columbia, Bachelor of Commerce, 2009; CPA, CA, 2011
+    SKILLS
+    Financial reporting, budgeting, NetSuite, team leadership, audit, treasury
+
+- id: acct-to-data-analyst-toronto
+  field: accounting
+  pairs: 6
+  summary: "Accountant moving into data analysis; SQL and Power BI from automating reports"
+  target: {role: data, level: new_grad, location: "Toronto, ON", country: CA, remote_ok: true, titles: [data analyst, financial analyst, analytics, bi]}
+  notes: "Career changer: finance knowledge transfers to finance-flavoured data roles."
+  resume: |
+    Kwame Asante
+    kwame.asante@example.com | 647-555-0310 | linkedin.com/in/kwame-asante-example
+    EXPERIENCE
+    Staff Accountant, Lakeshore Property Group, Jun 2022 - Present
+    - Automated rent-roll reporting with SQL and Power BI; saved 12 hours a month
+    - Built a Python script that matches 4,000 vendor invoices a month to payments
+    EDUCATION
+    Toronto Metropolitan University, Bachelor of Commerce (Accounting), 2022
+    Google Data Analytics Certificate, 2025
+    SKILLS
+    SQL, Power BI, Excel, Python (pandas), accounting, reconciliation
+
+- id: fin-analyst-ng-montreal
+  field: accounting
+  pairs: 3
+  summary: "Finance new grad, FP&A internship, bilingual, Montreal"
+  target: {role: other, level: new_grad, location: "Montreal, QC", country: CA, remote_ok: false, titles: [financial analyst, fp&a, analyst]}
+  resume: |
+    Chloé Bergeron
+    chloe.bergeron@example.com | 514-555-0313
+    EDUCATION
+    HEC Montréal, Bachelor of Business Administration (Finance), 2026
+    EXPERIENCE
+    FP&A Intern, Groupe Laval Retail, May 2025 - Aug 2025
+    - Built a store-level forecast model in Excel for 60 stores; variance under 4%
+    SKILLS
+    Excel, financial modeling, PowerPoint, Bloomberg; French and English
+
+# ---------- human resources ----------
+- id: hr-coordinator-ng-ottawa
+  field: human_resources
+  pairs: 3
+  summary: "HR new grad, recruiting coordinator internship, Ottawa"
+  target: {role: other, level: new_grad, location: "Ottawa, ON", country: CA, remote_ok: false, titles: [hr, human resources, recruiting coordinator]}
+  resume: |
+    Amira Khalil
+    amira.khalil@example.com | 613-555-0316
+    EDUCATION
+    University of Ottawa, Bachelor of Social Sciences (Human Resources), 2026
+    EXPERIENCE
+    Recruiting Coordinator Intern, Capital Health Network, May 2025 - Dec 2025
+    - Scheduled 400 interviews across 30 hiring managers in Workday
+    - Ran onboarding for 55 new hires
+    SKILLS
+    Workday, recruiting, onboarding, Excel, employment standards
+
+- id: hr-generalist-mid-toronto
+  field: human_resources
+  pairs: 3
+  summary: "HR generalist, 6 years, unionized and non-union, Toronto"
+  target: {role: other, level: mid, location: "Toronto, ON", country: CA, remote_ok: true, titles: [hr generalist, hr business partner, people partner]}
+  resume: |
+    Steven Wright
+    steven.wright@example.com | 416-555-0319
+    EXPERIENCE
+    HR Generalist, Metro Transit Supplies, Mar 2020 - Present
+    - Support 600 employees across 3 sites, including 2 union locals
+    - Rebuilt the performance review process; completion rose from 58% to 94%
+    HR Assistant, Kingsway Retail, 2018 - 2020
+    EDUCATION
+    Humber College, Post-graduate Certificate, Human Resources Management, 2018; CHRP
+    SKILLS
+    Employee relations, labour relations, HRIS (UKG), investigations, policy writing
+
+- id: hr-director-senior-vancouver
+  field: human_resources
+  pairs: 3
+  summary: "HR director, 14 years, tech and retail, Vancouver"
+  target: {role: other, level: senior, location: "Vancouver, BC", country: CA, remote_ok: true, titles: [hr director, vp people, head of people]}
+  resume: |
+    Rachel Adeyemi
+    rachel.adeyemi@example.com | 604-555-0322
+    EXPERIENCE
+    Director of People, Seawall Software, 2019 - Present
+    - Grew the company from 80 to 450 people; built the people team from 2 to 11
+    - Designed compensation bands and an equity plan approved by the board
+    HR Manager, Granville Retail Group, 2011 - 2019
+    EDUCATION
+    Simon Fraser University, Bachelor of Business Administration, 2010; CPHR
+    SKILLS
+    Talent strategy, compensation, organizational design, leadership coaching
+
+- id: hr-to-people-analytics-toronto
+  field: human_resources
+  pairs: 6
+  summary: "HR analyst moving into people analytics; SQL and Tableau on HR data"
+  target: {role: data, level: mid, location: "Toronto, ON", country: CA, remote_ok: true, titles: [people analytics, hr analyst, data analyst, workforce]}
+  notes: "Career changer: HR domain plus growing data skills."
+  resume: |
+    Tanya Ivanova
+    tanya.ivanova@example.com | 647-555-0325 | linkedin.com/in/tanya-ivanova-example
+    EXPERIENCE
+    HR Analyst, Northern Insurance, Jun 2021 - Present
+    - Built Tableau dashboards on turnover and hiring for 3,000 employees
+    - Wrote SQL against the Workday data warehouse; found a pay-equity gap that led to $1.2M in adjustments
+    EDUCATION
+    University of Toronto, Bachelor of Arts (Psychology), 2021
+    SKILLS
+    SQL, Tableau, Excel, Workday reporting, statistics, survey analysis
+
+- id: tech-recruiter-mid-remote
+  field: human_resources
+  pairs: 3
+  summary: "Technical recruiter, 5 years hiring engineers, remote in Canada"
+  target: {role: other, level: mid, location: "Remote, Canada", country: CA, remote_ok: true, titles: [technical recruiter, talent acquisition, recruiter]}
+  notes: "Knows tech words but is not an engineer: engineering postings should be weak."
+  resume: |
+    Jessica Moreau
+    jessica.moreau@example.com | 902-555-0328
+    EXPERIENCE
+    Senior Technical Recruiter, Harbour Cloud, Jan 2022 - Present
+    - Hired 70 engineers (backend, data, SRE) in 2 years; offer acceptance 88%
+    - Built sourcing pipelines in Greenhouse and LinkedIn Recruiter
+    Recruiter, StaffRight Agency, 2019 - 2021
+    SKILLS
+    Technical sourcing, Greenhouse, interviewing, employer branding, offer negotiation
+
+# ---------- sales and marketing ----------
+- id: marketing-coordinator-ng-toronto
+  field: marketing
+  pairs: 3
+  summary: "Marketing new grad, social media and campaigns, Toronto"
+  target: {role: other, level: new_grad, location: "Toronto, ON", country: CA, remote_ok: true, titles: [marketing coordinator, marketing, social media]}
+  resume: |
+    Sophie Laurent
+    sophie.laurent@example.com | 416-555-0331
+    EDUCATION
+    Western University, Bachelor of Arts (Media and Communications), 2026
+    EXPERIENCE
+    Marketing Intern, Bloom Skincare, May 2025 - Aug 2025
+    - Ran Instagram and TikTok content; followers from 12K to 31K in 4 months
+    SKILLS
+    Canva, Meta Ads Manager, copywriting, Hootsuite, Google Analytics
+
+- id: digital-marketing-mid-montreal
+  field: marketing
+  pairs: 3
+  summary: "Digital marketing manager, 6 years paid search and SEO, Montreal"
+  target: {role: other, level: mid, location: "Montreal, QC", country: CA, remote_ok: true, titles: [digital marketing, growth marketing, performance marketing]}
+  resume: |
+    Antoine Roy
+    antoine.roy@example.com | 514-555-0334
+    EXPERIENCE
+    Digital Marketing Manager, Voyages Nord, 2021 - Present
+    - Manage $1.8M a year in Google and Meta ads; cost per booking down 31%
+    - Grew organic traffic 140% with a content and SEO program
+    Marketing Specialist, Agence Pixel, 2018 - 2021
+    SKILLS
+    Google Ads, SEO, Google Analytics 4, HubSpot, A/B testing, French and English
+
+- id: sales-director-senior-toronto
+  field: sales
+  pairs: 3
+  summary: "Enterprise sales director, 15 years software sales, Toronto"
+  target: {role: other, level: senior, location: "Toronto, ON", country: CA, remote_ok: true, titles: [sales director, vp sales, account executive]}
+  resume: |
+    Gregory Walsh
+    gregory.walsh@example.com | 416-555-0337
+    EXPERIENCE
+    Director of Enterprise Sales, LedgerCloud, 2018 - Present
+    - Lead 9 account executives; grew annual recurring revenue from $14M to $41M
+    Account Executive, Datapoint Systems, 2010 - 2018
+    - President's Club 4 times
+    SKILLS
+    Enterprise sales, Salesforce, forecasting, negotiation, team leadership
+
+- id: marketing-to-data-analyst-vancouver
+  field: marketing
+  pairs: 6
+  summary: "Marketing analyst moving into data analysis; SQL, GA4 and Looker"
+  target: {role: data, level: new_grad, location: "Vancouver, BC", country: CA, remote_ok: true, titles: [data analyst, marketing analyst, analytics]}
+  notes: "Career changer: marketing analytics is close to product and data analyst roles."
+  resume: |
+    Ivy Chang
+    ivy.chang@example.com | 778-555-0340 | linkedin.com/in/ivy-chang-example
+    EXPERIENCE
+    Marketing Analyst, Peakline Outdoor, Jul 2023 - Present
+    - Built Looker Studio dashboards on GA4 and BigQuery for campaign spend of $900K a year
+    - Wrote SQL to attribute sales to channels; moved 20% of budget to better channels
+    EDUCATION
+    University of British Columbia, Bachelor of Commerce (Marketing), 2023
+    SKILLS
+    SQL, BigQuery, GA4, Looker Studio, Excel, A/B testing
+
+- id: bdr-ng-calgary
+  field: sales
+  pairs: 3
+  summary: "New grad business development rep, Calgary"
+  target: {role: other, level: new_grad, location: "Calgary, AB", country: CA, remote_ok: true, titles: [business development, sales development, bdr, sdr]}
+  resume: |
+    Tyler Brandt
+    tyler.brandt@example.com | 403-555-0343
+    EDUCATION
+    Mount Royal University, Bachelor of Business Administration, 2026
+    EXPERIENCE
+    Sales Intern, Prairie Fleet Solutions, May 2025 - Aug 2025
+    - Booked 45 qualified meetings in 12 weeks from cold calls and email
+    SKILLS
+    Salesforce, cold calling, Outreach, CRM hygiene
+
+# ---------- design ----------
+- id: graphic-designer-ng-toronto
+  field: design
+  pairs: 3
+  summary: "Graphic design new grad, branding and print, Toronto"
+  target: {role: other, level: new_grad, location: "Toronto, ON", country: CA, remote_ok: true, titles: [graphic designer, designer, brand designer]}
+  resume: |
+    Mila Novak
+    mila.novak@example.com | 416-555-0346 | milanovak-example.site
+    EDUCATION
+    OCAD University, Bachelor of Design (Graphic Design), 2026
+    EXPERIENCE
+    Design Intern, Northline Studio, May 2025 - Aug 2025
+    - Designed packaging for 6 grocery brands; 2 now on shelves
+    SKILLS
+    Adobe Illustrator, InDesign, Photoshop, typography, branding, Figma
+
+- id: ux-designer-mid-remote
+  field: design
+  pairs: 3
+  summary: "Product designer, 6 years UX for web and mobile, remote"
+  target: {role: other, level: mid, location: "Remote, Canada", country: CA, remote_ok: true, titles: [product designer, ux designer, ui designer]}
+  notes: "Works beside engineers but is not one: frontend engineering postings should be weak or okay at most."
+  resume: |
+    Harper Collins
+    harper.collins@example.com | 902-555-0349 | harpercollins-example.site
+    EXPERIENCE
+    Senior Product Designer, Tidal Health, 2021 - Present
+    - Redesigned patient onboarding; completion from 41% to 73%
+    - Run usability tests with 10 patients a month
+    Product Designer, Brightpath Apps, 2018 - 2021
+    SKILLS
+    Figma, user research, prototyping, design systems, accessibility, usability testing
+
+- id: creative-director-senior-montreal
+  field: design
+  pairs: 3
+  summary: "Creative director, 16 years in agencies, Montreal"
+  target: {role: other, level: senior, location: "Montreal, QC", country: CA, remote_ok: false, titles: [creative director, art director, head of design]}
+  resume: |
+    Julien Fortin
+    julien.fortin@example.com | 514-555-0352
+    EXPERIENCE
+    Creative Director, Atelier Fleuve, 2015 - Present
+    - Lead a creative team of 18; won 3 national advertising awards
+    Art Director, Studio Mont-Royal, 2009 - 2015
+    SKILLS
+    Brand strategy, art direction, campaign concepts, team leadership
+
+- id: designer-to-frontend-ottawa
+  field: design
+  pairs: 6
+  summary: "Web designer learning frontend development; builds sites in HTML, CSS and React"
+  target: {role: sde, level: new_grad, location: "Ottawa, ON", country: CA, remote_ok: true, titles: [frontend, front-end, web developer, ui developer]}
+  notes: "Career changer: strong design eye, newer coding skills."
+  resume: |
+    Noor Abbas
+    noor.abbas@example.com | 613-555-0355 | github.com/nabbas-example
+    EXPERIENCE
+    Web Designer, Rideau Creative, 2022 - Present
+    - Designed and built 25 small-business websites in HTML, CSS and WordPress
+    - Rebuilt the agency's site in React; Lighthouse accessibility score from 72 to 98
+    PROJECTS
+    Component library in React and Storybook, 30 accessible components
+    SKILLS
+    HTML, CSS, JavaScript, React (learning), Figma, WordPress, accessibility
+
+- id: motion-design-student-vancouver
+  field: design
+  pairs: 3
+  summary: "Animation student looking for a motion design internship"
+  target: {role: other, level: intern, location: "Vancouver, BC", country: CA, remote_ok: true, titles: [motion designer, animator, design intern]}
+  resume: |
+    Kai Thompson
+    kai.thompson@example.com | 604-555-0358
+    EDUCATION
+    Emily Carr University, Bachelor of Media Arts (Animation), Expected 2027
+    PROJECTS
+    Short film "Tidewater" - 3-minute 2D animation, shown at a student festival
+    SKILLS
+    After Effects, Cinema 4D, Toon Boom, storyboarding
+
+# ---------- education ----------
+- id: teacher-mid-winnipeg
+  field: education
+  pairs: 3
+  summary: "High school math teacher, 7 years, Winnipeg"
+  target: {role: other, level: mid, location: "Winnipeg, MB", country: CA, remote_ok: false, titles: [teacher, educator, math teacher]}
+  resume: |
+    Paul Henderson
+    paul.henderson@example.com | 204-555-0361
+    EXPERIENCE
+    Mathematics Teacher, Red River Collegiate, 2019 - Present
+    - Teach grades 10 to 12; pass rate in pre-calculus from 71% to 86%
+    - Coach the school math team
+    EDUCATION
+    University of Manitoba, Bachelor of Education, 2018; Bachelor of Science (Mathematics), 2016
+    SKILLS
+    Curriculum design, assessment, classroom management, Google Classroom
+
+- id: ece-ng-halifax
+  field: education
+  pairs: 3
+  summary: "Early childhood educator, new grad, Halifax"
+  target: {role: other, level: new_grad, location: "Halifax, NS", country: CA, remote_ok: false, titles: [early childhood educator, ece, childcare]}
+  resume: |
+    Emma Doucette
+    emma.doucette@example.com | 902-555-0364
+    EDUCATION
+    Nova Scotia Community College, Diploma, Early Childhood Education, 2026
+    EXPERIENCE
+    ECE Practicum, Harbourview Child Care Centre, Jan 2026 - Apr 2026
+    - Planned daily activities for 12 toddlers
+    SKILLS
+    Child development, lesson planning, first aid and CPR
+
+- id: principal-senior-edmonton
+  field: education
+  pairs: 3
+  summary: "School principal, 20 years in education, Edmonton"
+  target: {role: other, level: senior, location: "Edmonton, AB", country: CA, remote_ok: false, titles: [principal, school administrator, director of education]}
+  resume: |
+    Linda Okoro
+    linda.okoro@example.com | 780-555-0367
+    EXPERIENCE
+    Principal, Riverbend Elementary, 2016 - Present
+    - Lead 45 staff and 620 students; reading levels up 18% in 4 years
+    Vice Principal and Teacher, 2005 - 2016
+    EDUCATION
+    University of Alberta, Master of Education (Leadership), 2012
+    SKILLS
+    School leadership, budgeting, staff development, community relations
+
+- id: teacher-to-edtech-data-toronto
+  field: education
+  pairs: 6
+  summary: "Teacher moving into ed-tech data; analyzed assessment data with Python and SQL"
+  target: {role: data, level: new_grad, location: "Toronto, ON", country: CA, remote_ok: true, titles: [data analyst, learning analytics, analyst]}
+  notes: "Career changer."
+  resume: |
+    Grace Ofori
+    grace.ofori@example.com | 647-555-0370 | github.com/gofori-example
+    EXPERIENCE
+    Science Teacher, Don Mills Secondary, 2017 - Present
+    - Built a Python and Google Sheets tool that tracks 900 students' assessment results
+    PROJECTS
+    Learning analytics dashboard - SQL and Tableau on a public school-results dataset
+    EDUCATION
+    University of Toronto, Bachelor of Education, 2017; Data Analytics Certificate (part time), 2025
+    SKILLS
+    Python, SQL, Tableau, Excel, statistics, education
+
+- id: tutor-student-kingston
+  field: education
+  pairs: 3
+  summary: "Education student and tutor, looking for a summer program role"
+  target: {role: other, level: intern, location: "Kingston, ON", country: CA, remote_ok: true, titles: [tutor, education intern, program assistant]}
+  resume: |
+    Olivia Hart
+    olivia.hart@example.com | 613-555-0373
+    EDUCATION
+    Queen's University, Bachelor of Arts (English) and Bachelor of Education, Expected 2028
+    EXPERIENCE
+    Tutor, Limestone Learning, 2024 - Present
+    - Tutor 8 students a week in English and French
+    SKILLS
+    Tutoring, lesson planning, French, writing
+
+# ---------- healthcare ----------
+- id: rn-ng-hamilton
+  field: healthcare
+  pairs: 3
+  summary: "New grad registered nurse, Hamilton"
+  target: {role: other, level: new_grad, location: "Hamilton, ON", country: CA, remote_ok: false, titles: [registered nurse, rn, nurse]}
+  resume: |
+    Hannah Clarke
+    hannah.clarke@example.com | 905-555-0376
+    EDUCATION
+    McMaster University, Bachelor of Science in Nursing, 2026
+    EXPERIENCE
+    Student Nurse, Hamilton General Hospital (cardiology), Jan 2026 - Apr 2026
+    - Cared for 4 to 6 patients a shift under a preceptor
+    SKILLS
+    Patient assessment, medication administration, Epic, BLS
+
+- id: rn-mid-toronto
+  field: healthcare
+  pairs: 3
+  summary: "ICU nurse, 8 years, Toronto"
+  target: {role: other, level: mid, location: "Toronto, ON", country: CA, remote_ok: false, titles: [registered nurse, icu nurse, critical care]}
+  resume: |
+    Daniel Murphy
+    daniel.murphy@example.com | 416-555-0379
+    EXPERIENCE
+    Registered Nurse, Intensive Care Unit, Lakeshore Health, 2018 - Present
+    - Care for ventilated patients; charge nurse for a 24-bed unit twice a week
+    EDUCATION
+    University of Toronto, Bachelor of Science in Nursing, 2017; Critical Care Certificate
+    SKILLS
+    Critical care, ventilator management, Epic, ACLS
+
+- id: nurse-manager-senior-ottawa
+  field: healthcare
+  pairs: 3
+  summary: "Nurse manager, 18 years, Ottawa"
+  target: {role: other, level: senior, location: "Ottawa, ON", country: CA, remote_ok: false, titles: [nurse manager, director of nursing, clinical manager]}
+  resume: |
+    Patricia Leblanc
+    patricia.leblanc@example.com | 613-555-0382
+    EXPERIENCE
+    Nurse Manager, Emergency Department, Capital Regional Hospital, 2014 - Present
+    - Manage 90 nurses; cut time to physician assessment by 35 minutes
+    EDUCATION
+    University of Ottawa, Master of Science in Nursing, 2013
+    SKILLS
+    Nursing leadership, staffing, quality improvement, budgeting
+
+- id: nurse-to-health-informatics-toronto
+  field: healthcare
+  pairs: 6
+  summary: "Nurse moving into health informatics; Epic super-user, SQL and Power BI"
+  target: {role: data, level: mid, location: "Toronto, ON", country: CA, remote_ok: true, titles: [clinical informatics, health data analyst, data analyst, informatics]}
+  notes: "Career changer: clinical knowledge plus data skills."
+  resume: |
+    Priyanka Shah
+    priyanka.shah@example.com | 647-555-0385 | linkedin.com/in/priyanka-shah-example
+    EXPERIENCE
+    Registered Nurse and Epic Super-User, St. Lawrence Health, 2016 - Present
+    - Led Epic flowsheet changes for 3 units; documentation time down 15%
+    - Built a Power BI report on falls using SQL extracts; falls down 22% in a year
+    EDUCATION
+    Ryerson University, Bachelor of Science in Nursing, 2016; Health Informatics Certificate, 2025
+    SKILLS
+    Epic, SQL, Power BI, Excel, clinical workflows, HL7 basics
+
+- id: pharmacy-tech-student-london
+  field: healthcare
+  pairs: 3
+  summary: "Pharmacy technician student, looking for a placement"
+  target: {role: other, level: intern, location: "London, ON", country: CA, remote_ok: false, titles: [pharmacy technician, pharmacy assistant]}
+  resume: |
+    Lucas Ferreira
+    lucas.ferreira@example.com | 519-555-0388
+    EDUCATION
+    Fanshawe College, Pharmacy Technician Diploma, Expected 2027
+    EXPERIENCE
+    Pharmacy Assistant (part time), Forest City Pharmacy, 2024 - Present
+    - Fill about 150 prescriptions a shift under supervision
+    SKILLS
+    Prescription processing, Kroll, inventory, customer service
+
+# ---------- civil and mechanical engineering ----------
+- id: civil-eit-ng-calgary
+  field: civil_engineering
+  pairs: 3
+  summary: "Civil engineering new grad (EIT), municipal infrastructure, Calgary"
+  target: {role: other, level: new_grad, location: "Calgary, AB", country: CA, remote_ok: false, titles: [civil engineer, eit, engineer in training]}
+  resume: |
+    Ryan McDonald
+    ryan.mcdonald@example.com | 403-555-0391
+    EDUCATION
+    University of Calgary, Bachelor of Science in Civil Engineering, 2026
+    EXPERIENCE
+    Engineering Co-op, Foothills Consulting, May 2024 - Aug 2025
+    - Designed storm sewer layouts for 2 subdivisions in Civil 3D
+    SKILLS
+    AutoCAD Civil 3D, hydraulics, site inspection, Excel
+
+- id: mech-design-mid-windsor
+  field: mechanical_engineering
+  pairs: 3
+  summary: "Mechanical design engineer, 6 years automotive tooling, Windsor"
+  target: {role: other, level: mid, location: "Windsor, ON", country: CA, remote_ok: false, titles: [mechanical engineer, design engineer, tooling engineer]}
+  notes: "Engineering but not software or electronics: hardware postings are usually electronics, so mostly weak."
+  resume: |
+    Andrea Costa
+    andrea.costa@example.com | 519-555-0394
+    EXPERIENCE
+    Mechanical Design Engineer, Lakeshore Tooling, 2020 - Present
+    - Designed 40 fixtures in SolidWorks; cycle time down 12% on the main line
+    - Ran FEA on clamp designs; cut material cost 18%
+    EDUCATION
+    University of Windsor, Bachelor of Applied Science, Mechanical Engineering, 2019; P.Eng.
+    SKILLS
+    SolidWorks, FEA, GD&T, CNC, lean manufacturing
+
+- id: civil-pm-senior-toronto
+  field: civil_engineering
+  pairs: 3
+  summary: "Senior civil project manager, 17 years in transit construction, Toronto"
+  target: {role: other, level: senior, location: "Toronto, ON", country: CA, remote_ok: false, titles: [project manager, construction manager, civil engineer]}
+  resume: |
+    Michael O'Neill
+    michael.oneill@example.com | 416-555-0397
+    EXPERIENCE
+    Senior Project Manager, Metro Transit Builders, 2012 - Present
+    - Delivered a $310M light rail station package on schedule
+    EDUCATION
+    University of Waterloo, Bachelor of Applied Science, Civil Engineering, 2008; P.Eng., PMP
+    SKILLS
+    Project controls, contract management, Primavera P6, stakeholder management
+
+- id: civil-to-gis-data-edmonton
+  field: civil_engineering
+  pairs: 6
+  summary: "Civil technologist moving into GIS and data; Python, ArcGIS and SQL"
+  target: {role: data, level: new_grad, location: "Edmonton, AB", country: CA, remote_ok: true, titles: [gis analyst, data analyst, geospatial, analyst]}
+  notes: "Career changer."
+  resume: |
+    Sara Lindqvist
+    sara.lindqvist@example.com | 780-555-0400 | github.com/slindqvist-example
+    EXPERIENCE
+    Civil Technologist, Northgate Engineering, 2021 - Present
+    - Automated pipe-condition reports with Python and ArcGIS; 3 days of work down to 2 hours
+    - Built a PostGIS database of 12,000 assets
+    EDUCATION
+    NAIT, Diploma, Civil Engineering Technology, 2021; GIS Certificate, 2024
+    SKILLS
+    ArcGIS Pro, QGIS, Python, SQL, PostGIS, AutoCAD
+
+- id: mech-coop-student-waterloo
+  field: mechanical_engineering
+  pairs: 3
+  summary: "Mechanical engineering student looking for a co-op"
+  target: {role: other, level: intern, location: "Waterloo, ON", country: CA, remote_ok: false, titles: [mechanical engineering co-op, mechanical, design co-op]}
+  resume: |
+    Ethan Clarke
+    ethan.clarke@example.com | 519-555-0403
+    EDUCATION
+    University of Waterloo, Bachelor of Applied Science, Mechanical Engineering, Expected 2028
+    EXPERIENCE
+    Formula SAE team, chassis lead, 2025 - Present
+    - Designed the rear suspension in SolidWorks; 1.2 kg lighter than last year
+    SKILLS
+    SolidWorks, MATLAB, machining, FEA basics
+
+# ---------- aviation ----------
+- id: pilot-mid-vancouver
+  field: aviation
+  pairs: 3
+  summary: "Commercial pilot, first officer, 6 years, Vancouver"
+  target: {role: other, level: mid, location: "Vancouver, BC", country: CA, remote_ok: false, titles: [pilot, first officer, captain]}
+  resume: |
+    James Whitaker
+    james.whitaker@example.com | 604-555-0406
+    EXPERIENCE
+    First Officer, Dash 8-400, Pacific Coastal Air, 2020 - Present (3,800 flight hours)
+    Flight Instructor, Abbotsford Flight Centre, 2018 - 2020
+    LICENCES
+    Airline Transport Pilot Licence, Group 1 instrument rating
+    SKILLS
+    Crew resource management, IFR operations, safety management systems
+
+- id: ame-mid-winnipeg
+  field: aviation
+  pairs: 3
+  summary: "Aircraft maintenance engineer (AME M1), 7 years, Winnipeg"
+  target: {role: other, level: mid, location: "Winnipeg, MB", country: CA, remote_ok: false, titles: [aircraft maintenance engineer, ame, aircraft technician]}
+  resume: |
+    Carlos Mendes
+    carlos.mendes@example.com | 204-555-0409
+    EXPERIENCE
+    Aircraft Maintenance Engineer, Prairie Regional Airlines, 2019 - Present
+    - Perform scheduled checks on ATR 72 aircraft; certified 300+ maintenance releases
+    EDUCATION
+    Red River College, Aircraft Maintenance Engineer Diploma, 2017; Transport Canada AME M1 licence
+    SKILLS
+    Line maintenance, troubleshooting, technical records, avionics basics
+
+- id: aviation-student-montreal
+  field: aviation
+  pairs: 3
+  summary: "Aviation management student, looking for an airline operations internship"
+  target: {role: other, level: intern, location: "Montreal, QC", country: CA, remote_ok: false, titles: [airline operations, aviation intern, operations intern]}
+  resume: |
+    Elise Gagnon
+    elise.gagnon@example.com | 514-555-0412
+    EDUCATION
+    Concordia University, Bachelor of Commerce (Aviation Management), Expected 2028
+    EXPERIENCE
+    Ground Agent (part time), Trudeau Ground Services, 2024 - Present
+    - Turn around 6 to 8 flights a shift
+    SKILLS
+    Airline operations, customer service, French and English, Excel
+
+- id: avionics-tech-to-embedded-ottawa
+  field: aviation
+  pairs: 6
+  summary: "Avionics technician moving into embedded systems; C and test automation"
+  target: {role: hardware, level: new_grad, location: "Ottawa, ON", country: CA, remote_ok: false, titles: [embedded, avionics, test engineer, hardware test]}
+  notes: "Career changer: avionics hardware experience, learning embedded software."
+  resume: |
+    Nathan Brooks
+    nathan.brooks@example.com | 613-555-0415 | github.com/nbrooks-example
+    EXPERIENCE
+    Avionics Technician, Capital Aero Services, 2019 - Present
+    - Troubleshoot ARINC 429 buses and wiring on regional aircraft
+    - Wrote Python scripts that log test-bench results; cut retest time by 30%
+    PROJECTS
+    STM32 flight data logger in C, reads an IMU over SPI
+    EDUCATION
+    Algonquin College, Avionics Maintenance Diploma, 2019; online embedded C course, 2025
+    SKILLS
+    Avionics, ARINC 429, C, Python, oscilloscope, soldering
+
+- id: flight-ops-director-senior-toronto
+  field: aviation
+  pairs: 3
+  summary: "Director of flight operations, 20 years in airlines, Toronto"
+  target: {role: other, level: senior, location: "Toronto, ON", country: CA, remote_ok: false, titles: [director flight operations, operations director, aviation director]}
+  resume: |
+    Victoria Hughes
+    victoria.hughes@example.com | 416-555-0418
+    EXPERIENCE
+    Director, Flight Operations, Lakeshore Airways, 2015 - Present
+    - Oversee 320 pilots and 40 aircraft; on-time performance from 74% to 86%
+    Captain, 2004 - 2015
+    SKILLS
+    Flight operations, regulatory compliance, safety management, leadership
+
+# ---------- banking ----------
+- id: teller-ng-regina
+  field: banking
+  pairs: 3
+  summary: "Bank teller, new grad business diploma, Regina"
+  target: {role: other, level: new_grad, location: "Regina, SK", country: CA, remote_ok: false, titles: [teller, customer service representative, banking advisor]}
+  resume: |
+    Ashley Fraser
+    ashley.fraser@example.com | 306-555-0421
+    EDUCATION
+    Saskatchewan Polytechnic, Business Diploma, 2026
+    EXPERIENCE
+    Teller (part time), Prairie Credit Union, 2024 - Present
+    - Handle about 120 transactions a day; balanced to the cent 99% of shifts
+    SKILLS
+    Cash handling, customer service, account opening, Excel
+
+- id: financial-advisor-mid-toronto
+  field: banking
+  pairs: 3
+  summary: "Financial advisor, 7 years in retail banking, Toronto"
+  target: {role: other, level: mid, location: "Toronto, ON", country: CA, remote_ok: false, titles: [financial advisor, wealth advisor, financial planner]}
+  resume: |
+    Mohammed Iqbal
+    mohammed.iqbal@example.com | 416-555-0424
+    EXPERIENCE
+    Financial Advisor, Northern Bank, 2019 - Present
+    - Manage $85M in client assets for 300 households
+    EDUCATION
+    York University, Bachelor of Administrative Studies, 2017; CFP, 2021
+    SKILLS
+    Financial planning, investments, mutual funds licensing, client relationships
+
+- id: branch-manager-senior-halifax
+  field: banking
+  pairs: 3
+  summary: "Bank branch manager, 16 years, Halifax"
+  target: {role: other, level: senior, location: "Halifax, NS", country: CA, remote_ok: false, titles: [branch manager, district manager, banking manager]}
+  resume: |
+    Karen MacLeod
+    karen.macleod@example.com | 902-555-0427
+    EXPERIENCE
+    Branch Manager, Atlantic Bank, 2014 - Present
+    - Lead 22 staff; branch revenue up 28% in 5 years
+    SKILLS
+    Branch operations, coaching, sales leadership, compliance
+
+- id: banker-to-fintech-qa-toronto
+  field: banking
+  pairs: 6
+  summary: "Bank operations analyst moving into QA for fintech; testing and SQL"
+  target: {role: sde, level: new_grad, location: "Toronto, ON", country: CA, remote_ok: true, titles: [qa, quality assurance, test analyst, sdet]}
+  notes: "Career changer: banking domain plus manual and some automated testing."
+  resume: |
+    Lina Haddad
+    lina.haddad@example.com | 647-555-0430 | github.com/lhaddad-example
+    EXPERIENCE
+    Operations Analyst, Northern Bank, 2021 - Present
+    - Tested 3 releases of the payments system as a business user; logged 140 defects in Jira
+    - Wrote SQL checks that catch duplicate wire payments each morning
+    PROJECTS
+    Automated a login test suite in Python and Selenium for a demo banking site
+    EDUCATION
+    University of Toronto, Bachelor of Commerce, 2021; ISTQB Foundation, 2025
+    SKILLS
+    Manual testing, SQL, Jira, Python, Selenium, payments
+
+- id: credit-analyst-ng-london
+  field: banking
+  pairs: 3
+  summary: "Credit analyst new grad, commercial lending, London"
+  target: {role: other, level: new_grad, location: "London, ON", country: CA, remote_ok: false, titles: [credit analyst, analyst, commercial banking]}
+  resume: |
+    Benjamin Taylor
+    benjamin.taylor@example.com | 519-555-0433
+    EDUCATION
+    Western University, Bachelor of Management and Organizational Studies (Finance), 2026
+    EXPERIENCE
+    Credit Analyst Intern, Forest City Bank, May 2025 - Aug 2025
+    - Wrote credit memos for 12 small-business loans
+    SKILLS
+    Financial statement analysis, credit risk, Excel, Moody's
+
+# ---------- legal ----------
+- id: paralegal-mid-toronto
+  field: legal
+  pairs: 3
+  summary: "Corporate paralegal, 6 years, Toronto"
+  target: {role: other, level: mid, location: "Toronto, ON", country: CA, remote_ok: false, titles: [paralegal, law clerk, legal assistant]}
+  resume: |
+    Christine Wong
+    christine.wong@example.com | 416-555-0436
+    EXPERIENCE
+    Corporate Paralegal, Bay Street Law LLP, 2020 - Present
+    - Maintain minute books for 150 companies; run closings for 30 deals a year
+    EDUCATION
+    Humber College, Paralegal Diploma, 2019
+    SKILLS
+    Corporate records, closings, due diligence, Ontario Business Registry
+
+- id: law-student-ottawa
+  field: legal
+  pairs: 3
+  summary: "Law student looking for a summer associate role"
+  target: {role: other, level: intern, location: "Ottawa, ON", country: CA, remote_ok: false, titles: [summer student, summer associate, articling]}
+  resume: |
+    Daniel Osei
+    daniel.osei@example.com | 613-555-0439
+    EDUCATION
+    University of Ottawa, Juris Doctor, Expected 2028
+    EXPERIENCE
+    Research Assistant, Faculty of Law, 2025 - Present
+    - Research privacy law cases for a book chapter
+    SKILLS
+    Legal research, writing, Westlaw, French and English
+
+- id: lawyer-senior-vancouver
+  field: legal
+  pairs: 3
+  summary: "Employment lawyer, partner, 18 years, Vancouver"
+  target: {role: other, level: senior, location: "Vancouver, BC", country: CA, remote_ok: false, titles: [lawyer, counsel, partner]}
+  resume: |
+    Elizabeth Grant
+    elizabeth.grant@example.com | 604-555-0442
+    EXPERIENCE
+    Partner, Employment Law Group, Harbour Law LLP, 2016 - Present
+    - Advise 60 employers; lead counsel in 40 hearings
+    EDUCATION
+    University of British Columbia, Juris Doctor, 2007; called to the BC Bar, 2008
+    SKILLS
+    Employment law, litigation, negotiation, workplace investigations
+
+- id: paralegal-to-grc-security-toronto
+  field: legal
+  pairs: 6
+  summary: "Privacy paralegal moving into security compliance (GRC)"
+  target: {role: security, level: mid, location: "Toronto, ON", country: CA, remote_ok: true, titles: [grc, compliance, privacy, risk analyst, security analyst]}
+  notes: "Career changer: privacy and compliance work maps to governance, risk and compliance roles, not hands-on security engineering."
+  resume: |
+    Nadia Rahimi
+    nadia.rahimi@example.com | 647-555-0445 | linkedin.com/in/nadia-rahimi-example
+    EXPERIENCE
+    Privacy Paralegal, Lakeshore Health, 2020 - Present
+    - Ran 40 privacy impact assessments under PHIPA and PIPEDA
+    - Coordinated the evidence for a SOC 2 Type II audit with the IT team
+    EDUCATION
+    Seneca College, Paralegal Diploma, 2019; CIPP/C, 2024; ISO 27001 Foundation, 2025
+    SKILLS
+    Privacy law, PIPEDA, risk assessment, SOC 2, ISO 27001, policy writing
+
+- id: legal-assistant-ng-calgary
+  field: legal
+  pairs: 3
+  summary: "Legal assistant, new grad diploma, Calgary"
+  target: {role: other, level: new_grad, location: "Calgary, AB", country: CA, remote_ok: false, titles: [legal assistant, legal administrative assistant]}
+  resume: |
+    Jordan Hayes
+    jordan.hayes@example.com | 403-555-0448
+    EDUCATION
+    SAIT, Legal Assistant Diploma, 2026
+    EXPERIENCE
+    Practicum, Bow Valley Family Law, Jan 2026 - Apr 2026
+    - Prepared court forms and managed 60 client files
+    SKILLS
+    Legal documents, file management, PCLaw, Microsoft Word
+
+# ---------- operations and supply chain ----------
+- id: logistics-coordinator-ng-mississauga
+  field: operations
+  pairs: 3
+  summary: "Supply chain new grad, logistics coordinator, Mississauga"
+  target: {role: other, level: new_grad, location: "Mississauga, ON", country: CA, remote_ok: false, titles: [logistics coordinator, supply chain, operations coordinator]}
+  resume: |
+    Vikram Singh
+    vikram.singh@example.com | 905-555-0451
+    EDUCATION
+    Sheridan College, Bachelor of Business (Supply Chain Management), 2026
+    EXPERIENCE
+    Logistics Intern, Peel Freight Services, May 2025 - Aug 2025
+    - Booked 300 truckloads; cut late pickups by 15%
+    SKILLS
+    SAP, Excel, freight booking, inventory control
+
+- id: warehouse-supervisor-mid-brampton
+  field: operations
+  pairs: 3
+  summary: "Warehouse supervisor, 8 years, Brampton"
+  target: {role: other, level: mid, location: "Brampton, ON", country: CA, remote_ok: false, titles: [warehouse supervisor, operations supervisor, distribution]}
+  resume: |
+    Gurpreet Dhillon
+    gurpreet.dhillon@example.com | 905-555-0454
+    EXPERIENCE
+    Warehouse Supervisor, North Star Distribution, 2018 - Present
+    - Lead 35 associates on night shift; picking accuracy from 97.2% to 99.5%
+    SKILLS
+    Warehouse management systems, forklift certification, scheduling, safety
+
+- id: supply-chain-director-senior-montreal
+  field: operations
+  pairs: 3
+  summary: "Supply chain director, 17 years in consumer goods, Montreal"
+  target: {role: other, level: senior, location: "Montreal, QC", country: CA, remote_ok: false, titles: [supply chain director, vp operations, operations director]}
+  resume: |
+    Isabelle Roy
+    isabelle.roy@example.com | 514-555-0457
+    EXPERIENCE
+    Director, Supply Chain, Fromagerie Laurentienne, 2014 - Present
+    - Lead planning, procurement and logistics for $600M in sales; inventory down 21%
+    SKILLS
+    S&OP, procurement, logistics, SAP, leadership, French and English
+
+- id: ops-to-data-analyst-toronto
+  field: operations
+  pairs: 6
+  summary: "Operations analyst moving into data analysis; SQL and Python on supply chain data"
+  target: {role: data, level: mid, location: "Toronto, ON", country: CA, remote_ok: true, titles: [data analyst, supply chain analyst, operations analyst, analytics]}
+  notes: "Career changer."
+  resume: |
+    Mei Lin
+    mei.lin@example.com | 416-555-0460 | github.com/meilin-example
+    EXPERIENCE
+    Operations Analyst, Lakeshore Grocers, 2020 - Present
+    - Built a demand forecast in Python for 1,200 products; stockouts down 18%
+    - Wrote SQL reports on Snowflake for 40 store managers
+    EDUCATION
+    McMaster University, Bachelor of Commerce, 2020
+    SKILLS
+    SQL, Python (pandas), Snowflake, Excel, forecasting, Tableau
+
+- id: procurement-student-hamilton
+  field: operations
+  pairs: 3
+  summary: "Business student looking for a procurement internship"
+  target: {role: other, level: intern, location: "Hamilton, ON", country: CA, remote_ok: false, titles: [procurement intern, purchasing, supply chain intern]}
+  resume: |
+    Ella Robinson
+    ella.robinson@example.com | 905-555-0463
+    EDUCATION
+    McMaster University, Bachelor of Commerce, Expected 2028
+    EXPERIENCE
+    Retail Associate, Jackson Square Outfitters, 2023 - Present
+    SKILLS
+    Excel, negotiation, customer service
+
+# ---------- hospitality and food ----------
+- id: line-cook-ng-toronto
+  field: hospitality
+  pairs: 3
+  summary: "Line cook, culinary diploma, Toronto"
+  target: {role: other, level: new_grad, location: "Toronto, ON", country: CA, remote_ok: false, titles: [line cook, cook, chef de partie]}
+  resume: |
+    Marco Bianchi
+    marco.bianchi@example.com | 416-555-0466
+    EDUCATION
+    George Brown College, Culinary Management Diploma, 2026
+    EXPERIENCE
+    Line Cook, Trattoria Nonna, 2024 - Present
+    - Run the grill station for 180 covers a night
+    SKILLS
+    Food safety certification, prep, grill, inventory
+
+- id: restaurant-manager-mid-vancouver
+  field: hospitality
+  pairs: 3
+  summary: "Restaurant general manager, 9 years, Vancouver"
+  target: {role: other, level: mid, location: "Vancouver, BC", country: CA, remote_ok: false, titles: [restaurant manager, general manager, hospitality manager]}
+  resume: |
+    Sienna Park
+    sienna.park@example.com | 604-555-0469
+    EXPERIENCE
+    General Manager, Harbour Bistro, 2019 - Present
+    - Run a 140-seat restaurant with 45 staff; food cost from 34% to 28%
+    SKILLS
+    P&L management, scheduling, Toast POS, hiring, food safety
+
+- id: hotel-gm-senior-banff
+  field: hospitality
+  pairs: 3
+  summary: "Hotel general manager, 20 years, Banff"
+  target: {role: other, level: senior, location: "Banff, AB", country: CA, remote_ok: false, titles: [hotel general manager, general manager, director of operations]}
+  resume: |
+    Andrew Fischer
+    andrew.fischer@example.com | 403-555-0472
+    EXPERIENCE
+    General Manager, Cascade Mountain Lodge, 2015 - Present
+    - Lead 160 staff in a 210-room resort; guest scores from 8.1 to 9.0
+    SKILLS
+    Hotel operations, revenue management, Opera PMS, leadership
+
+- id: chef-to-bootcamp-dev-toronto
+  field: hospitality
+  pairs: 6
+  summary: "Sous chef who finished a coding bootcamp; built a restaurant ordering app"
+  target: {role: sde, level: new_grad, location: "Toronto, ON", country: CA, remote_ok: true, titles: [junior developer, software developer, full stack, web developer]}
+  notes: "Career changer with a bootcamp and one real project; entry-level only."
+  resume: |
+    Diego Alvarez
+    diego.alvarez@example.com | 647-555-0475 | github.com/dalvarez-example
+    PROJECTS
+    MenuMate - React and Node.js ordering app used by 2 restaurants; 600 orders a month
+    Prep planner - Python script that turns sales into a daily prep list
+    EXPERIENCE
+    Sous Chef, Queen West Kitchen, 2018 - 2025
+    - Ran a kitchen team of 9; cut food waste 25% with a simple inventory system
+    EDUCATION
+    Coding bootcamp (16 weeks), 2025
+    SKILLS
+    JavaScript, React, Node.js, Express, MongoDB, Python, Git
+
+- id: event-coordinator-student-quebec
+  field: hospitality
+  pairs: 3
+  summary: "Tourism student looking for an events internship, Quebec City"
+  target: {role: other, level: intern, location: "Quebec City, QC", country: CA, remote_ok: false, titles: [event coordinator, events intern, tourism]}
+  resume: |
+    Léa Gauthier
+    lea.gauthier@example.com | 418-555-0478
+    EDUCATION
+    Université Laval, Baccalauréat en tourisme, Expected 2027
+    EXPERIENCE
+    Volunteer Coordinator, Festival d'été (example festival), Summer 2025
+    - Scheduled 120 volunteers across 9 stages
+    SKILLS
+    Event planning, scheduling, French and English, Excel

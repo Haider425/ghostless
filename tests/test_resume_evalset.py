@@ -26,17 +26,20 @@ def files(tmp_path, monkeypatch):
 
 def test_personas_are_synthetic_and_complete():
     personas = evalset.load_personas()
-    assert len(personas) == 40
+    assert len(personas) == 100  # 40 in tech, 60 in twelve other fields
     ids = [p.id for p in personas]
     assert len(set(ids)) == len(ids) and all(re.fullmatch(r"[a-z0-9-]+", i) for i in ids)
     for p in personas:
-        assert p.target.role in evalset.ROLES and p.target.level in evalset.LEVELS and p.target.titles
+        assert p.target.role in evalset.TARGET_ROLES and p.target.level in evalset.LEVELS and p.target.titles
         emails = re.findall(r"[\w.+-]+@[\w-]+\.[\w.]+", p.text)
         assert emails and all(e.endswith("@example.com") for e in emails), p.id
         phones = re.findall(r"\(?\d{3}\)?[\s.-]\d{3}-\d{4}", p.text)
         assert all("555" in phone for phone in phones), p.id
-    assert {p.target.role for p in personas} == set(evalset.ROLES)
+    assert {p.target.role for p in personas} == set(evalset.TARGET_ROLES)
     assert {p.target.level for p in personas} == set(evalset.LEVELS)
+    others = [p for p in personas if p.field]
+    assert len(others) == 60 and len({p.field for p in others}) >= 12
+    assert all(p.pairs in (3, 6) for p in others)  # 3 to label, 6 for those moving into tech
 
 
 def test_the_held_out_split_is_frozen_and_reproducible():
@@ -44,6 +47,27 @@ def test_the_held_out_split_is_frozen_and_reproducible():
     holdout = evalset.load_split()  # raises if the file was edited
     assert holdout == set(evalset.make_split(personas)["holdout"])
     assert 0.2 <= len(holdout) / len(personas) <= 0.4
+
+
+def test_adding_personas_never_moves_one_across_the_split(files):
+    first = evalset.make_split(["a1", "b2", "c3", "d4", "e5", "f6", "g7", "h8"])
+    files.joinpath("split.json").write_text(json.dumps(first))
+    grown = evalset.extend_split(
+        files / "split.json", ["a1", "b2", "c3", "d4", "e5", "f6", "g7", "h8", "new1", "new2"]
+    )
+    assert set(first["holdout"]) <= set(grown["holdout"])
+    files.joinpath("split.json").write_text(
+        json.dumps({"holdout": ["zz"], "sha256": evalset.split_hash(["zz"])})
+    )
+    with pytest.raises(ValueError, match="change sides"):
+        evalset.extend_split(files / "split.json", ["a1"])
+
+
+def test_every_persona_has_as_many_pairs_as_it_asks_for():
+    counts: dict[str, int] = {}
+    for row in evalset.read_jsonl(evalset.PAIRS):
+        counts[row["resume"]] = counts.get(row["resume"], 0) + 1
+    assert counts == {p.id: p.pairs for p in evalset.load_personas()}
 
 
 def test_an_edited_split_is_refused(files):
