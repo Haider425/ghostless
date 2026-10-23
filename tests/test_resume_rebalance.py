@@ -99,3 +99,9 @@ def test_rebalance_adds_what_is_short_and_is_safe_to_run_twice(tmp_path, monkeyp
 
     label.rebalance("postgresql://local")  # nothing short, nothing extra: no change
     assert [p.key() for p in evalset.load_pairs()] == [p.key() for p in pairs]
+
+
+def test_a_pair_already_written_is_never_written_twice():
+    rows = [Pair("a", 1, "random", "h").__dict__]
+    added = label._append_new(rows, [Pair("a", 1, "likely_strong", "h"), Pair("a", 2, "likely_okay", "h")])
+    assert [(r["job"], r["source"]) for r in added] == [(1, "random"), (2, "likely_okay")]

@@ -66,8 +66,10 @@ def test_adding_personas_never_moves_one_across_the_split(files):
 def test_every_persona_has_pairs_and_every_pair_a_pre_label():
     pairs = evalset.read_jsonl(evalset.PAIRS)
     assert {row["resume"] for row in pairs} == {p.id for p in evalset.load_personas()}
+    keys = [(row["resume"], row["job"]) for row in pairs]
+    assert len(keys) == len(set(keys))  # no pair twice
     prelabels = evalset.load_prelabels()
-    assert {(row["resume"], row["job"]) for row in pairs} == set(prelabels)
+    assert set(keys) == set(prelabels)
     assert all(pre.fit in evalset.FITS and pre.reason for pre in prelabels.values())
 
 

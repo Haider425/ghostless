@@ -90,6 +90,13 @@ def _save_postings(jobs: list[dict], texts: dict[int, str]) -> None:
     evalset.write_jsonl(evalset.PRIVATE / "postings.jsonl", list(postings.values()))
 
 
+def _append_new(rows: list[dict], new_pairs: list[Pair]) -> list[dict]:
+    """The file's rows (read again just before writing) plus the new pairs it
+    doesn't have yet, so two runs at once can't write a pair twice."""
+    have = {(r["resume"], r["job"]) for r in rows}
+    return rows + [p.__dict__ for p in new_pairs if p.key() not in have]
+
+
 def pool(dsn: str, per_resume: int = 8, only: str | None = None, seed: int = SEED) -> None:
     from tracker import db
     from tracker.api.resumes import analyze_text
@@ -141,8 +148,8 @@ def pool(dsn: str, per_resume: int = 8, only: str | None = None, seed: int = SEE
     _save_postings([by_id[p.job] for p in new_pairs], texts)
     real_ids = {r.id for r in resumes if r.real}
     for path, mine in ((evalset.PAIRS, False), (evalset.PRIVATE / "pairs.jsonl", True)):
-        rows = evalset.read_jsonl(path) + [p.__dict__ for p in new_pairs if (p.resume in real_ids) == mine]
-        evalset.write_jsonl(path, rows)
+        rows = evalset.read_jsonl(path)
+        evalset.write_jsonl(path, _append_new(rows, [p for p in new_pairs if (p.resume in real_ids) == mine]))
     print(f"added {len(new_pairs)} pairs; posting text saved in eval/resume/private/postings.jsonl")
 
 
@@ -222,8 +229,7 @@ def rebalance(dsn: str, only: str | None = None) -> None:
     real_ids = {r.id for r in _all_resumes() if r.real}
     for path, mine in ((evalset.PAIRS, False), (evalset.PRIVATE / "pairs.jsonl", True)):
         rows = [r for r in evalset.read_jsonl(path) if (r["resume"], r["job"]) not in drop]
-        rows += [p.__dict__ for p in new_pairs if (p.resume in real_ids) == mine]
-        evalset.write_jsonl(path, rows)
+        evalset.write_jsonl(path, _append_new(rows, [p for p in new_pairs if (p.resume in real_ids) == mine]))
     evalset.write_jsonl(
         evalset.PRELABELS,
         [r for r in evalset.read_jsonl(evalset.PRELABELS) if (r["resume"], r["job"]) not in drop],
