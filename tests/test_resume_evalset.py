@@ -103,6 +103,23 @@ def test_real_resumes_are_always_held_out_and_never_in_a_repr(files):
     assert "SECRET" not in repr(resume)
 
 
+def test_a_scanned_resume_without_text_is_skipped_not_fatal(files, capsys):
+    from tracker.resume.extract import UnreadableResume
+
+    folder = files / "private" / "resumes"
+    folder.mkdir(parents=True)
+    folder.joinpath("scan.pdf").write_bytes(b"%PDF image only")
+    folder.joinpath("typed.txt").write_text("Typed resume")
+
+    def read(path):
+        if path.suffix == ".pdf":
+            raise UnreadableResume("Almost no text came out of this file.")
+        return path.read_text()
+
+    assert [r.id for r in evalset.load_real_resumes(folder, read_file=read)] == ["real-typed"]
+    assert "real-scan: skipped" in capsys.readouterr().out
+
+
 def _job(job_id, title, level="intern", role="sde", country="CA", text=True, fingerprint=None):
     return {
         "id": job_id,

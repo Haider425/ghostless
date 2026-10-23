@@ -135,9 +135,16 @@ def load_real_resumes(folder: Path | None = None, read_file=None) -> list[Resume
         def read_file(path: Path) -> str:
             return extract_text(path.read_bytes(), path.name)
 
+    from tracker.resume.extract import UnreadableResume
+
     resumes = []
     for path in sorted(p for p in folder.iterdir() if p.suffix.lower() in RESUME_FILES):
         rid = f"real-{slug(path.stem)}"
+        try:
+            text = read_file(path)
+        except UnreadableResume as exc:  # a scanned image with no text layer, say: skipped, by id only
+            print(f"{rid}: skipped ({exc})")
+            continue
         meta_path = path.with_suffix(".yaml")
         meta = yaml.safe_load(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else None
         target = _target(meta["target"]) if meta and meta.get("target") else None
@@ -146,7 +153,7 @@ def load_real_resumes(folder: Path | None = None, read_file=None) -> list[Resume
                 id=rid,
                 summary=(meta or {}).get("summary") or "Real resume (private)",
                 target=target,  # type: ignore[arg-type]
-                text=read_file(path),
+                text=text,
                 real=True,
             )
         )
