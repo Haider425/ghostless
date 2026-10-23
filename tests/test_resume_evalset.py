@@ -120,6 +120,28 @@ def test_a_scanned_resume_without_text_is_skipped_not_fatal(files, capsys):
     assert "real-scan: skipped" in capsys.readouterr().out
 
 
+def test_a_scanned_resume_is_read_once_then_from_its_private_cache(files, monkeypatch):
+    from tracker.resume import extract, ocr
+
+    folder = files / "private" / "resumes"
+    folder.mkdir(parents=True)
+    folder.joinpath("resume-1.pdf").write_bytes(b"%PDF a scan")
+
+    def no_text_layer(data, name="", content_type=""):
+        raise extract.UnreadableResume("Almost no text came out of this file.")
+
+    reads = []
+    monkeypatch.setattr(extract, "extract_text", no_text_layer)
+    monkeypatch.setattr(ocr, "available", lambda: True)
+    monkeypatch.setattr(ocr, "pdf_text", lambda data: reads.append(1) or "word " * 40)
+
+    first = evalset.load_real_resumes(folder)
+    second = evalset.load_real_resumes(folder)
+    assert len(reads) == 1  # the slow part ran once
+    assert first[0].text == second[0].text
+    assert list((folder / ".text").glob("resume-1.*.txt"))  # kept beside it, in the private folder
+
+
 def _job(job_id, title, level="intern", role="sde", country="CA", text=True, fingerprint=None):
     return {
         "id": job_id,

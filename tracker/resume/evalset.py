@@ -140,14 +140,26 @@ def load_real_resumes(folder: Path | None = None, read_file=None) -> list[Resume
             try:
                 return extract_text(data, path.name)
             except UnreadableResume:
-                # a scanned PDF: read the picture of the text, locally (tracker/resume/ocr.py)
-                if path.suffix.lower() != ".pdf" or not ocr.available():
+                # a scanned PDF: read the picture of the text, locally (tracker/resume/ocr.py),
+                # once: the text is kept next to it, in the private folder, for every later run
+                if path.suffix.lower() != ".pdf":
                     raise
+                cached = path.parent / ".text" / f"{path.stem}.{hashlib.sha256(data).hexdigest()[:16]}.txt"
+                if cached.exists():
+                    return cached.read_text(encoding="utf-8")
+                if not ocr.available():
+                    raise
+                print(
+                    f"{rid}: reading a scanned resume (a few seconds a page, only the first time)…",
+                    flush=True,
+                )
                 text = ocr.pdf_text(data)
                 if len(text.split()) < 30:
                     raise UnreadableResume(
                         "Even text recognition found almost no text in this file."
                     ) from None
+                cached.parent.mkdir(exist_ok=True)
+                cached.write_text(text, encoding="utf-8")
                 return text
 
     from tracker.resume.extract import UnreadableResume

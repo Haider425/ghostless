@@ -213,6 +213,7 @@ def _terms(candidates: list[str], before: dict[str, bool]) -> dict[str, bool] | 
 def label(only: str | None = None) -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
+    print("Loading the resumes and postings…", flush=True)
     resumes = {r.id: r for r in _all_resumes()}
     postings = evalset.load_postings()
     pairs = [p for p in evalset.load_pairs() if p.resume in resumes and (not only or p.resume == only)]
