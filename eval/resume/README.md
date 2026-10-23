@@ -9,6 +9,7 @@ The labelled set the resume models are measured on (`docs/resume-model-plan.md`,
 | `split.json` | the 30 personas held out from all tuning, chosen by a hash of their id: adding personas never moves one | yes |
 | `pairs.jsonl` | the postings chosen for each persona (8 in tech, 6 moving into tech, 3 outside tech), by id and text hash | yes |
 | `labels.jsonl` | your labels for the persona pairs | yes |
+| `prelabels.jsonl` | Claude's label and one-line reason for each persona pair, kept apart from yours | yes |
 | `private/` | everything else, **git-ignored, never committed** | no |
 | `private/postings.jsonl` | the text of every chosen posting, so labels outlive the posting | no |
 | `private/resumes/` | real resumes, shared with permission | no |
@@ -17,9 +18,31 @@ The labelled set the resume models are measured on (`docs/resume-model-plan.md`,
 ## Labelling
 
 ```
-ghostless label-resume          # label: one pair at a time, saved after each answer
-ghostless label-resume status   # how many are done
+ghostless label-resume --web            # label in a local web page (recommended)
+ghostless label-resume                  # label in the terminal: one pair at a time
+ghostless label-resume --holdout        # only the held-out pairs (or --tuning)
+ghostless label-resume review           # tuning pairs: see the pre-label, accept or correct it
+ghostless label-resume agreement        # how often your labels and the pre-labels agree
+ghostless label-resume status           # how many are done
 ```
+
+Both tools save after every label to the same files, so you can switch between
+them at any point.
+
+**The web page** runs on `http://127.0.0.1:8765` (`--port` to change it). It is
+served only on this computer, never on the network, and it isn't part of the
+website: it refuses any request whose host or origin isn't this machine. The
+resume is on the left and the full posting on the right, each scrolling on its
+own. Requirement lines are tinted, nice-to-haves too, and skills found in both
+are highlighted. Keys: **s**, **o**, **w** to label, **k** to skip, **b** to go
+back, **n** to type a note (Esc to leave it). In review mode, **a** or Enter
+accepts the pre-label. Filter by persona, and by held-out or tuning.
+
+**Blind and review.** Held-out pairs are always labelled blind: neither tool
+shows a pre-label for them, in any mode (the server never sends one). Review
+mode only offers tuning pairs. A label given in review is marked `via:
+review-accepted` or `review-corrected`; accepted ones are left out of the
+agreement numbers, since they agree by construction.
 
 For each pair you see the resume (and what the person wants), then what the
 posting asks for. Press **s** (strong), **o** (okay) or **w** (weak). Other keys:
@@ -35,9 +58,13 @@ posting **and** something this person plausibly has. Press Enter if none are.
 
 **What the labels mean.** Judge whether you'd tell this person to apply:
 
-- **strong:** a good fit; apply.
-- **okay:** worth applying; a stretch or a partial fit.
-- **weak:** not a fit (wrong field, wrong level, a hard requirement they don't meet, or the wrong country for them).
+- **strong:** you'd tell them to apply today.
+- **okay:** worth applying, with one real mismatch (wrong city, a different specialty, some key skills missing).
+- **weak:** wrong field or level, not eligible, or most requirements missing.
+
+The pre-labels also count another country as weak, unless the posting is
+remote in the person's own country; a different city in the same country is
+one mismatch (okay at best).
 
 Pairs come round-robin across resumes, so stopping early still covers every
 person. There are 536 in all: the 320 for the tech personas matter most (at

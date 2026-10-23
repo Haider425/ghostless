@@ -109,9 +109,17 @@ def _parser() -> argparse.ArgumentParser:
         "label-resume", help="build and label the resume evaluation set (eval/resume)"
     )
     label_resume.add_argument(
-        "action", nargs="?", default="label", choices=["label", "pool", "status"],
-        help="label pairs (default), pool: choose postings to label, status: progress",
+        "action", nargs="?", default="label", choices=["label", "review", "agreement", "pool", "status"],
+        help="label pairs blind (default); review: tuning pairs with their pre-labels; agreement: how your "
+        "labels compare with the pre-labels; pool: choose postings to label; status: progress",
     )  # fmt: skip
+    label_resume.add_argument(
+        "--web", action="store_true", help="label in a local web page (http://127.0.0.1 only) instead"
+    )
+    label_resume.add_argument("--port", type=int, default=8765, help="for --web (default 8765)")
+    part = label_resume.add_mutually_exclusive_group()
+    part.add_argument("--holdout", action="store_true", help="only the held-out pairs (always blind)")
+    part.add_argument("--tuning", action="store_true", help="only the tuning pairs")
     label_resume.add_argument(
         "--db", metavar="URL", help="for pool: the database to read postings from (use a local copy)"
     )
@@ -353,8 +361,15 @@ def _label_resume(args: argparse.Namespace) -> None:
         label.pool(args.db, per_resume=args.per, only=args.only)
     elif args.action == "status":
         label.status()
+    elif args.action == "agreement":
+        label.agreement_report()
+    elif args.web:
+        from tracker.resume import label_web
+
+        label_web.serve(args.port)
     else:
-        label.label(only=args.only)
+        part = "holdout" if args.holdout else "tuning" if args.tuning else "all"
+        label.label(only=args.only, part=part, review=args.action == "review")
 
 
 def _domains(args: argparse.Namespace) -> None:

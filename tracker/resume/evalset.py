@@ -36,6 +36,7 @@ PERSONAS_FIELDS = ROOT / "personas_fields.yaml"  # 60 more, outside tech
 SPLIT = ROOT / "split.json"
 PAIRS = ROOT / "pairs.jsonl"
 LABELS = ROOT / "labels.jsonl"
+PRELABELS = ROOT / "prelabels.jsonl"  # labels made in advance, each with a reason
 PRIVATE = ROOT / "private"
 
 ROLES = ("sde", "data", "data_eng", "ml", "hardware", "security")
@@ -87,6 +88,22 @@ class Label:
     fit: str  # strong | okay | weak
     terms: dict[str, bool] = field(default_factory=dict)  # fair to suggest adding?
     at: str = ""
+    note: str = ""  # an optional one-line note
+    # how it was given: "" labelled blind, "review-accepted" took the pre-label as is,
+    # "review-corrected" changed it after seeing the pre-label
+    via: str = ""
+
+
+@dataclass
+class PreLabel:
+    """A label made in advance with a reason (prelabels.jsonl), to compare with
+    the labeller's own and to speed up review of tuning pairs. Never shown for
+    held-out pairs."""
+
+    resume: str
+    job: int
+    fit: str
+    reason: str
 
 
 # ---------- resumes ----------
@@ -238,8 +255,8 @@ def extend_split(path: Path, persona_ids: list[str]) -> dict:
     return split
 
 
-def load_split(path: Path = SPLIT) -> set[str]:
-    data = json.loads(path.read_text(encoding="utf-8"))
+def load_split(path: Path | None = None) -> set[str]:
+    data = json.loads((path or SPLIT).read_text(encoding="utf-8"))
     if split_hash(data["holdout"]) != data["sha256"]:
         raise ValueError("eval/resume/split.json was edited: the held-out set must not change")
     return set(data["holdout"])
@@ -281,6 +298,48 @@ def load_labels() -> dict[tuple[str, int], Label]:
     for row in read_jsonl(LABELS) + read_jsonl(PRIVATE / "labels.jsonl"):
         labels[(row["resume"], row["job"])] = Label(**row)
     return labels
+
+
+def load_prelabels() -> dict[tuple[str, int], PreLabel]:
+    return {(row["resume"], row["job"]): PreLabel(**row) for row in read_jsonl(PRELABELS)}
+
+
+@dataclass
+class Agreement:
+    pairs: int = 0
+    agree: int = 0
+    kappa: float = 0.0  # Cohen's kappa: agreement beyond what chance would give
+    confusion: dict[str, dict[str, int]] = field(default_factory=dict)  # mine -> theirs -> count
+    by_label: dict[str, tuple[int, int]] = field(default_factory=dict)  # their label -> (agreed, total)
+    disagreements: list[tuple[Label, PreLabel]] = field(default_factory=list)
+
+    @property
+    def share(self) -> float:
+        return self.agree / self.pairs if self.pairs else 0.0
+
+
+def agreement(labels: list[Label], prelabels: dict[tuple[str, int], PreLabel]) -> Agreement:
+    """How often the labeller's own labels match the pre-labels. Labels taken
+    as is in review mode are left out: they'd agree by construction."""
+    out = Agreement(confusion={a: {b: 0 for b in FITS} for a in FITS})
+    pairs = [(lab, prelabels[(lab.resume, lab.job)]) for lab in labels
+             if (lab.resume, lab.job) in prelabels and lab.via != "review-accepted" and lab.fit in FITS]  # fmt: skip
+    for lab, pre in pairs:
+        out.pairs += 1
+        out.confusion[pre.fit][lab.fit] += 1
+        agreed, total = out.by_label.get(lab.fit, (0, 0))
+        same = lab.fit == pre.fit
+        out.by_label[lab.fit] = (agreed + same, total + 1)
+        out.agree += same
+        if not same:
+            out.disagreements.append((lab, pre))
+    if out.pairs:
+        observed = out.agree / out.pairs
+        mine = {f: sum(out.confusion[f].values()) / out.pairs for f in FITS}
+        theirs = {f: sum(out.confusion[g][f] for g in FITS) / out.pairs for f in FITS}
+        chance = sum(mine[f] * theirs[f] for f in FITS)
+        out.kappa = (observed - chance) / (1 - chance) if chance < 1 else 1.0
+    return out
 
 
 def save_label(label: Label, real: bool) -> None:

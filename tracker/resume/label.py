@@ -174,9 +174,11 @@ def _show_posting(posting: dict, full: bool = False) -> None:
     print(_wrap(text, None if full else 30))
 
 
-def _ask(prompt: str, choices: str) -> str:
+def _ask(prompt: str, choices: str, default: str | None = None) -> str:
     while True:
         answer = input(prompt).strip().lower()
+        if not answer and default:
+            return default
         if answer[:1] in choices and answer:
             return answer[:1]
         print(f"  Type one of: {', '.join(choices)}")
@@ -210,26 +212,49 @@ def _terms(candidates: list[str], before: dict[str, bool]) -> dict[str, bool] | 
         print(f"  Numbers from 1 to {len(candidates)}.")
 
 
-def label(only: str | None = None) -> None:
+PARTS = ("all", "holdout", "tuning")
+
+
+def pairs_to_label(
+    resumes: dict[str, Resume], postings: dict[int, dict], part: str = "all", only: str | None = None
+) -> list[Pair]:
+    """The pairs in labelling order, narrowed to held-out or tuning pairs, or one resume."""
+    holdout = evalset.load_split() if evalset.SPLIT.exists() else set()
+    pairs = [
+        p
+        for p in evalset.load_pairs()
+        if p.resume in resumes
+        and p.job in postings
+        and (not only or p.resume == only)
+        and (part == "all" or (part == "holdout") == evalset.is_holdout(resumes[p.resume], holdout))
+    ]
+    return evalset.labelling_order(pairs, list(resumes))
+
+
+def label(only: str | None = None, part: str = "all", review: bool = False) -> None:
+    """Label pairs one at a time. Blind unless `review`: then only tuning pairs,
+    each shown with its pre-label and reason, accepted with Enter."""
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
     print("Loading the resumes and postings…", flush=True)
     resumes = {r.id: r for r in _all_resumes()}
     postings = evalset.load_postings()
-    pairs = [p for p in evalset.load_pairs() if p.resume in resumes and (not only or p.resume == only)]
-    if not pairs:
-        print("No pairs yet. Run: ghostless label-resume pool --db <local database URL>")
+    if review:
+        part = "tuning"  # never for held-out pairs
+    order = pairs_to_label(resumes, postings, part, only)
+    if not order:
+        print("No pairs to label here. Run: ghostless label-resume pool --db <local database URL>")
         return
-    missing_text = [p for p in pairs if p.job not in postings]
-    if missing_text:
-        print(
-            f"{len(missing_text)} pairs have no saved posting text (eval/resume/private/postings.jsonl); skipping them."
-        )
-    order = [p for p in evalset.labelling_order(pairs, list(resumes)) if p.job in postings]
+    prelabels = evalset.load_prelabels() if review else {}
     labels = evalset.load_labels()
     i = next((n for n, p in enumerate(order) if p.key() not in labels), len(order))
     print(__doc__.split("\n\n")[0])
-    print("Keys: s strong · o okay · w weak · f full posting · r resume again · k skip · b back · q quit\n")
+    if review:
+        print("Review: Enter or a accepts the pre-label · s o w to correct it · f r k b q as usual\n")
+    else:
+        print(
+            "Keys: s strong · o okay · w weak · f full posting · r resume again · k skip · b back · q quit\n"
+        )
     while i < len(order):
         pair = order[i]
         resume, posting = resumes[pair.resume], postings[pair.job]
@@ -245,8 +270,17 @@ def label(only: str | None = None) -> None:
             print(f"\n(labelled before: {previous.fit})")
         if evalset.text_hash(posting.get("description")) != pair.text_hash:
             print("\n(note: this posting's saved text differs from when it was chosen)")
+        pre = prelabels.get(pair.key())
+        if pre:
+            print(f"\nPre-label: {pre.fit.upper()} · {pre.reason}")
+        keys = "sowfrkbqa" if pre else "sowfrkbq"
+        prompt = (
+            "\n[Enter/a] accept · [s]trong [o]kay [w]eak · [f]ull [r]esume [k]skip [b]ack [q]uit: "
+            if pre
+            else "\nFit? [s]trong [o]kay [w]eak · [f]ull [r]esume [k]skip [b]ack [q]uit: "
+        )
         while True:
-            key = _ask("\nFit? [s]trong [o]kay [w]eak · [f]ull [r]esume [k]skip [b]ack [q]uit: ", "sowfrkbq")
+            key = _ask(prompt, keys, default="a" if pre else None)
             if key == "f":
                 print()
                 _show_posting(posting, full=True)
@@ -263,16 +297,66 @@ def label(only: str | None = None) -> None:
         if key == "b":
             i = max(0, i - 1)
             continue
-        fit = {"s": "strong", "o": "okay", "w": "weak"}[key]
+        if key == "a":
+            fit, via = pre.fit, "review-accepted"
+        else:
+            fit = {"s": "strong", "o": "okay", "w": "weak"}[key]
+            via = ("review-accepted" if fit == pre.fit else "review-corrected") if pre else ""
         terms = _terms(pair.candidates, previous.terms if previous else {})
         if terms is None:
             continue  # back to the fit question for this pair
-        record = Label(pair.resume, pair.job, fit, terms)
+        record = Label(pair.resume, pair.job, fit, terms, via=via)
         evalset.save_label(record, real=resume.real)
         labels[pair.key()] = record
         i += 1
     done = sum(1 for p in order if p.key() in labels)
-    print(f"\nSaved. {done} of {len(order)} pairs labelled. Run `ghostless label-resume` to continue.")
+    print(f"\nSaved. {done} of {len(order)} pairs labelled. Run the same command to continue.")
+
+
+def agreement_report(examples: int = 12) -> None:
+    """How often your labels agree with the pre-labels, overall and per label,
+    on held-out and tuning pairs, with examples of where you differ."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
+    resumes = {r.id: r for r in _all_resumes()}
+    holdout = evalset.load_split() if evalset.SPLIT.exists() else set()
+    labels = list(evalset.load_labels().values())
+    prelabels = evalset.load_prelabels()
+    postings = evalset.load_postings()
+    for name, keep in (
+        ("held out (labelled blind)", lambda r: evalset.is_holdout(r, holdout)),
+        ("tuning", lambda r: not evalset.is_holdout(r, holdout)),
+        ("all", lambda r: True),
+    ):
+        part = [lab for lab in labels if lab.resume in resumes and keep(resumes[lab.resume])]
+        result = evalset.agreement(part, prelabels)
+        print(f"\n{name}: {result.pairs} pairs compared")
+        if not result.pairs:
+            continue
+        print(
+            f"  agree {result.agree} of {result.pairs} ({result.share:.0%}), Cohen's kappa {result.kappa:.2f}"
+        )
+        for fit in evalset.FITS:
+            agreed, total = result.by_label.get(fit, (0, 0))
+            if total:
+                print(f"  you said {fit:6}: pre-label agreed {agreed} of {total} ({agreed / total:.0%})")
+        print("  pre-label (rows) vs yours (columns):  " + "  ".join(f"{f:>6}" for f in evalset.FITS))
+        for fit in evalset.FITS:
+            row = result.confusion[fit]
+            print(
+                f"    {fit:6}                              " + "  ".join(f"{row[f]:>6}" for f in evalset.FITS)
+            )
+    result = evalset.agreement([lab for lab in labels if lab.resume in resumes], prelabels)
+    if result.disagreements:
+        print(
+            f"\nWhere you differ ({min(examples, len(result.disagreements))} of {len(result.disagreements)}):"
+        )
+        for lab, pre in result.disagreements[:examples]:
+            job = postings.get(lab.job, {})
+            print(f"  {lab.resume} × {job.get('company', '?')} | {job.get('title', lab.job)}")
+            print(
+                f"     you: {lab.fit}{f' ({lab.note})' if lab.note else ''} · pre-label: {pre.fit}, {pre.reason}"
+            )
 
 
 def status() -> None:
