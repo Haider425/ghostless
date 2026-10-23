@@ -124,8 +124,13 @@ def test_a_sharded_run_collects_its_part_and_finish_does_the_rest(monkeypatch):
         c.commit()
     calls = []
     monkeypatch.setattr(discovery, "crawl_boards", lambda *a, **k: calls.append(("crawl", k.get("shard"))))
-    monkeypatch.setattr(discovery, "run", lambda *a, **k: calls.append(("lists", k.get("crawl"))))
+    monkeypatch.setattr(
+        discovery, "run", lambda *a, **k: calls.append(("lists", k.get("crawl"), k.get("check_candidates")))
+    )
     refreshed = []
+    monkeypatch.setattr(
+        discovery, "verify_candidates", lambda dsn: calls.append(("candidates", len(refreshed)))
+    )
     real_refresh = db.refresh_signals
     monkeypatch.setattr(db, "refresh_signals", lambda conn: refreshed.append(1) or real_refresh(conn))
 
@@ -135,7 +140,9 @@ def test_a_sharded_run_collects_its_part_and_finish_does_the_rest(monkeypatch):
     assert refreshed == []  # signals wait for finish
 
     ingest.finish()
-    assert calls[-1] == ("lists", False) and refreshed == [1]
+    # the lists, then signals and clean-up, and only then the candidate checks,
+    # so a slow check can't hold up the rest
+    assert calls[-2:] == [("lists", False, False), ("candidates", 1)] and refreshed == [1]
     with db.connect(DSN) as c:
         assert c.execute("SELECT count(*) FROM jobs").fetchone()[0] == 12
 

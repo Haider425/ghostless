@@ -23,6 +23,8 @@ import threading
 import time
 from dataclasses import dataclass
 
+import psycopg
+
 from tracker import db, settings
 from tracker.classify import title_worth_storing
 from tracker.discovery.boards import board_from_url, board_links, career_site, company_key
@@ -39,6 +41,7 @@ log = logging.getLogger("tracker.discovery")
 
 EMPTY_RECHECK_DAYS = 30
 DEAD_AFTER_FAILURES = 3
+RECORD_BATCH = 200  # candidate results saved per commit
 ATS_PLATFORMS = ("greenhouse", "lever", "ashby", "workday")
 
 
@@ -236,16 +239,24 @@ def verify(dsn: str, budget: int | None = None) -> dict[str, int]:
     targets = [
         Company(name=n, platform=p, board_slug=s, origin="discovered") for (p, s), (n, _) in companies.items()
     ]
-    for company, result in run_by_site(targets, site_of, work):
-        if result is None:
-            counts["deferred"] += 1
-            continue
-        if isinstance(result, BaseException):
-            log.error("candidate %s: %s", company.board_slug, result)
-            result = Check("failed")
-        counts["checked"] += 1
-        state = _record(dsn, company, result)
-        counts[state] = counts.get(state, 0) + 1
+    # one connection for every result (not one each: thousands of connections
+    # to a remote database took longer than the checks), committed in batches
+    # so a run stopped part way keeps what it has checked
+    with db.connect(dsn) as conn:
+        for company, result in run_by_site(targets, site_of, work):
+            if result is None:
+                counts["deferred"] += 1
+                continue
+            if isinstance(result, BaseException):
+                log.error("candidate %s: %s", company.board_slug, result)
+                result = Check("failed")
+            counts["checked"] += 1
+            state = _record(conn, company, result)
+            counts[state] = counts.get(state, 0) + 1
+            if counts["checked"] % RECORD_BATCH == 0:
+                conn.commit()
+            if counts["checked"] % 1000 == 0:
+                log.info("candidates checked so far: %d of %d", counts["checked"], len(targets))
     if counts["checked"] or counts["deferred"]:
         log.info(
             "candidates checked: %d (%d active, %d empty, %d failed, %d dead, %d replaced); %d left for the next run",
@@ -255,49 +266,48 @@ def verify(dsn: str, budget: int | None = None) -> dict[str, int]:
     return counts
 
 
-def _record(dsn: str, company: Company, result: Check) -> str:
+def _record(conn: psycopg.Connection, company: Company, result: Check) -> str:
     key = (company.platform, company.board_slug)
-    with db.connect(dsn) as conn:
-        if result.outcome == "active":
-            conn.execute(
-                """UPDATE discovered_boards SET state = 'active', failures = 0, next_due = now(),
-                          company_name = coalesce(%s, company_name)
-                   WHERE platform = %s AND board_slug = %s""",
-                (result.name, *key),
-            )
-            return "active"
-        if result.outcome == "empty":
-            conn.execute(
-                """UPDATE discovered_boards SET state = 'empty', failures = 0, last_crawled = now(),
-                          next_due = now() + make_interval(days => %s), company_name = coalesce(%s, company_name)
-                   WHERE platform = %s AND board_slug = %s""",
-                (EMPTY_RECHECK_DAYS, result.name, *key),
-            )
-            return "empty"
-        if result.outcome == "replaced" and result.replaced_by:
-            platform, slug = result.replaced_by
-            conn.execute(
-                "UPDATE discovered_boards SET state = 'replaced' WHERE platform = %s AND board_slug = %s", key
-            )
-            conn.execute(
-                """INSERT INTO discovered_boards (platform, board_slug, company_name, found_in, state)
-                   SELECT %s, %s, %s, %s, 'candidate'
-                   WHERE NOT EXISTS (SELECT 1 FROM discovered_boards d
-                                     WHERE d.platform = %s AND lower(d.board_slug) = lower(%s))
-                   ON CONFLICT (platform, board_slug) DO NOTHING""",
-                (platform, slug, company.name, f"site:{company.board_slug}", platform, slug),
-            )
-            return "replaced"
-        failures = conn.execute(
-            """UPDATE discovered_boards SET failures = failures + 1, last_crawled = now(),
-                      next_due = now() + interval '1 day'
-               WHERE platform = %s AND board_slug = %s RETURNING failures""",
+    if result.outcome == "active":
+        conn.execute(
+            """UPDATE discovered_boards SET state = 'active', failures = 0, next_due = now(),
+                      company_name = coalesce(%s, company_name)
+               WHERE platform = %s AND board_slug = %s""",
+            (result.name, *key),
+        )
+        return "active"
+    if result.outcome == "empty":
+        conn.execute(
+            """UPDATE discovered_boards SET state = 'empty', failures = 0, last_crawled = now(),
+                      next_due = now() + make_interval(days => %s), company_name = coalesce(%s, company_name)
+               WHERE platform = %s AND board_slug = %s""",
+            (EMPTY_RECHECK_DAYS, result.name, *key),
+        )
+        return "empty"
+    if result.outcome == "replaced" and result.replaced_by:
+        platform, slug = result.replaced_by
+        conn.execute(
+            "UPDATE discovered_boards SET state = 'replaced' WHERE platform = %s AND board_slug = %s", key
+        )
+        conn.execute(
+            """INSERT INTO discovered_boards (platform, board_slug, company_name, found_in, state)
+               SELECT %s, %s, %s, %s, 'candidate'
+               WHERE NOT EXISTS (SELECT 1 FROM discovered_boards d
+                                 WHERE d.platform = %s AND lower(d.board_slug) = lower(%s))
+               ON CONFLICT (platform, board_slug) DO NOTHING""",
+            (platform, slug, company.name, f"site:{company.board_slug}", platform, slug),
+        )
+        return "replaced"
+    failures = conn.execute(
+        """UPDATE discovered_boards SET failures = failures + 1, last_crawled = now(),
+                  next_due = now() + interval '1 day'
+           WHERE platform = %s AND board_slug = %s RETURNING failures""",
+        key,
+    ).fetchone()
+    if failures and failures[0] >= DEAD_AFTER_FAILURES:
+        conn.execute(
+            "UPDATE discovered_boards SET state = 'dead', next_due = NULL WHERE platform = %s AND board_slug = %s",
             key,
-        ).fetchone()
-        if failures and failures[0] >= DEAD_AFTER_FAILURES:
-            conn.execute(
-                "UPDATE discovered_boards SET state = 'dead', next_due = NULL WHERE platform = %s AND board_slug = %s",
-                key,
-            )
-            return "dead"
-        return "failed"
+        )
+        return "dead"
+    return "failed"

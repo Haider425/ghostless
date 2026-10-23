@@ -255,6 +255,27 @@ def test_candidate_states(conn, monkeypatch):
 
 
 @needs_db
+def test_results_are_saved_over_one_connection_in_batches(conn, monkeypatch):
+    monkeypatch.setenv("GHOSTLESS_SNOWBALL", "1")
+    monkeypatch.setattr(snowball, "RECORD_BATCH", 2)
+    for i in range(5):
+        conn.execute(
+            "INSERT INTO discovered_boards (platform, board_slug, company_name, state)"
+            " VALUES ('lever', %s, %s, 'candidate')",
+            (f"co{i}", f"co{i}"),
+        )
+    conn.commit()
+    monkeypatch.setattr(snowball, "check", lambda *a: snowball.Check("active"))
+    opened = []
+    real_connect = db.connect
+    monkeypatch.setattr(snowball.db, "connect", lambda dsn: opened.append(dsn) or real_connect(dsn))
+
+    assert snowball.verify(DSN)["active"] == 5
+    assert len(opened) == 2  # one to choose the candidates, one for every result
+    assert set(states(conn).values()) == {"active"}
+
+
+@needs_db
 def test_candidates_not_checked_in_time_wait_for_the_next_run(conn, monkeypatch):
     monkeypatch.setenv("GHOSTLESS_SNOWBALL", "1")
     for slug in ("one", "two"):
