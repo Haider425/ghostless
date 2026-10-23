@@ -63,11 +63,12 @@ def test_adding_personas_never_moves_one_across_the_split(files):
         evalset.extend_split(files / "split.json", ["a1"])
 
 
-def test_every_persona_has_as_many_pairs_as_it_asks_for():
-    counts: dict[str, int] = {}
-    for row in evalset.read_jsonl(evalset.PAIRS):
-        counts[row["resume"]] = counts.get(row["resume"], 0) + 1
-    assert counts == {p.id: p.pairs for p in evalset.load_personas()}
+def test_every_persona_has_pairs_and_every_pair_a_pre_label():
+    pairs = evalset.read_jsonl(evalset.PAIRS)
+    assert {row["resume"] for row in pairs} == {p.id for p in evalset.load_personas()}
+    prelabels = evalset.load_prelabels()
+    assert {(row["resume"], row["job"]) for row in pairs} == set(prelabels)
+    assert all(pre.fit in evalset.FITS and pre.reason for pre in prelabels.values())
 
 
 def test_an_edited_split_is_refused(files):

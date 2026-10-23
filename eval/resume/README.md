@@ -7,7 +7,7 @@ The labelled set the resume models are measured on (`docs/resume-model-plan.md`,
 | `personas.yaml` | 40 synthetic resumes in tech, each with the role, level and place it targets | yes |
 | `personas_fields.yaml` | 60 more in twelve other fields (accounting to hospitality), including 12 people moving into tech | yes |
 | `split.json` | the 30 personas held out from all tuning, chosen by a hash of their id: adding personas never moves one | yes |
-| `pairs.jsonl` | the postings chosen for each persona (8 in tech, 6 moving into tech, 3 outside tech), by id and text hash | yes |
+| `pairs.jsonl` | the postings chosen for each persona, by id and text hash (see "Balancing the pools") | yes |
 | `labels.jsonl` | your labels for the persona pairs | yes |
 | `prelabels.jsonl` | Claude's label and one-line reason for each persona pair, kept apart from yours | yes |
 | `private/` | everything else, **git-ignored, never committed** | no |
@@ -62,15 +62,45 @@ posting **and** something this person plausibly has. Press Enter if none are.
 - **okay:** worth applying, with one real mismatch (wrong city, a different specialty, some key skills missing).
 - **weak:** wrong field or level, not eligible, or most requirements missing.
 
-The pre-labels also count another country as weak, unless the posting is
-remote in the person's own country; a different city in the same country is
-one mismatch (okay at best).
+**Another country.** A posting in another country is one mismatch (okay at
+best) when the person is a student or new grad and the posting is an internship
+or new grad role at their level, since many Canadian students apply to US
+internships. Otherwise it's weak, unless the posting is remote in the person's
+own country. A different city in the same country is one mismatch. Career
+changers aiming at entry-level roles don't count as students or new grads here,
+and a posting that only takes students of its own country's schools is "not
+eligible", so weak.
+
+## Balancing the pools
+
+```
+ghostless label-resume rebalance --db <local database URL>
+```
+
+The first pools came out mostly weak (wrong level, other country, random), which
+leaves too few strong pairs to measure ranking on. `rebalance` evens them out,
+aiming at roughly a third each:
+
+- **likely strong** (up to 4 per person after a tech role): the right role and
+  level, in their city or remote in their country, and today's matcher rates it
+  a good fit (50 and up);
+- **likely okay** (up to 4): exactly one mismatch, taken in turn from each kind:
+  another city in their country, some key skills missing (35 to 49), a
+  different specialty, or a student's internship or new grad role abroad;
+- **weak**, kept as a check: 4 per person after a tech role (where today's
+  matcher was wrong first, then one each of wrong level, other country and
+  random), and 2 per person staying in a field Ghostless doesn't list, since
+  every posting is weak for them.
+
+One posting per company per person. It never drops a labelled pair, it drops
+the pre-labels of pairs it drops, and running it again changes nothing. The
+held-out split is by person, as before, so new pairs go to the same side as
+their person's others. New pairs need pre-labels: `status` says how many lack one.
 
 Pairs come round-robin across resumes, so stopping early still covers every
-person. There are 536 in all: the 320 for the tech personas matter most (at
-least 150 of them). The 216 for people outside tech are quick: most are clearly
-weak, and that's still worth labelling, since it teaches the model what *doesn't*
-transfer.
+person. The pairs for people after a tech role matter most. The ones for people
+staying outside tech are quick: they're clearly weak, and that's still worth
+labelling, since it teaches the model what *doesn't* transfer.
 
 ## Adding real resumes (evaluation only)
 

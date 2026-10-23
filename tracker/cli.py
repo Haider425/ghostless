@@ -109,9 +109,10 @@ def _parser() -> argparse.ArgumentParser:
         "label-resume", help="build and label the resume evaluation set (eval/resume)"
     )
     label_resume.add_argument(
-        "action", nargs="?", default="label", choices=["label", "review", "agreement", "pool", "status"],
+        "action", nargs="?", default="label", choices=["label", "review", "agreement", "pool", "rebalance", "status"],
         help="label pairs blind (default); review: tuning pairs with their pre-labels; agreement: how your "
-        "labels compare with the pre-labels; pool: choose postings to label; status: progress",
+        "labels compare with the pre-labels; pool: choose postings to label; rebalance: add likely strong and "
+        "okay pairs and trim the weak ones; status: progress",
     )  # fmt: skip
     label_resume.add_argument(
         "--web", action="store_true", help="label in a local web page (http://127.0.0.1 only) instead"
@@ -121,7 +122,9 @@ def _parser() -> argparse.ArgumentParser:
     part.add_argument("--holdout", action="store_true", help="only the held-out pairs (always blind)")
     part.add_argument("--tuning", action="store_true", help="only the tuning pairs")
     label_resume.add_argument(
-        "--db", metavar="URL", help="for pool: the database to read postings from (use a local copy)"
+        "--db",
+        metavar="URL",
+        help="for pool and rebalance: the database to read postings from (use a local copy)",
     )
     label_resume.add_argument("--per", type=int, default=8, help="for pool: postings per resume (default 8)")
     label_resume.add_argument("--only", metavar="ID", help="one resume only, by its id")
@@ -352,13 +355,16 @@ def _dedupe() -> None:
 def _label_resume(args: argparse.Namespace) -> None:
     from tracker.resume import label
 
-    if args.action == "pool":
+    if args.action in ("pool", "rebalance"):
         if not args.db:
             raise SystemExit(
-                "pool reads postings from a database: pass --db with a local copy's URL "
+                f"{args.action} reads postings from a database: pass --db with a local copy's URL "
                 '(or --db "$DATABASE_URL" to read Neon, which counts toward its transfer)'
             )
-        label.pool(args.db, per_resume=args.per, only=args.only)
+        if args.action == "pool":
+            label.pool(args.db, per_resume=args.per, only=args.only)
+        else:
+            label.rebalance(args.db, only=args.only)
     elif args.action == "status":
         label.status()
     elif args.action == "agreement":

@@ -1,5 +1,5 @@
-{"resume": "fe-intern-toronto", "job": 9277, "fit": "weak", "reason": "General SWE internship in New York: another country, would need US work authorization"}
-{"resume": "fe-intern-toronto", "job": 12359, "fit": "weak", "reason": "Internship in London, UK: another country"}
+{"resume": "fe-intern-toronto", "job": 9277, "fit": "okay", "reason": "General SWE internship in New York: another country is the one mismatch for a student"}
+{"resume": "fe-intern-toronto", "job": 12359, "fit": "okay", "reason": "SWE internship in London, UK: another country is the one mismatch for a student"}
 {"resume": "fe-intern-toronto", "job": 7967, "fit": "weak", "reason": "Requires a university in Mexico and work in Mexico City: not eligible"}
 {"resume": "fe-intern-toronto", "job": 8500, "fit": "weak", "reason": "Staff frontend role needing 8+ years: wrong level for a student"}
 {"resume": "fe-intern-toronto", "job": 9339, "fit": "weak", "reason": "Student job for Arizona State University students in the US: not eligible"}
@@ -9,21 +9,21 @@
 {"resume": "be-coop-waterloo", "job": 14061, "fit": "strong", "reason": "Winter 2027 software co-op for undergrads, Java listed, Toronto is close to Waterloo"}
 {"resume": "be-coop-waterloo", "job": 7970, "fit": "weak", "reason": "Requires graduating Dec 2027 to Summer 2028; they graduate 2029, and it's test automation in Montreal"}
 {"resume": "be-coop-waterloo", "job": 17184, "fit": "weak", "reason": "Engineering manager role with 5+ years leading teams: wrong level"}
-{"resume": "be-coop-waterloo", "job": 11609, "fit": "weak", "reason": "Internship in San Francisco: another country"}
+{"resume": "be-coop-waterloo", "job": 11609, "fit": "okay", "reason": "SWE internship in San Francisco: another country is the one mismatch for a student"}
 {"resume": "be-coop-waterloo", "job": 14816, "fit": "weak", "reason": "Senior electrical engineering board design: wrong field and level"}
 {"resume": "be-coop-waterloo", "job": 9114, "fit": "weak", "reason": "Lead DevOps engineer: wrong level"}
 {"resume": "be-coop-waterloo", "job": 8059, "fit": "weak", "reason": "Needs 3+ years of work experience: wrong level for a co-op student"}
 {"resume": "be-coop-waterloo", "job": 8225, "fit": "weak", "reason": "Senior engineer, 5+ years: wrong level"}
 {"resume": "fullstack-ng-vancouver", "job": 14567, "fit": "weak", "reason": "Stack matches and new grads are welcome, but it's in person in San Francisco: another country"}
 {"resume": "fullstack-ng-vancouver", "job": 13411, "fit": "weak", "reason": "Needs 3+ years and production AI experience, in San Francisco"}
-{"resume": "fullstack-ng-vancouver", "job": 13451, "fit": "weak", "reason": "Good new grad fit on stack, but in San Francisco: another country"}
+{"resume": "fullstack-ng-vancouver", "job": 13451, "fit": "okay", "reason": "Good new grad fit on stack; San Francisco is the one mismatch"}
 {"resume": "fullstack-ng-vancouver", "job": 8280, "fit": "strong", "reason": "Software Engineer I, full stack, remote in Canada: right level and close stack"}
 {"resume": "fullstack-ng-vancouver", "job": 12834, "fit": "weak", "reason": "DevOps new grad role in Toronto: different specialty and city, and it wants current enrolment"}
 {"resume": "fullstack-ng-vancouver", "job": 8056, "fit": "weak", "reason": "Needs 3+ years as an SDET: wrong level and specialty"}
 {"resume": "fullstack-ng-vancouver", "job": 10889, "fit": "weak", "reason": "Boston, and it requires still being in school graduating 2026 to 2027"}
 {"resume": "fullstack-ng-vancouver", "job": 8254, "fit": "weak", "reason": "Senior backend role, remote in the US: wrong level and country"}
 {"resume": "ios-ng-montreal", "job": 8071, "fit": "weak", "reason": "Senior iOS, 5+ years and tech lead: wrong level"}
-{"resume": "ios-ng-montreal", "job": 10222, "fit": "weak", "reason": "New grad mobile role in Milan: another country"}
+{"resume": "ios-ng-montreal", "job": 10222, "fit": "okay", "reason": "New grad mobile role that fits; Milan is the one mismatch"}
 {"resume": "ios-ng-montreal", "job": 15765, "fit": "weak", "reason": "Sensor fusion in C++ in the US with a security clearance: wrong field and country"}
 {"resume": "ios-ng-montreal", "job": 8633, "fit": "weak", "reason": "Senior Android developer, 3 to 5 years of Kotlin: wrong platform and level"}
 {"resume": "ios-ng-montreal", "job": 8051, "fit": "weak", "reason": "Full-stack Java and JavaScript, 4+ years: wrong specialty and level"}
@@ -31,7 +31,7 @@
 {"resume": "ios-ng-montreal", "job": 8766, "fit": "weak", "reason": "Senior React Native and Node, 5+ years: wrong level and stack"}
 {"resume": "ios-ng-montreal", "job": 7991, "fit": "weak", "reason": "iOS in Swift is right, but it needs 3+ years and is in Toronto, not Montreal"}
 {"resume": "android-coop-ottawa", "job": 8766, "fit": "weak", "reason": "Senior React Native and Node, 5+ years: wrong level"}
-{"resume": "android-coop-ottawa", "job": 9937, "fit": "weak", "reason": "Mobile internship that fits, but on site in San Mateo: another country"}
+{"resume": "android-coop-ottawa", "job": 9937, "fit": "okay", "reason": "Mobile internship that fits; San Mateo is the one mismatch"}
 {"resume": "android-coop-ottawa", "job": 12952, "fit": "weak", "reason": "Staff engineer, US persons only: wrong level, not eligible"}
 {"resume": "android-coop-ottawa", "job": 8666, "fit": "weak", "reason": "Mid-level backend Kotlin with 3+ years: wrong level for a student"}
 {"resume": "android-coop-ottawa", "job": 8335, "fit": "weak", "reason": "Staff mobile engineer, 7+ years: wrong level"}
@@ -121,7 +121,7 @@
 {"resume": "data-analyst-ng-toronto", "job": 15985, "fit": "weak", "reason": "Data analyst internship in Austin: an internship after graduating, and another country"}
 {"resume": "data-analyst-ng-toronto", "job": 9308, "fit": "okay", "reason": "Data analyst at a trading firm, about a year's experience, but in Montreal, not Toronto"}
 {"resume": "data-analyst-ng-toronto", "job": 8204, "fit": "weak", "reason": "Analytics lead, 7+ years: wrong level"}
-{"resume": "data-analyst-ng-toronto", "job": 13210, "fit": "weak", "reason": "Graduate insights analyst in London, UK: another country"}
+{"resume": "data-analyst-ng-toronto", "job": 13210, "fit": "okay", "reason": "Graduate insights analyst that fits; London, UK is the one mismatch"}
 {"resume": "data-analyst-ng-toronto", "job": 10536, "fit": "weak", "reason": "Robotics and embedded internship: wrong field"}
 {"resume": "data-analyst-ng-toronto", "job": 8615, "fit": "strong", "reason": "Business analytics associate in Toronto, an early-career analytics role that fits"}
 {"resume": "data-analyst-ng-toronto", "job": 9621, "fit": "weak", "reason": "Analytics internship requiring current enrolment: they've graduated"}
@@ -137,7 +137,7 @@
 {"resume": "data-eng-ng-toronto", "job": 11596, "fit": "weak", "reason": "Data platform engineer in San Francisco: another country, more senior"}
 {"resume": "data-eng-ng-toronto", "job": 8936, "fit": "weak", "reason": "Data engineer in Navi Mumbai: another country"}
 {"resume": "data-eng-ng-toronto", "job": 14065, "fit": "weak", "reason": "Data engineering co-op that requires current undergraduate enrolment: they've graduated"}
-{"resume": "data-eng-ng-toronto", "job": 13222, "fit": "weak", "reason": "Graduate data engineer in London, UK: another country"}
+{"resume": "data-eng-ng-toronto", "job": 13222, "fit": "okay", "reason": "Graduate data engineer that fits; London, UK is the one mismatch"}
 {"resume": "data-eng-ng-toronto", "job": 15053, "fit": "weak", "reason": "Senior manager for hardware compute: wrong field and level"}
 {"resume": "data-eng-ng-toronto", "job": 8850, "fit": "weak", "reason": "Director of data engineering: wrong level"}
 {"resume": "data-eng-ng-toronto", "job": 11836, "fit": "weak", "reason": "Senior data engineer, 5+ years: wrong level for a new grad"}
@@ -167,7 +167,7 @@
 {"resume": "data-scientist-phd-waterloo", "job": 8918, "fit": "weak", "reason": "VP data scientist on site in New York: wrong level and country"}
 {"resume": "data-scientist-phd-waterloo", "job": 11159, "fit": "weak", "reason": "Motion planning in C++ for robotics: wrong field"}
 {"resume": "ml-ng-vancouver", "job": 8211, "fit": "okay", "reason": "ML engineer II, remote in Canada, but credit underwriting on tabular data and it asks for 2+ years"}
-{"resume": "ml-ng-vancouver", "job": 12719, "fit": "weak", "reason": "Graduate program in Cairo: another country"}
+{"resume": "ml-ng-vancouver", "job": 12719, "fit": "okay", "reason": "Graduate AI engineering program; Cairo is the one mismatch"}
 {"resume": "ml-ng-vancouver", "job": 13987, "fit": "weak", "reason": "Full-stack internal tools at SpaceX: wrong field and country"}
 {"resume": "ml-ng-vancouver", "job": 8224, "fit": "weak", "reason": "Senior ML engineer: wrong level"}
 {"resume": "ml-ng-vancouver", "job": 8216, "fit": "weak", "reason": "Model risk management lead: wrong level and specialty"}
@@ -177,7 +177,7 @@
 {"resume": "ml-intern-toronto", "job": 9298, "fit": "weak", "reason": "Research internship for master's or PhD students: not eligible as an undergraduate"}
 {"resume": "ml-intern-toronto", "job": 7969, "fit": "strong", "reason": "ML software internship in Toronto for Canadian students graduating Dec 2027 to Summer 2028, PyTorch"}
 {"resume": "ml-intern-toronto", "job": 9062, "fit": "weak", "reason": "Senior AI engineer: wrong level"}
-{"resume": "ml-intern-toronto", "job": 11914, "fit": "weak", "reason": "AI developer internship in Italy: another country"}
+{"resume": "ml-intern-toronto", "job": 11914, "fit": "okay", "reason": "AI developer internship; Italy is the one mismatch for a student"}
 {"resume": "ml-intern-toronto", "job": 15269, "fit": "weak", "reason": "Senior hardware reliability engineer: wrong field and level"}
 {"resume": "ml-intern-toronto", "job": 7945, "fit": "weak", "reason": "Senior ML engineer, 5+ years: wrong level"}
 {"resume": "ml-intern-toronto", "job": 17188, "fit": "weak", "reason": "SRE II with 5+ years of Linux: wrong field and level"}
@@ -230,7 +230,7 @@
 {"resume": "asic-verif-senior-austin", "job": 9555, "fit": "weak", "reason": "Design verification internship for master's students: wrong level"}
 {"resume": "asic-verif-senior-austin", "job": 16738, "fit": "weak", "reason": "PCIe system engineering in Taiwan: another country"}
 {"resume": "asic-verif-senior-austin", "job": 14089, "fit": "weak", "reason": "Staff distributed systems software: wrong field"}
-{"resume": "robotics-coop-waterloo", "job": 9835, "fit": "weak", "reason": "Embedded controls internship in Colorado: another country"}
+{"resume": "robotics-coop-waterloo", "job": 9835, "fit": "okay", "reason": "Embedded controls internship that suits their robotics work; Colorado is the one mismatch"}
 {"resume": "robotics-coop-waterloo", "job": 8027, "fit": "weak", "reason": "Staff data scientist for credit risk: wrong field and level"}
 {"resume": "robotics-coop-waterloo", "job": 10193, "fit": "weak", "reason": "Analog engineering internship needing a master's: wrong field, not eligible"}
 {"resume": "robotics-coop-waterloo", "job": 10190, "fit": "weak", "reason": "Analog internship for master's or PhD students: not eligible"}
@@ -241,7 +241,7 @@
 {"resume": "security-student-ottawa", "job": 10231, "fit": "weak", "reason": "Security and IT internship for students at US colleges: not eligible"}
 {"resume": "security-student-ottawa", "job": 16250, "fit": "okay", "reason": "Information security internship for Canadian undergraduates that fits, but in Toronto"}
 {"resume": "security-student-ottawa", "job": 8311, "fit": "weak", "reason": "Staff security engineer: wrong level"}
-{"resume": "security-student-ottawa", "job": 16406, "fit": "weak", "reason": "Cloud security internship in North Carolina: another country"}
+{"resume": "security-student-ottawa", "job": 16406, "fit": "okay", "reason": "Cloud security internship; North Carolina is the one mismatch for a student"}
 {"resume": "security-student-ottawa", "job": 11724, "fit": "weak", "reason": "Analytics engineering in San Francisco: wrong field and country"}
 {"resume": "security-student-ottawa", "job": 8720, "fit": "weak", "reason": "Senior business security officer, 8+ years: wrong level"}
 {"resume": "security-student-ottawa", "job": 8110, "fit": "weak", "reason": "Principal security researcher, 10+ years: wrong level"}
@@ -289,7 +289,7 @@
 {"resume": "ng-no-experience-winnipeg", "job": 12834, "fit": "weak", "reason": "DevOps new grad role in Toronto: different specialty and city"}
 {"resume": "ng-no-experience-winnipeg", "job": 12830, "fit": "weak", "reason": "C/C++ systems new grad role in Toronto: a different stack and city"}
 {"resume": "ng-no-experience-winnipeg", "job": 8566, "fit": "weak", "reason": "Staff engineer, 5+ years: wrong level"}
-{"resume": "ng-no-experience-winnipeg", "job": 8274, "fit": "weak", "reason": "Early-career engineer in New York: another country"}
+{"resume": "ng-no-experience-winnipeg", "job": 8274, "fit": "okay", "reason": "Early-career engineer role; New York is the one mismatch for a CS new grad"}
 {"resume": "ng-no-experience-winnipeg", "job": 8021, "fit": "weak", "reason": "Senior staff engineer, 10+ years: wrong level"}
 {"resume": "ng-no-experience-winnipeg", "job": 8685, "fit": "weak", "reason": "Senior full-stack, 7+ years: wrong level"}
 {"resume": "ng-no-experience-winnipeg", "job": 8534, "fit": "weak", "reason": "Staff engineer, 8+ years: wrong level"}

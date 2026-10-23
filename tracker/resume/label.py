@@ -2,6 +2,8 @@
 
     ghostless label-resume pool --db URL   choose postings for every resume that has none yet,
                                            and save their text locally (reads the database only)
+    ghostless label-resume rebalance --db URL  add likely strong and okay pairs, keep a few weak
+                                           ones as a check (reads the database only)
     ghostless label-resume                 label pairs: strong, okay or weak, and which
                                            suggested words are fair to add
     ghostless label-resume status          how many pairs are labelled
@@ -20,6 +22,7 @@ import textwrap
 
 from tracker.resume import evalset
 from tracker.resume.evalset import Label, Pair, Resume
+from tracker.resume.match import recommend, score_job
 
 SEED = 20261022
 
@@ -37,11 +40,59 @@ def _candidates(match, limit: int = 12) -> list[str]:
     return list(seen.values())[:limit]
 
 
+def _job_pool(conn) -> list[dict]:
+    """Every open tech posting the matcher would see, with its countries,
+    fingerprint and whether it has a description worth judging."""
+    from tracker.api import queries
+
+    jobs = queries.matching_pool(conn, "any", include_high_risk=False)
+    extra = {
+        row[0]: (row[1], row[2], row[3])
+        for row in conn.execute(
+            """SELECT id, countries, fingerprint, length(coalesce(description, '')) > 200
+               FROM jobs WHERE id = ANY(%s)""",
+            ([j["id"] for j in jobs],),
+        ).fetchall()
+    }
+    for job in jobs:
+        job["countries"], job["fingerprint"], job["has_text"] = extra.get(job["id"], ([], "", False))
+    return jobs
+
+
+def _describer(conn, texts: dict[int, str]):
+    from tracker.api import queries
+
+    def describe(ids: list[int]) -> dict[int, str]:
+        missing = [i for i in ids if i not in texts]
+        if missing:
+            texts.update(queries.descriptions(conn, missing))
+        return {i: texts[i] for i in ids if i in texts}
+
+    return describe
+
+
+def _save_postings(jobs: list[dict], texts: dict[int, str]) -> None:
+    """Keep each chosen posting's text, so labels outlive the posting."""
+    postings = evalset.load_postings()
+    for job in jobs:
+        postings[job["id"]] = {
+            "id": job["id"],
+            "company": job["company"],
+            "title": job["title"],
+            "location": job.get("location"),
+            "level": job.get("level"),
+            "role_type": job.get("role_type"),
+            "countries": job.get("countries") or [],
+            "is_remote": bool(job.get("is_remote")),
+            "url": job.get("url"),
+            "description": texts.get(job["id"], ""),
+        }
+    evalset.write_jsonl(evalset.PRIVATE / "postings.jsonl", list(postings.values()))
+
+
 def pool(dsn: str, per_resume: int = 8, only: str | None = None, seed: int = SEED) -> None:
     from tracker import db
-    from tracker.api import queries
     from tracker.api.resumes import analyze_text
-    from tracker.resume.match import recommend, score_job
 
     resumes = [r for r in _all_resumes() if not only or r.id == only]
     guessed = []
@@ -67,23 +118,8 @@ def pool(dsn: str, per_resume: int = 8, only: str | None = None, seed: int = SEE
 
     texts: dict[int, str] = {}
     with db.connect(dsn) as conn:
-        jobs = queries.matching_pool(conn, "any", include_high_risk=False)
-        extra = {
-            row[0]: (row[1], row[2], row[3])
-            for row in conn.execute(
-                """SELECT id, countries, fingerprint, length(coalesce(description, '')) > 200
-                   FROM jobs WHERE id = ANY(%s)""",
-                ([j["id"] for j in jobs],),
-            ).fetchall()
-        }
-        for job in jobs:
-            job["countries"], job["fingerprint"], job["has_text"] = extra.get(job["id"], ([], "", False))
-
-        def describe(ids: list[int]) -> dict[int, str]:
-            missing = [i for i in ids if i not in texts]
-            if missing:
-                texts.update(queries.descriptions(conn, missing))
-            return {i: texts[i] for i in ids if i in texts}
+        jobs = _job_pool(conn)
+        describe = _describer(conn, texts)
 
         rng = random.Random(seed)
         by_id = {j["id"]: j for j in jobs}
@@ -102,26 +138,97 @@ def pool(dsn: str, per_resume: int = 8, only: str | None = None, seed: int = SEE
                 )
             print(f"[{n}/{len(todo)}] {resume.id}: {len(chosen)} postings")
 
-    postings = evalset.load_postings()
-    for pair in new_pairs:
-        job = by_id[pair.job]
-        postings[pair.job] = {
-            "id": job["id"],
-            "company": job["company"],
-            "title": job["title"],
-            "location": job.get("location"),
-            "level": job.get("level"),
-            "role_type": job.get("role_type"),
-            "countries": job.get("countries") or [],
-            "url": job.get("url"),
-            "description": texts.get(job["id"], ""),
-        }
-    evalset.write_jsonl(evalset.PRIVATE / "postings.jsonl", list(postings.values()))
+    _save_postings([by_id[p.job] for p in new_pairs], texts)
     real_ids = {r.id for r in resumes if r.real}
     for path, mine in ((evalset.PAIRS, False), (evalset.PRIVATE / "pairs.jsonl", True)):
         rows = evalset.read_jsonl(path) + [p.__dict__ for p in new_pairs if (p.resume in real_ids) == mine]
         evalset.write_jsonl(path, rows)
     print(f"added {len(new_pairs)} pairs; posting text saved in eval/resume/private/postings.jsonl")
+
+
+def _likely_counts(pairs: list[Pair], prelabels: dict) -> dict[str, int]:
+    """Strong and okay so far for one person: by pre-label, or by why the pair
+    was chosen while it has none yet."""
+    counts = {"strong": 0, "okay": 0}
+    for p in pairs:
+        pre = prelabels.get(p.key())
+        fit = pre.fit if pre else {"likely_strong": "strong", "likely_okay": "okay"}.get(p.source)
+        if fit in counts:
+            counts[fit] += 1
+    return counts
+
+
+def rebalance(dsn: str, only: str | None = None) -> None:
+    """Even out the labels the pools are likely to get: for each person after a
+    tech role, add postings likely to be strong and likely to be okay (until
+    there are evalset.PER_FIT of each), and keep a few clear weak ones as a check.
+    Safe to run again: it only adds what's still short and drops nothing labelled.
+    New pairs need pre-labels (status shows how many lack one)."""
+    from tracker import db
+    from tracker.api.resumes import analyze_text
+
+    resumes = {r.id: r for r in _all_resumes() if (not only or r.id == only) and r.target is not None}
+    pairs = evalset.load_pairs()
+    prelabels = evalset.load_prelabels()
+    labelled = set(evalset.load_labels())
+    postings = evalset.load_postings()
+    by_resume: dict[str, list[Pair]] = {}
+    for p in pairs:
+        by_resume.setdefault(p.resume, []).append(p)
+
+    drop: set[tuple[str, int]] = set()
+    for rid, mine in by_resume.items():
+        if rid in resumes:
+            keep = evalset.WEAK_KEEP_OTHER if resumes[rid].target.role == "other" else evalset.WEAK_KEEP
+            drop |= {p.key() for p in evalset.weak_to_drop(mine, prelabels, labelled, keep)}
+
+    wanting = {}
+    for rid, resume in resumes.items():
+        if rid not in by_resume or resume.target.role == "other":
+            continue  # no pool yet (run pool first), or after a field Ghostless doesn't list
+        have = _likely_counts(by_resume[rid], prelabels)
+        short = (max(0, evalset.PER_FIT - have["strong"]), max(0, evalset.PER_FIT - have["okay"]))
+        if any(short):
+            wanting[rid] = short
+
+    new_pairs: list[Pair] = []
+    texts: dict[int, str] = {}
+    if wanting:
+        with db.connect(dsn) as conn:
+            jobs = _job_pool(conn)
+            by_id = {j["id"]: j for j in jobs}
+            describe = _describer(conn, texts)
+            for n, (rid, (strong, okay)) in enumerate(wanting.items(), 1):
+                resume = resumes[rid]
+                profile = analyze_text(resume.text)["profile"]
+                ranked = [
+                    (job, match.score)
+                    for job, match in recommend(profile, jobs, 400, describe=describe, deep=400)
+                    if job.get("has_text") and len(texts.get(job["id"], "")) > 200
+                ]
+                taken = [postings.get(p.job) or by_id.get(p.job) or {"id": p.job} for p in by_resume[rid]]
+                chosen = evalset.choose_likely(resume.target, ranked, taken, strong, okay)
+                for job_id, source in chosen:
+                    job = {**by_id[job_id], "description": texts[job_id]}
+                    new_pairs.append(Pair(rid, job_id, source, evalset.text_hash(job["description"]),
+                                          _candidates(score_job(profile, job))))  # fmt: skip
+                got = (
+                    sum(1 for _, s in chosen if s == "likely_strong"),
+                    sum(1 for _, s in chosen if s == "likely_okay"),
+                )
+                print(f"[{n}/{len(wanting)}] {rid}: +{got[0]} likely strong, +{got[1]} likely okay")
+        _save_postings([by_id[p.job] for p in new_pairs], texts)
+
+    real_ids = {r.id for r in _all_resumes() if r.real}
+    for path, mine in ((evalset.PAIRS, False), (evalset.PRIVATE / "pairs.jsonl", True)):
+        rows = [r for r in evalset.read_jsonl(path) if (r["resume"], r["job"]) not in drop]
+        rows += [p.__dict__ for p in new_pairs if (p.resume in real_ids) == mine]
+        evalset.write_jsonl(path, rows)
+    evalset.write_jsonl(
+        evalset.PRELABELS,
+        [r for r in evalset.read_jsonl(evalset.PRELABELS) if (r["resume"], r["job"]) not in drop],
+    )
+    print(f"added {len(new_pairs)} pairs, dropped {len(drop)} extra weak ones")
 
 
 # ---------- labelling ----------
@@ -364,14 +471,21 @@ def status() -> None:
     pairs = evalset.load_pairs()
     labels = evalset.load_labels()
     holdout = evalset.load_split() if evalset.SPLIT.exists() else set()
+    prelabels = evalset.load_prelabels()
     rows = {"tuning": [0, 0], "held out": [0, 0]}
     fits = {f: 0 for f in evalset.FITS}
+    pre = {part: {f: 0 for f in evalset.FITS} for part in rows}
+    without = 0
     for pair in pairs:
         resume = resumes.get(pair.resume)
         if resume is None:
             continue
         part = "held out" if evalset.is_holdout(resume, holdout) else "tuning"
         rows[part][0] += 1
+        if pair.key() in prelabels:
+            pre[part][prelabels[pair.key()].fit] += 1
+        elif not resume.real:
+            without += 1
         if pair.key() in labels:
             rows[part][1] += 1
             fits[labels[pair.key()].fit] += 1
@@ -380,3 +494,8 @@ def status() -> None:
     for part, (total, done) in rows.items():
         print(f"  {part:9} {done:4} of {total:4} pairs labelled")
     print("  labels: " + ", ".join(f"{fit} {n}" for fit, n in fits.items()))
+    print("Pre-labels:")
+    for part, counts in pre.items():
+        print(f"  {part:9} " + ", ".join(f"{fit} {n}" for fit, n in counts.items()))
+    if without:
+        print(f"  {without} persona pairs have no pre-label yet")

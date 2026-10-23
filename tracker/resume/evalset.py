@@ -446,3 +446,123 @@ def choose_pairs(
         per_resume,
     )
     return chosen
+
+
+# ---------- rebalancing: likely strong, likely okay, and some clear weak ----------
+
+PER_FIT = 4  # likely-strong and likely-okay pairs per person once rebalanced
+WEAK_KEEP = 4  # weak pairs kept per person looking for a tech role, as a check
+WEAK_KEEP_OTHER = 2  # per person staying in a field Ghostless doesn't list (all their pairs are weak)
+# weak pairs to keep first: where today's matcher was wrong, then the deliberate near misses
+WEAK_ORDER = ("baseline", "wrong_level", "other_country", "random", "target")
+LIKELY = ("likely_strong", "likely_okay")
+GOOD_SCORE = 50  # the matcher's "Good fit" and up
+PARTIAL_SCORE = 35  # "Partial fit"
+
+
+def near(job: dict, target: Target) -> bool:
+    """Where the person wants to work: their city, or remote in their country."""
+    if not _in_country(job, target.country):
+        return False
+    if target.remote_ok and job.get("is_remote"):
+        return True
+    city = target.location.split(",")[0].strip().lower()
+    return bool(city) and city in (job.get("location") or "").lower()
+
+
+def abroad_ok(job: dict, target: Target) -> bool:
+    """A student or new grad may well apply to an internship or new grad role in
+    another country (many Canadian students apply to US internships): one mismatch."""
+    return target.level in ("intern", "new_grad") and job.get("level") == target.level
+
+
+def _print(job: dict) -> str:
+    return f"{job.get('company')}|{job.get('title')}".lower()
+
+
+def choose_likely(
+    target: Target, ranked: list[tuple[dict, int]], taken: list[dict], strong: int, okay: int
+) -> list[tuple[int, str]]:
+    """Postings likely to be a strong or an okay fit for one person, from the
+    matcher's ranking (job, score), best first; only postings with text.
+
+    Likely strong: the right role and level, where they want to work, and the
+    matcher rates it a good fit. Likely okay: exactly one real mismatch, taken in
+    turn from each kind so the okays aren't all alike: another city in their
+    country, some key skills missing, a different specialty, or (a student or new
+    grad) an internship or new grad role in another country. One posting per
+    company, and none already taken for this person."""
+    companies = {(j.get("company") or "").lower() for j in taken}
+    prints = {_print(j) for j in taken}
+    ids = {j["id"] for j in taken}
+    chosen: list[tuple[int, str]] = []
+
+    def ok(job: dict) -> bool:
+        return (
+            job["id"] not in ids
+            and _print(job) not in prints
+            and (job.get("company") or "").lower() not in companies
+        )
+
+    def take(job: dict, source: str) -> None:
+        chosen.append((job["id"], source))
+        ids.add(job["id"])
+        prints.add(_print(job))
+        companies.add((job.get("company") or "").lower())
+
+    right = [
+        (j, s) for j, s in ranked if j.get("role_type") == target.role and j.get("level") == target.level
+    ]
+    for job, score in right:
+        if strong <= 0:
+            break
+        if score >= GOOD_SCORE and near(job, target) and ok(job):
+            take(job, "likely_strong")
+            strong -= 1
+
+    kinds = [
+        [j for j, s in right if s >= GOOD_SCORE and _in_country(j, target.country) and not near(j, target)],
+        [j for j, s in right if PARTIAL_SCORE <= s < GOOD_SCORE and near(j, target)],
+        [
+            j
+            for j, s in ranked
+            if j.get("role_type") != target.role
+            and j.get("level") == target.level
+            and s >= GOOD_SCORE
+            and near(j, target)
+        ],  # fmt: skip
+        [
+            j
+            for j, s in right
+            if s >= GOOD_SCORE and not _in_country(j, target.country) and abroad_ok(j, target)
+        ],
+    ]
+    while okay > 0 and any(kinds):
+        for kind in kinds:
+            while kind and okay > 0:
+                job = kind.pop(0)
+                if ok(job):
+                    take(job, "likely_okay")
+                    okay -= 1
+                    break
+    return chosen
+
+
+def weak_to_drop(pairs: list[Pair], prelabels: dict, labelled: set, keep: int) -> list[Pair]:
+    """The weak pairs past `keep` for one person, keeping where today's matcher
+    was wrong and the deliberate near misses first. A pair already labelled is
+    never dropped."""
+    weak = [p for p in pairs if (pre := prelabels.get(p.key())) and pre.fit == "weak"]
+    order = {s: i for i, s in enumerate(WEAK_ORDER)}
+    kept: list[Pair] = [p for p in weak if p.key() in labelled]
+    by_source: dict[str, list[Pair]] = {}
+    for p in weak:
+        if p.key() not in labelled:
+            by_source.setdefault(p.source, []).append(p)
+    # one of each kind in turn, so the check covers every kind of miss
+    queues = [by_source[s] for s in sorted(by_source, key=lambda s: order.get(s, len(order)))]
+    while len(kept) < keep and any(queues):
+        for queue in queues:
+            if queue and len(kept) < keep:
+                kept.append(queue.pop(0))
+    return [p for p in weak if p not in kept]
