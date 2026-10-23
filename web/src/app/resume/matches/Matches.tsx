@@ -82,9 +82,64 @@ function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
 }
 
+const REASONS = [
+  { value: "level", label: "Wrong level" },
+  { value: "location", label: "Wrong location" },
+  { value: "role", label: "Wrong kind of role" },
+  { value: "company", label: "Not this company" },
+  { value: null, label: "Just not for me" },
+] as const;
+type Reason = (typeof REASONS)[number]["value"];
+
+/* Signed-out visitors' "not interested" stays in this browser only. */
+const HIDDEN_KEY = "ghostless:not-interested";
+
+function readHidden(): number[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]");
+    return Array.isArray(value) ? value.filter((n): n is number => Number.isSafeInteger(n)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHidden(ids: number[]) {
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify(ids.slice(0, 1000)));
+  } catch {
+    // private browsing or storage full: hiding still works until the page reloads
+  }
+}
+
+/** A small menu under a match: hide it, and say why if they like. */
+function NotInterested({ title, onChoose }: { title: string; onChoose: (reason: Reason) => void }) {
+  return (
+    <details data-popover className="group relative">
+      <summary className="link cursor-pointer text-sm text-ink-faint" aria-label={`Not interested in ${title}`}>
+        Not interested
+      </summary>
+      <div className="absolute left-0 z-30 mt-1 w-56 space-y-0.5 rounded-xl border border-line bg-surface p-1.5 shadow-pop" role="menu">
+        {REASONS.map((r) => (
+          <button
+            key={r.label}
+            type="button"
+            role="menuitem"
+            onClick={() => onChoose(r.value)}
+            className="block w-full rounded-lg px-2.5 py-2 text-left text-ui text-ink hover:bg-sunken"
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export function Matches() {
   const { resume, ready } = useActiveResume();
-  const { prefs } = useSite();
+  const { prefs, viewer } = useSite();
+  const [hidden, setHidden] = useState<number[]>(() => (viewer ? [] : readHidden()));
+  const [undo, setUndo] = useState<{ id: number; title: string } | null>(null);
   const [location, setLocation] = useState<Loc>(prefs.default_location);
   const [risky, setRisky] = useState(false);
   const [levels, setLevels] = useState<Level[]>([]);
@@ -111,11 +166,49 @@ export function Matches() {
     };
   }, [resume, location, risky]);
 
+  // jobs already marked not interested on the account (signed out: this browser's, read above)
+  useEffect(() => {
+    if (!viewer) return;
+    let live = true;
+    void fetch("/api/not-interested")
+      .then((r) => (r.ok ? (r.json() as Promise<number[]>) : []))
+      .catch(() => [])
+      .then((ids) => {
+        if (live) setHidden(ids);
+      });
+    return () => {
+      live = false;
+    };
+  }, [viewer]);
+
+  function hide(id: number, title: string, reason: Reason) {
+    const next = [id, ...hidden.filter((x) => x !== id)];
+    setHidden(next);
+    setUndo({ id, title });
+    if (!viewer) return writeHidden(next);
+    void fetch(`/api/not-interested?id=${id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reason, resume_id: resume?.id ?? null }),
+    }).catch(() => null);
+  }
+
+  function unhide(id: number) {
+    const next = hidden.filter((x) => x !== id);
+    setHidden(next);
+    setUndo(null);
+    if (!viewer) return writeHidden(next);
+    void fetch(`/api/not-interested?id=${id}`, { method: "DELETE" }).catch(() => null);
+  }
+
   const current = data && data.resume === resume && data.location === location && data.risky === risky ? data : null;
   const loaded = current?.items ?? [];
   const total = current?.total ?? 0;
   const items = loaded.filter(
-    ({ job }) => (!levels.length || levels.includes(job.level)) && (!roles.length || roles.includes(job.role_type)),
+    ({ job }) =>
+      !hidden.includes(job.id) &&
+      (!levels.length || levels.includes(job.level)) &&
+      (!roles.length || roles.includes(job.role_type)),
   );
   const filtering = levels.length > 0 || roles.length > 0;
   const canLoadMore = loaded.length < total && loaded.length < 1000;
@@ -214,17 +307,30 @@ export function Matches() {
                 Best of {total.toLocaleString("en-CA")} open tech jobs
                 {filtering && <span className="font-normal">, {items.length} shown for these filters</span>}
               </h2>
+              {undo && (
+                <p role="status" className="notice mb-3 flex items-center justify-between gap-3">
+                  <span>
+                    Hidden: {undo.title}.{viewer ? " Thanks, this helps your matches." : ""}
+                  </span>
+                  <button type="button" onClick={() => unhide(undo.id)} className="link shrink-0">
+                    Undo
+                  </button>
+                </p>
+              )}
               {items.length ? (
                 <ol className="panel grid grid-cols-[minmax(0,1fr)] gap-0.5 p-2">
                   {items.map(({ job, match }) => (
                     <li key={job.id}>
                       <JobCard job={job} headingLevel="h3" />
-                      {(match.skills_matched.length > 0 || match.skills_missing.length > 0) && (
-                        <p className="-mt-2 px-4 pb-3 pl-[4.6rem] text-sm text-ink-faint">
-                          {match.skills_matched.length > 0 && <>You have {match.skills_matched.slice(0, 4).join(", ")}. </>}
-                          {match.skills_missing.length > 0 && <>Missing {match.skills_missing.slice(0, 3).join(", ")}.</>}
-                        </p>
-                      )}
+                      <div className="-mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 px-4 pb-3 pl-[4.6rem]">
+                        {(match.skills_matched.length > 0 || match.skills_missing.length > 0) && (
+                          <p className="text-sm text-ink-faint">
+                            {match.skills_matched.length > 0 && <>You have {match.skills_matched.slice(0, 4).join(", ")}. </>}
+                            {match.skills_missing.length > 0 && <>Missing {match.skills_missing.slice(0, 3).join(", ")}.</>}
+                          </p>
+                        )}
+                        <NotInterested title={job.title} onChoose={(reason) => hide(job.id, job.title, reason)} />
+                      </div>
                     </li>
                   ))}
                 </ol>

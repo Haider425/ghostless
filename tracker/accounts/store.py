@@ -388,6 +388,80 @@ def unsave_job(conn: psycopg.Connection, user_id: int, job_id: int) -> None:
     conn.execute("DELETE FROM saved_jobs WHERE user_id = %s AND job_id = %s", (user_id, job_id))
 
 
+# ---------- match feedback and training consent ----------
+
+FEEDBACK_REASONS = ("level", "location", "role", "company")
+
+# What people agree to. A new wording gets a new version; each consent records
+# the version it was given for.
+TRAINING_CONSENT_VERSION = "2026-10-23"
+TRAINING_CONSENT_TEXT = (
+    'Use my saved jobs, applications and "not interested" choices to improve Ghostless\'s job matching. '
+    "Only those choices are used, on Ghostless's own servers: my resume text isn't used for this and "
+    "nothing is shared. I can turn this off at any time."
+)
+
+
+def not_interested_ids(conn: psycopg.Connection, user_id: int) -> list[int]:
+    rows = conn.execute(
+        "SELECT job_id FROM match_feedback WHERE user_id = %s ORDER BY created_at DESC", (user_id,)
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def set_not_interested(
+    conn: psycopg.Connection, user_id: int, job_id: int, reason: str | None, resume_id: int | None
+) -> bool:
+    """Record "not interested" (again, with a new reason, if already there).
+    False when the job doesn't exist. A resume that isn't theirs is ignored."""
+    if reason not in FEEDBACK_REASONS:
+        reason = None
+    row = conn.execute(
+        """INSERT INTO match_feedback (user_id, job_id, resume_id, reason)
+           SELECT %(user)s, j.id, (SELECT r.id FROM resumes r WHERE r.id = %(resume)s AND r.user_id = %(user)s),
+                  %(reason)s
+           FROM jobs j WHERE j.id = %(job)s
+           ON CONFLICT (user_id, job_id) DO UPDATE
+               SET reason = EXCLUDED.reason, resume_id = EXCLUDED.resume_id, created_at = now()
+           RETURNING job_id""",
+        {"user": user_id, "job": job_id, "resume": resume_id, "reason": reason},
+    ).fetchone()
+    return row is not None
+
+
+def clear_not_interested(conn: psycopg.Connection, user_id: int, job_id: int) -> None:
+    conn.execute("DELETE FROM match_feedback WHERE user_id = %s AND job_id = %s", (user_id, job_id))
+
+
+def training_consent(conn: psycopg.Connection, user_id: int) -> dict:
+    row = conn.execute(
+        "SELECT wording, given_at, withdrawn_at FROM training_consent WHERE user_id = %s", (user_id,)
+    ).fetchone()
+    given = row is not None and row[2] is None
+    return {
+        "given": given,
+        "version": row[0] if given else None,
+        "given_at": row[1] if given else None,
+        "current_version": TRAINING_CONSENT_VERSION,
+        "text": TRAINING_CONSENT_TEXT,
+    }
+
+
+def set_training_consent(conn: psycopg.Connection, user_id: int, given: bool) -> dict:
+    if given:
+        conn.execute(
+            """INSERT INTO training_consent (user_id, wording) VALUES (%s, %s)
+               ON CONFLICT (user_id) DO UPDATE SET wording = EXCLUDED.wording, given_at = now(), withdrawn_at = NULL""",
+            (user_id, TRAINING_CONSENT_VERSION),
+        )
+    else:
+        conn.execute(
+            "UPDATE training_consent SET withdrawn_at = now() WHERE user_id = %s AND withdrawn_at IS NULL",
+            (user_id,),
+        )
+    return training_consent(conn, user_id)
+
+
 # ---------- export ----------
 
 
@@ -426,6 +500,13 @@ def export_user(conn: psycopg.Connection, user_id: int) -> dict:
         sign_ins = cur.execute(
             "SELECT provider, email, created_at FROM oauth_accounts WHERE user_id = %s", (user_id,)
         ).fetchall()
+        not_interested = cur.execute(
+            "SELECT job_id, reason, created_at FROM match_feedback WHERE user_id = %s ORDER BY created_at",
+            (user_id,),
+        ).fetchall()
+        consent = cur.execute(
+            "SELECT wording, given_at, withdrawn_at FROM training_consent WHERE user_id = %s", (user_id,)
+        ).fetchall()
     return {
         "exported_at": _now(),
         "account": user,
@@ -435,6 +516,8 @@ def export_user(conn: psycopg.Connection, user_id: int) -> dict:
         "reports": reports,
         "sessions": sessions,
         "linked_sign_ins": sign_ins,
+        "not_interested": not_interested,
+        "training_consent": consent,
         "recent_activity": activity,
     }
 

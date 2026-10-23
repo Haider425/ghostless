@@ -87,6 +87,38 @@ test("a resume gets a strength report, then match scores on jobs", async ({ page
   await expect(page.getByText(/Best of [\d,]+ open tech jobs/)).toBeVisible({ timeout: 15000 });
 });
 
+test("a match marked not interested stays hidden, and feedback consent is off until turned on", async ({ page }) => {
+  await signUp(page, "feedback");
+  await go(page, "/resume");
+  await page.getByLabel("Resume file").setInputFiles(RESUME);
+  await expect(page.getByText(/Resume strength/)).toBeVisible({ timeout: 15000 });
+
+  await go(page, "/resume/matches");
+  const matches = page.getByRole("list").filter({ has: page.getByRole("article") }).first();
+  const first = matches.getByRole("listitem").first();
+  const title = (await first.getByRole("heading").first().textContent()) ?? "";
+  const href = (await first.getByRole("heading").first().getByRole("link").getAttribute("href")) ?? "";
+  await first.locator("summary", { hasText: "Not interested" }).click();
+  const recorded = page.waitForResponse((r) => r.url().includes("/api/not-interested") && r.request().method() === "PUT");
+  await first.getByRole("menuitem", { name: "Wrong level" }).click();
+  expect((await recorded).ok()).toBe(true);
+  await expect(page.getByRole("status")).toContainText(`Hidden: ${title}`);
+  await expect(matches.locator(`a[href="${href}"]`)).toHaveCount(0); // titles repeat across companies: match by link
+
+  await page.reload();
+  await expect(page.getByText(/Best of [\d,]+ open tech jobs/)).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole("main").locator(`a[href="${href}"]`)).toHaveCount(0); // kept on the account
+
+  await go(page, "/settings");
+  const consent = page.getByRole("switch", { name: /Help improve job matching/ });
+  await expect(consent).not.toBeChecked(); // off unless turned on
+  const saved = page.waitForResponse((r) => r.url().endsWith("/api/training-consent") && r.ok());
+  await consent.check({ force: true });
+  await saved;
+  await page.reload();
+  await expect(page.getByRole("switch", { name: /Help improve job matching/ })).toBeChecked();
+});
+
 test("saved jobs become a tracker with statuses and notes when signed in", async ({ page }) => {
   await signUp(page, "tracker");
   await go(page, "/jobs");

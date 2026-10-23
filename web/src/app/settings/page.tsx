@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 
+import { api } from "@/lib/api";
+import type { TrainingConsent } from "@/lib/api-types";
+import { visitorClient } from "@/lib/route";
 import { currentPrefs, currentUser } from "@/lib/session";
 
 import { SettingsForm } from "./SettingsForm";
@@ -8,6 +11,8 @@ export const metadata: Metadata = { title: "Settings", robots: { index: false } 
 
 export default async function SettingsPage() {
   const [prefs, user] = await Promise.all([currentPrefs(), currentUser()]);
+  // asked only of signed-in people: it's about feedback kept on their account
+  const consent: TrainingConsent | null = user ? await api.trainingConsent(await visitorClient()).catch(() => null) : null;
   return (
     <div className="mx-auto max-w-4xl px-4 pt-10 pb-20 sm:px-6">
       <h1 className="page-title">Settings</h1>
@@ -17,7 +22,7 @@ export default async function SettingsPage() {
           : "Saved in this browser. Sign in to keep them on every device."}{" "}
         Changes apply right away.
       </p>
-      <SettingsForm initial={prefs} />
+      <SettingsForm initial={prefs} consent={consent} />
     </div>
   );
 }

@@ -320,6 +320,28 @@ class SavedJobsIn(BaseModel):
     job_ids: list[int] = Field(max_length=500)
 
 
+FeedbackReason = Literal["level", "location", "role", "company"]
+
+
+class NotInterestedIn(BaseModel):
+    reason: FeedbackReason | None = Field(
+        None, description="Why, if they said: level, location, role or company"
+    )
+    resume_id: int | None = Field(None, description="The resume being matched, if it's one of theirs")
+
+
+class TrainingConsent(BaseModel):
+    given: bool
+    version: str | None = Field(None, description="The wording version agreed to")
+    given_at: datetime | None = None
+    current_version: str
+    text: str = Field(description="The wording shown when asking")
+
+
+class TrainingConsentIn(BaseModel):
+    given: bool
+
+
 ApplicationStatus = Literal["saved", "applied", "interviewing", "offer", "rejected"]
 
 

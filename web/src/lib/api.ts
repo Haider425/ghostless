@@ -179,6 +179,14 @@ export const api = {
     call(c.POST("/me/applications/{job_id}", { params: { path: { job_id } }, body: { source } }), "your application"),
   unsaveJob: (c: ApiClient, job_id: number) =>
     call(c.DELETE("/me/saved/{job_id}", { params: { path: { job_id } } }), "saved jobs"),
+  notInterestedIds: (c: ApiClient) => call(c.GET("/me/not-interested/ids"), "your feedback"),
+  notInterested: (c: ApiClient, job_id: number, body: Schemas["NotInterestedIn"]) =>
+    call(c.PUT("/me/not-interested/{job_id}", { params: { path: { job_id } }, body }), "your feedback"),
+  undoNotInterested: (c: ApiClient, job_id: number) =>
+    call(c.DELETE("/me/not-interested/{job_id}", { params: { path: { job_id } } }), "your feedback"),
+  trainingConsent: (c: ApiClient) => call(c.GET("/me/training-consent"), "your consent setting"),
+  setTrainingConsent: (c: ApiClient, given: boolean) =>
+    call(c.PUT("/me/training-consent", { body: { given } }), "your consent setting"),
 
   // ---------- resumes ----------
   analyzeText: (c: ApiClient, text: string) => call(c.POST("/resume/analyze-text", { body: { text } }), "the analysis"),

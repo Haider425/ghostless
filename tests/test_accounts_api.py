@@ -390,3 +390,47 @@ def test_admin_dashboard_needs_an_admin(client):
     assert updated.json()["status"] == "resolved" and updated.json()["resolved_at"] is not None
     assert client.get("/admin/runs", headers=auth(token)).status_code == 200
     assert client.get("/admin/errors", headers=auth(token)).json() == []
+
+
+def test_not_interested_and_training_consent_become_labels_only_with_consent(client):
+    from tracker.resume.feedback import feedback_labels
+
+    token = signup(client)["token"]
+    other = signup(client, email="kim@example.com")["token"]
+    first, second = job_ids(client)
+    # "not interested", with a reason; repeating it just updates the reason
+    assert client.put(
+        f"/me/not-interested/{first}", json={"reason": "level"}, headers=auth(token)
+    ).json() == [first]
+    assert client.put(f"/me/not-interested/{first}", json={"reason": "role"}, headers=auth(token)).json() == [
+        first
+    ]
+    assert (
+        client.put(f"/me/not-interested/{first}", json={"reason": "salary"}, headers=auth(token)).status_code
+        == 422
+    )
+    assert client.put("/me/not-interested/999999", json={}, headers=auth(token)).status_code == 404
+    assert client.get("/me/not-interested/ids", headers=auth(other)).json() == []  # private to each person
+    client.post("/me/saved", json={"job_ids": [second]}, headers=auth(token))
+    client.post(f"/me/applications/{second}", json={"source": "tracker"}, headers=auth(token))
+
+    with db.connect(DSN) as conn:
+        assert feedback_labels(conn) == []  # no consent, no labels
+
+    consent = client.get("/me/training-consent", headers=auth(token)).json()
+    assert consent["given"] is False and consent["text"] and consent["current_version"]
+    given = client.put("/me/training-consent", json={"given": True}, headers=auth(token)).json()
+    assert given["given"] is True and given["version"] == given["current_version"] and given["given_at"]
+    with db.connect(DSN) as conn:
+        labels = {(lab.job_id, lab.fit, lab.signal) for lab in feedback_labels(conn)}
+    assert labels == {(first, "weak", "not_interested"), (second, "strong", "applied")}
+
+    exported = client.get("/me/export", headers=auth(token)).json()
+    assert [row["job_id"] for row in exported["not_interested"]] == [first]
+    assert exported["not_interested"][0]["reason"] == "role" and len(exported["training_consent"]) == 1
+
+    client.put("/me/training-consent", json={"given": False}, headers=auth(token))  # withdrawn: no more use
+    with db.connect(DSN) as conn:
+        assert feedback_labels(conn) == []
+    assert client.delete(f"/me/not-interested/{first}", headers=auth(token)).json() == []
+    assert client.get("/me/not-interested/ids").status_code == 401
