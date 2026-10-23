@@ -3,6 +3,8 @@ a few clear weak ones kept as a check."""
 
 import contextlib
 
+import pytest
+
 from tracker.resume import evalset, label
 from tracker.resume.evalset import Label, Pair, PreLabel, Target
 
@@ -90,15 +92,34 @@ def test_rebalance_adds_what_is_short_and_is_safe_to_run_twice(tmp_path, monkeyp
     pairs = evalset.load_pairs()
     sources = [p.source for p in pairs]
     assert sources.count("likely_strong") == 4 and sources.count("likely_okay") == 4
-    assert sum(1 for p in pairs if p.source == "random") == 4 and (persona.id, 905) in {
-        p.key() for p in pairs
-    }
+    kept = [p for p in pairs if p.source == "random"]
+    assert len(kept) == evalset.WEAK_KEEP and (persona.id, 905) in {
+        p.key() for p in kept
+    }  # the labelled one stays
     assert set(evalset.load_prelabels()) <= {p.key() for p in pairs}  # dropped pairs lose their pre-labels
     saved = evalset.load_postings()
     assert all(p.job in saved and saved[p.job]["description"] for p in pairs if p.source in evalset.LIKELY)
 
     label.rebalance("postgresql://local")  # nothing short, nothing extra: no change
     assert [p.key() for p in evalset.load_pairs()] == [p.key() for p in pairs]
+
+
+def test_without_a_database_rebalance_only_trims(tmp_path, monkeypatch):
+    persona = evalset.load_personas()[0]
+    monkeypatch.setattr(evalset, "PAIRS", tmp_path / "pairs.jsonl")
+    monkeypatch.setattr(evalset, "LABELS", tmp_path / "labels.jsonl")
+    monkeypatch.setattr(evalset, "PRELABELS", tmp_path / "prelabels.jsonl")
+    monkeypatch.setattr(evalset, "PRIVATE", tmp_path / "private")
+    monkeypatch.setattr(label, "_all_resumes", lambda: [persona])
+    monkeypatch.setattr("tracker.db.connect", lambda dsn: pytest.fail("no database should be opened"))
+    old = [Pair(persona.id, 900 + i, "random", "h").__dict__ for i in range(5)]
+    evalset.write_jsonl(evalset.PAIRS, old)
+    evalset.write_jsonl(evalset.PRELABELS, [{"resume": persona.id, "job": r["job"], "fit": "weak", "reason": "r"}
+                                            for r in old])  # fmt: skip
+    for job in (902, 903, 904):  # labelled: all kept, even past the limit
+        evalset.save_label(Label(persona.id, job, "weak"), real=False)
+    label.rebalance(None)
+    assert sorted(p.job for p in evalset.load_pairs()) == [902, 903, 904]
 
 
 def test_a_pair_already_written_is_never_written_twice():

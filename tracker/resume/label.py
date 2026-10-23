@@ -165,11 +165,12 @@ def _likely_counts(pairs: list[Pair], prelabels: dict) -> dict[str, int]:
     return counts
 
 
-def rebalance(dsn: str, only: str | None = None) -> None:
+def rebalance(dsn: str | None, only: str | None = None) -> None:
     """Even out the labels the pools are likely to get: for each person after a
     tech role, add postings likely to be strong and likely to be okay (until
     there are evalset.PER_FIT of each), and keep a few clear weak ones as a check.
     Safe to run again: it only adds what's still short and drops nothing labelled.
+    Without a database (dsn None) it only trims the weak pairs.
     New pairs need pre-labels (status shows how many lack one)."""
     from tracker import db
     from tracker.api.resumes import analyze_text
@@ -200,7 +201,7 @@ def rebalance(dsn: str, only: str | None = None) -> None:
 
     new_pairs: list[Pair] = []
     texts: dict[int, str] = {}
-    if wanting:
+    if wanting and dsn:
         with db.connect(dsn) as conn:
             jobs = _job_pool(conn)
             by_id = {j["id"]: j for j in jobs}

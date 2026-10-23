@@ -451,8 +451,8 @@ def choose_pairs(
 # ---------- rebalancing: likely strong, likely okay, and some clear weak ----------
 
 PER_FIT = 4  # likely-strong and likely-okay pairs per person once rebalanced
-WEAK_KEEP = 4  # weak pairs kept per person looking for a tech role, as a check
-WEAK_KEEP_OTHER = 2  # per person staying in a field Ghostless doesn't list (all their pairs are weak)
+WEAK_KEEP = 2  # weak pairs kept per person looking for a tech role, as a check
+WEAK_KEEP_OTHER = 1  # per person staying in a field Ghostless doesn't list (all their pairs are weak)
 # weak pairs to keep first: where today's matcher was wrong, then the deliberate near misses
 WEAK_ORDER = ("baseline", "wrong_level", "other_country", "random", "target")
 LIKELY = ("likely_strong", "likely_okay")

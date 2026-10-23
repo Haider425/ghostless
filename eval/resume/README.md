@@ -87,12 +87,12 @@ aiming at roughly a third each:
 - **likely okay** (up to 4): exactly one mismatch, taken in turn from each kind:
   another city in their country, some key skills missing (35 to 49), a
   different specialty, or a student's internship or new grad role abroad;
-- **weak**, kept as a check: 4 per person after a tech role (where today's
-  matcher was wrong first, then one each of wrong level, other country and
-  random), and 2 per person staying in a field Ghostless doesn't list, since
-  every posting is weak for them.
+- **weak**, kept as a check: 2 per person after a tech role (where today's
+  matcher was wrong first, then a deliberate near miss: wrong level, other
+  country or random), and 1 per person staying in a field Ghostless doesn't
+  list, since every posting is weak for them.
 
-One posting per company per person. It never drops a labelled pair, it drops
+Without `--db` it only trims the weak pairs. One posting per company per person. It never drops a labelled pair, it drops
 the pre-labels of pairs it drops, and running it again changes nothing. The
 held-out split is by person, as before, so new pairs go to the same side as
 their person's others. New pairs need pre-labels: `status` says how many lack one.
@@ -101,6 +101,12 @@ Pairs come round-robin across resumes, so stopping early still covers every
 person. The pairs for people after a tech role matter most. The ones for people
 staying outside tech are quick: they're clearly weak, and that's still worth
 labelling, since it teaches the model what *doesn't* transfer.
+
+## How it's scored
+
+Ranking is measured with graded relevance: strong = 2, okay = 1, weak = 0, so
+an okay posting counts as a partial match. NDCG@10 per person, then averaged;
+see `docs/resume-model-plan.md` for the full list of measures.
 
 ## Adding real resumes (evaluation only)
 

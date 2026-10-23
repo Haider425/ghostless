@@ -124,7 +124,7 @@ def _parser() -> argparse.ArgumentParser:
     label_resume.add_argument(
         "--db",
         metavar="URL",
-        help="for pool and rebalance: the database to read postings from (use a local copy)",
+        help="for pool and rebalance: the database to read postings from (use a local copy; rebalance without it only trims)",
     )
     label_resume.add_argument("--per", type=int, default=8, help="for pool: postings per resume (default 8)")
     label_resume.add_argument("--only", metavar="ID", help="one resume only, by its id")
@@ -355,7 +355,9 @@ def _dedupe() -> None:
 def _label_resume(args: argparse.Namespace) -> None:
     from tracker.resume import label
 
-    if args.action in ("pool", "rebalance"):
+    if args.action == "rebalance" and not args.db:
+        label.rebalance(None, only=args.only)  # trims the weak pairs only
+    elif args.action in ("pool", "rebalance"):
         if not args.db:
             raise SystemExit(
                 f"{args.action} reads postings from a database: pass --db with a local copy's URL "
