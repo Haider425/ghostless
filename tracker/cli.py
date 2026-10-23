@@ -105,6 +105,38 @@ def _parser() -> argparse.ArgumentParser:
     admin.add_argument("action", choices=["add", "remove", "list"])
     admin.add_argument("email", nargs="?", help="the account's email (for add and remove)")
 
+    label_resume = commands.add_parser(
+        "label-resume", help="build and label the resume evaluation set (eval/resume)"
+    )
+    label_resume.add_argument(
+        "action", nargs="?", default="label", choices=["label", "review", "agreement", "pool", "rebalance", "status"],
+        help="label pairs blind (default); review: tuning pairs with their pre-labels; agreement: how your "
+        "labels compare with the pre-labels; pool: choose postings to label; rebalance: add likely strong and "
+        "okay pairs and trim the weak ones; status: progress",
+    )  # fmt: skip
+    label_resume.add_argument(
+        "--web", action="store_true", help="label in a local web page (http://127.0.0.1 only) instead"
+    )
+    label_resume.add_argument("--port", type=int, default=8765, help="for --web (default 8765)")
+    part = label_resume.add_mutually_exclusive_group()
+    part.add_argument("--holdout", action="store_true", help="only the held-out pairs (always blind)")
+    part.add_argument("--tuning", action="store_true", help="only the tuning pairs")
+    label_resume.add_argument(
+        "--db",
+        metavar="URL",
+        help="for pool and rebalance: the database to read postings from (use a local copy; rebalance without it only trims)",
+    )
+    label_resume.add_argument("--per", type=int, default=8, help="for pool: postings per resume (default 8)")
+    label_resume.add_argument("--only", metavar="ID", help="one resume only, by its id")
+    evaluate_resume = commands.add_parser(
+        "evaluate-resume", help="measure a resume system on the evaluation set (eval/resume), offline"
+    )
+    evaluate_resume.add_argument(
+        "--system", default="baseline", help="which system to measure (default: baseline, today's matcher)"
+    )
+    which = evaluate_resume.add_mutually_exclusive_group()
+    which.add_argument("--holdout", action="store_true", help="the held-out set (the default)")
+    which.add_argument("--tuning", action="store_true", help="the tuning set instead")
     domains = commands.add_parser(
         "domains", help="find company websites, for logos (also part of ingest, a few hundred a night)"
     )
@@ -170,6 +202,16 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "domains":
         _domains(args)
+        return
+    if args.command == "label-resume":
+        _label_resume(args)
+        return
+    if args.command == "evaluate-resume":
+        from tracker.resume import evaluate
+
+        if args.system not in evaluate.SYSTEMS:
+            raise SystemExit(f"unknown system {args.system!r}; known: {', '.join(evaluate.SYSTEMS)}")
+        evaluate.run(args.system, "tuning" if args.tuning else "holdout")
         return
     if args.command == "admin":
         _admin(args)
@@ -324,6 +366,34 @@ def _dedupe() -> None:
         f"Removed {result['boards']} duplicate boards, {result['companies']} duplicate companies "
         f"and {result['jobs']} duplicate postings."
     )
+
+
+def _label_resume(args: argparse.Namespace) -> None:
+    from tracker.resume import label
+
+    if args.action == "rebalance" and not args.db:
+        label.rebalance(None, only=args.only)  # trims the weak pairs only
+    elif args.action in ("pool", "rebalance"):
+        if not args.db:
+            raise SystemExit(
+                f"{args.action} reads postings from a database: pass --db with a local copy's URL "
+                '(or --db "$DATABASE_URL" to read Neon, which counts toward its transfer)'
+            )
+        if args.action == "pool":
+            label.pool(args.db, per_resume=args.per, only=args.only)
+        else:
+            label.rebalance(args.db, only=args.only)
+    elif args.action == "status":
+        label.status()
+    elif args.action == "agreement":
+        label.agreement_report()
+    elif args.web:
+        from tracker.resume import label_web
+
+        label_web.serve(args.port)
+    else:
+        part = "holdout" if args.holdout else "tuning" if args.tuning else "all"
+        label.label(only=args.only, part=part, review=args.action == "review")
 
 
 def _domains(args: argparse.Namespace) -> None:

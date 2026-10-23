@@ -19,6 +19,7 @@ from tracker.api.schemas import (
     EmailIn,
     LoginIn,
     Message,
+    NotInterestedIn,
     OAuthIn,
     OAuthProvider,
     PasswordChangeIn,
@@ -33,6 +34,8 @@ from tracker.api.schemas import (
     Settings,
     SignupIn,
     TokenIn,
+    TrainingConsent,
+    TrainingConsentIn,
     User,
 )
 
@@ -355,3 +358,42 @@ def save(body: SavedJobsIn, user: CurrentUser, conn: Conn):
 def unsave(job_id: int, user: CurrentUser, conn: Conn):
     store.unsave_job(conn, user["id"], job_id)
     return store.saved_job_ids(conn, user["id"])
+
+
+# ---------- match feedback ----------
+
+
+@router.get("/me/not-interested/ids", response_model=list[int], summary="Jobs you marked not interested")
+def not_interested_ids(user: CurrentUser, conn: Conn):
+    return store.not_interested_ids(conn, user["id"])
+
+
+@router.put(
+    "/me/not-interested/{job_id}",
+    response_model=list[int],
+    summary="Mark a match not interested, with an optional reason (safe to repeat)",
+)
+def not_interested(job_id: int, body: NotInterestedIn, user: CurrentUser, conn: Conn):
+    if not store.set_not_interested(conn, user["id"], job_id, body.reason, body.resume_id):
+        raise HTTPException(status_code=404, detail="That job doesn't exist.")
+    return store.not_interested_ids(conn, user["id"])
+
+
+@router.delete("/me/not-interested/{job_id}", response_model=list[int], summary="Undo not interested")
+def undo_not_interested(job_id: int, user: CurrentUser, conn: Conn):
+    store.clear_not_interested(conn, user["id"], job_id)
+    return store.not_interested_ids(conn, user["id"])
+
+
+@router.get(
+    "/me/training-consent",
+    response_model=TrainingConsent,
+    summary="Whether your feedback may improve matching",
+)
+def get_training_consent(user: CurrentUser, conn: Conn):
+    return store.training_consent(conn, user["id"])
+
+
+@router.put("/me/training-consent", response_model=TrainingConsent, summary="Give or withdraw that consent")
+def put_training_consent(body: TrainingConsentIn, user: CurrentUser, conn: Conn):
+    return store.set_training_consent(conn, user["id"], body.given)

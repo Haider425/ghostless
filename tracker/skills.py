@@ -16,9 +16,10 @@ SKILL_PATTERNS: dict[str, re.Pattern] = {
     "TypeScript": re.compile(r"\btypescript\b", _CI),
     "C++": re.compile(r"(?<![\w+])c\+\+(?![\w+])", _CI),
     "C#": re.compile(r"(?<![\w#])c#(?![\w#])|\.net\b", _CI),
-    # Case-sensitive "Go", rejected when followed by an ordinary lowercase word
-    # ("Go live"), but kept in lists like "Go and Rust" or "Python, Go, Java".
-    "Go": re.compile(r"\bgolang\b|\bGo\b(?!\s+(?!and\b|or\b)[a-z])"),
+    # "Golang" in any case; case-sensitive "Go", rejected when followed by an
+    # ordinary lowercase word ("Go live"), but kept in lists like "Go and Rust"
+    # or "Python, Go, Java".
+    "Go": re.compile(r"(?i:\bgolang\b)|\bGo\b(?!\s+(?!and\b|or\b)[a-z])"),
     "Rust": re.compile(r"\brust\b", _CI),
     "Kotlin": re.compile(r"\bkotlin\b", _CI),
     "Swift": re.compile(r"\bswift\b", _CI),

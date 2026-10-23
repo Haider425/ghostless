@@ -400,3 +400,27 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_kind_time ON events (kind, created_at DESC);
 CREATE INDEX IF NOT EXISTS events_user_kind ON events (user_id, kind, created_at DESC) WHERE user_id IS NOT NULL;
+
+-- "Not interested" on a match, with an optional reason. With saved jobs and
+-- applications (above) it is the feedback that can later replace the
+-- evaluation set's labels (tracker/resume/feedback.py), but only for people
+-- who agreed in training_consent. `resume_id` is the resume being matched.
+CREATE TABLE IF NOT EXISTS match_feedback (
+    user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    job_id      BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    resume_id   BIGINT REFERENCES resumes(id) ON DELETE SET NULL,
+    verdict     TEXT NOT NULL DEFAULT 'not_interested' CHECK (verdict IN ('not_interested')),
+    reason      TEXT CHECK (reason IN ('level', 'location', 'role', 'company')),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, job_id)
+);
+
+-- Consent to use someone's feedback to improve matching: off unless given,
+-- with the version of the wording they agreed to and when. Withdrawing keeps
+-- the row (so the record of what was agreed stays) and stops any further use.
+CREATE TABLE IF NOT EXISTS training_consent (
+    user_id       BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    wording       TEXT NOT NULL,
+    given_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    withdrawn_at  TIMESTAMPTZ
+);

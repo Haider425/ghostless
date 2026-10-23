@@ -569,6 +569,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/not-interested/ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Jobs you marked not interested */
+        get: operations["not_interested_ids_me_not_interested_ids_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/not-interested/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark a match not interested, with an optional reason (safe to repeat) */
+        put: operations["not_interested_me_not_interested__job_id__put"];
+        post?: never;
+        /** Undo not interested */
+        delete: operations["undo_not_interested_me_not_interested__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/training-consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether your feedback may improve matching */
+        get: operations["get_training_consent_me_training_consent_get"];
+        /** Give or withdraw that consent */
+        put: operations["put_training_consent_me_training_consent_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/resume/analyze": {
         parameters: {
             query?: never;
@@ -1810,6 +1863,19 @@ export interface components {
             /** Detail */
             detail: string;
         };
+        /** NotInterestedIn */
+        NotInterestedIn: {
+            /**
+             * Reason
+             * @description Why, if they said: level, location, role or company
+             */
+            reason?: ("level" | "location" | "role" | "company") | null;
+            /**
+             * Resume Id
+             * @description The resume being matched, if it's one of theirs
+             */
+            resume_id?: number | null;
+        };
         /** OAuthIn */
         OAuthIn: {
             /** Code */
@@ -2487,6 +2553,30 @@ export interface components {
         TokenIn: {
             /** Token */
             token: string;
+        };
+        /** TrainingConsent */
+        TrainingConsent: {
+            /** Given */
+            given: boolean;
+            /**
+             * Version
+             * @description The wording version agreed to
+             */
+            version?: string | null;
+            /** Given At */
+            given_at?: string | null;
+            /** Current Version */
+            current_version: string;
+            /**
+             * Text
+             * @description The wording shown when asking
+             */
+            text: string;
+        };
+        /** TrainingConsentIn */
+        TrainingConsentIn: {
+            /** Given */
+            given: boolean;
         };
         /** User */
         User: {
@@ -3638,6 +3728,145 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Application"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    not_interested_ids_me_not_interested_ids_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": number[];
+                };
+            };
+        };
+    };
+    not_interested_me_not_interested__job_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotInterestedIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": number[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_not_interested_me_not_interested__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": number[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_training_consent_me_training_consent_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingConsent"];
+                };
+            };
+        };
+    };
+    put_training_consent_me_training_consent_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrainingConsentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingConsent"];
                 };
             };
             /** @description Validation Error */

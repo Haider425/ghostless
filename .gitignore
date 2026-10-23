@@ -15,3 +15,7 @@ backups/
 
 # full text of the labelled test set (the repo is public): rebuilt by scripts/build_labelled_set.py rebuild
 tests/fixtures/labelled/private/
+
+# resume evaluation set: real resumes (shared with permission, evaluation only),
+# their labels, and the saved text of the postings. Never commit any of it.
+eval/resume/private/

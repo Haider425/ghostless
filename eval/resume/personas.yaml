@@ -1,0 +1,884 @@
+# Synthetic resumes for the resume evaluation set (docs/resume-model-plan.md).
+#
+# Every person here is invented: names, schools-as-used, employers, emails
+# (example.com) and phone numbers (555) are made up. Real resumes never go in
+# this file or anywhere else in the repo: they live in eval/resume/private/,
+# which git ignores.
+#
+# target: what this person is looking for. role is one of sde, data, data_eng,
+# ml, hardware, security; level is intern, new_grad, mid or senior; titles are
+# words a fitting posting's title would use, for choosing postings to label.
+
+- id: fe-intern-toronto
+  summary: "3rd-year CS student, one React internship, wants frontend internships in Toronto"
+  target: {role: sde, level: intern, location: "Toronto, ON", country: CA, remote_ok: true, titles: [frontend, front-end, web, react, ui]}
+  notes: "The audit's frontend student."
+  resume: |
+    Alex Rivera
+    alex.rivera@example.com | (416) 555-0101 | linkedin.com/in/alex-rivera-example | github.com/alexr-example
+
+    EDUCATION
+    University of Waterloo, Bachelor of Computer Science, Expected April 2028
+
+    EXPERIENCE
+    Frontend Developer Intern, Maple Apps (Toronto), May 2026 - Aug 2026
+    - Built a checkout flow in React and TypeScript used by 40,000 monthly shoppers
+    - Cut page load time by 35% by code splitting and lazy loading images
+    - Wrote 120 unit tests with Jest and React Testing Library
+    - Worked with designers in Figma to ship an accessible component library (WCAG 2.1 AA)
+
+    PROJECTS
+    StudyBuddy - Next.js, Tailwind, Supabase
+    - Shared study planner with 800 student users; real-time updates over websockets
+    Portfolio site - Astro, Vercel
+
+    SKILLS
+    TypeScript, JavaScript, React, Next.js, HTML/CSS, Tailwind, Figma, Jest, Git, Accessibility
+
+- id: be-coop-waterloo
+  summary: "2nd-year software engineering student, Java/Spring co-op, wants backend co-ops"
+  target: {role: sde, level: intern, location: "Waterloo, ON", country: CA, remote_ok: true, titles: [backend, back-end, software, platform, api]}
+  notes: "Co-op terms (4 months), not summer internships."
+  resume: |
+    Priya Natarajan
+    priya.n@example.com | 519-555-0110 | linkedin.com/in/priya-n-example | github.com/priyan-example
+
+    EDUCATION
+    University of Waterloo, Bachelor of Software Engineering (Co-op), Expected 2029
+
+    EXPERIENCE
+    Backend Developer (Co-op), Ledgerly, Jan 2026 - Apr 2026
+    - Built REST endpoints in Java and Spring Boot for invoice exports used by 1,200 businesses
+    - Added PostgreSQL indexes that cut report queries from 4.2 s to 300 ms
+    - Wrote integration tests with JUnit and Testcontainers; coverage from 58% to 81%
+
+    PROJECTS
+    Campus Lost & Found API - Java, Spring Boot, Docker, deployed on Fly.io
+    URL shortener - Go, Redis
+
+    SKILLS
+    Java, Spring Boot, SQL, PostgreSQL, Docker, Git, Go, Redis, JUnit, Linux
+
+- id: fullstack-ng-vancouver
+  summary: "New grad, two full-stack internships, TypeScript/Node/AWS, Vancouver"
+  target: {role: sde, level: new_grad, location: "Vancouver, BC", country: CA, remote_ok: true, titles: [software engineer, full stack, full-stack, developer, new grad]}
+  resume: |
+    Daniel Kim
+    daniel.kim@example.com | 604-555-0112 | linkedin.com/in/daniel-kim-example | github.com/dkim-example
+
+    EDUCATION
+    Simon Fraser University, Bachelor of Science in Computing Science, 2026
+
+    EXPERIENCE
+    Software Engineering Intern, Tidepool Health, May 2025 - Dec 2025
+    - Built a patient scheduling feature end to end with React, Node.js and PostgreSQL; 9,000 bookings a month
+    - Moved background jobs to AWS Lambda and SQS, cutting monthly hosting cost by 22%
+    Full-Stack Intern, Northshore Labs, May 2024 - Aug 2024
+    - Shipped an admin dashboard in Next.js with role-based access for 40 staff
+
+    PROJECTS
+    Trailhead - React Native app for hiking trail conditions, 2,000 downloads
+
+    SKILLS
+    TypeScript, JavaScript, React, Node.js, Express, PostgreSQL, AWS, Docker, GraphQL, Git
+
+- id: ios-ng-montreal
+  summary: "New grad iOS developer, Swift/SwiftUI, bilingual French/English, Montreal"
+  target: {role: sde, level: new_grad, location: "Montreal, QC", country: CA, remote_ok: true, titles: [ios, mobile, swift, apple]}
+  notes: "Mobile, and bilingual (some Montreal postings require French)."
+  resume: |
+    Camille Tremblay
+    camille.tremblay@example.com | 514-555-0118 | github.com/ctremblay-example
+
+    EDUCATION
+    Université de Montréal, Baccalauréat en informatique (Bachelor of Computer Science), 2026
+
+    EXPERIENCE
+    iOS Developer Intern, Bistro App, Jan 2025 - Aug 2025
+    - Rebuilt the ordering screens in SwiftUI; crash-free sessions rose from 97.1% to 99.6%
+    - Added offline mode with Core Data so orders survive poor connections in 30 restaurants
+    - Wrote XCTest UI tests run in GitHub Actions on every pull request
+
+    PROJECTS
+    MétroLive - iOS app with live STM bus times, 4.7 stars, 1,500 users
+
+    SKILLS
+    Swift, SwiftUI, UIKit, Core Data, XCTest, Combine, Git, GitHub Actions, Firebase
+    Languages: French (native), English (fluent)
+
+- id: android-coop-ottawa
+  summary: "3rd-year CS student, Kotlin Android co-op, wants mobile co-ops in Ottawa"
+  target: {role: sde, level: intern, location: "Ottawa, ON", country: CA, remote_ok: true, titles: [android, mobile, kotlin]}
+  resume: |
+    Omar Haddad
+    omar.haddad@example.com | 613-555-0121 | linkedin.com/in/omar-haddad-example | github.com/ohaddad-example
+
+    EDUCATION
+    Carleton University, Bachelor of Computer Science, Expected 2028
+
+    EXPERIENCE
+    Android Developer Co-op, Rideau Transit Tech, Sep 2025 - Dec 2025
+    - Built trip-planning screens in Kotlin with Jetpack Compose for an app with 60,000 users
+    - Cut cold start time by 40% by deferring map loading
+    - Added Espresso tests for the five most used flows
+
+    PROJECTS
+    Budget buddy - Android app with Room database and charts
+
+    SKILLS
+    Kotlin, Java, Jetpack Compose, Android SDK, Room, Retrofit, Git, Firebase
+
+- id: backend-mid-toronto
+  summary: "Backend developer, 3 years Python/Django on AWS, Toronto"
+  target: {role: sde, level: mid, location: "Toronto, ON", country: CA, remote_ok: true, titles: [backend, back-end, software engineer, python, platform]}
+  resume: |
+    Hannah Lee
+    hannah.lee@example.com | 416-555-0124 | linkedin.com/in/hannah-lee-example
+
+    EXPERIENCE
+    Software Engineer, Clearpath Insurance, Jul 2023 - Present
+    - Built a claims API in Python and Django REST Framework handling 120,000 claims a year
+    - Moved the main database from MySQL to PostgreSQL with no downtime
+    - Set up Celery and Redis for document processing; cut turnaround from 2 days to 3 hours
+    - Mentor two junior developers and run the team's code review rota
+
+    EDUCATION
+    Toronto Metropolitan University, Bachelor of Computer Science, 2023
+
+    SKILLS
+    Python, Django, PostgreSQL, MySQL, Redis, Celery, AWS (ECS, S3, RDS), Docker, Terraform, Git
+
+- id: staff-backend-toronto
+  summary: "Staff engineer, 10 years, Go/Kubernetes/payments, Toronto"
+  target: {role: sde, level: senior, location: "Toronto, ON", country: CA, remote_ok: true, titles: [senior, staff, principal, backend, platform, distributed]}
+  notes: "The audit's senior backend engineer."
+  resume: |
+    Chris Novak
+    chris.novak@example.com | 416-555-0199 | linkedin.com/in/chris-novak-example
+
+    EXPERIENCE
+    Staff Software Engineer, Payrail, Jan 2020 - Present
+    - Led the redesign of the payments ledger in Go, handling 3,000 transactions a second
+    - Moved 40 services to Kubernetes on AWS; cut infrastructure cost 28%
+    Senior Software Engineer, ShopGrid, Jun 2016 - Dec 2019
+    - Built order routing microservices in Java and Kafka for 2M daily orders
+
+    EDUCATION
+    University of Ottawa, Bachelor of Applied Science, Software Engineering, 2016
+
+    SKILLS
+    Go, Java, Kafka, PostgreSQL, Kubernetes, AWS, Terraform, distributed systems, gRPC
+
+- id: intl-ng-boston
+  summary: "International new grad in the US (F-1 OPT, needs sponsorship), C++/Java, Boston"
+  target: {role: sde, level: new_grad, location: "Boston, MA", country: US, remote_ok: false, titles: [software engineer, new grad, developer, backend]}
+  notes: "Needs visa sponsorship; postings that say \"no sponsorship\" should not be strong fits."
+  resume: |
+    Wei Zhang
+    wei.zhang@example.com | 617-555-0127 | linkedin.com/in/wei-zhang-example | github.com/weiz-example
+
+    EDUCATION
+    Northeastern University, Master of Science in Computer Science, May 2026
+    Zhejiang University, Bachelor of Engineering in Software Engineering, 2024
+
+    EXPERIENCE
+    Software Engineer Co-op, Harborview Analytics, Jan 2025 - Aug 2025
+    - Wrote a C++ service that parses 2 TB of market data a day, 3x faster than the Python version it replaced
+    - Built a Java Spring service for client reports with 99.9% uptime
+
+    PROJECTS
+    Distributed key-value store - C++, Raft consensus, 5-node cluster
+
+    SKILLS
+    C++, Java, Python, Spring, Linux, Docker, SQL, Git
+    Work authorization: F-1 OPT (STEM extension eligible); will require H-1B sponsorship
+
+- id: bootcamp-changer-calgary
+  summary: "Former high school teacher, coding bootcamp, full-stack, Calgary"
+  target: {role: sde, level: new_grad, location: "Calgary, AB", country: CA, remote_ok: true, titles: [junior, developer, software, full stack, web]}
+  notes: "Career changer; no CS degree; years of non-tech work."
+  resume: |
+    Megan O'Brien
+    megan.obrien@example.com | 403-555-0130 | linkedin.com/in/megan-obrien-example | github.com/mobrien-example
+
+    EDUCATION
+    Lighthouse-style Web Development Bootcamp (12 weeks), 2025
+    University of Calgary, Bachelor of Education, 2014
+
+    PROJECTS
+    Gradebook Pro - React, Node.js, PostgreSQL; used by 6 teachers at my former school
+    - Replaced spreadsheet grading; saves each teacher about 2 hours a week
+    Field Trip Planner - Ruby on Rails, Stripe payments for 200 families
+
+    EXPERIENCE
+    Science Teacher, Bow Valley High School, Sep 2014 - Jun 2025
+    - Taught physics and chemistry to 150 students a year; led the robotics club to provincial finals
+
+    SKILLS
+    JavaScript, React, Node.js, Express, Ruby on Rails, PostgreSQL, HTML/CSS, Git, Jest
+
+- id: gamedev-intern-montreal
+  summary: "Game development student, C++/Unity, wants game or graphics internships in Montreal"
+  target: {role: sde, level: intern, location: "Montreal, QC", country: CA, remote_ok: false, titles: [game, gameplay, graphics, engine, unity, c++]}
+  resume: |
+    Lucas Martin
+    lucas.martin@example.com | 514-555-0133 | github.com/lmartin-example | lucasmartin.dev
+
+    EDUCATION
+    Concordia University, Bachelor of Computer Science (Computer Games option), Expected 2027
+
+    PROJECTS
+    Voxel engine - C++ and OpenGL, chunked terrain at 144 fps on a laptop GPU
+    Shadow Run - Unity and C# platformer made in a 48-hour game jam, 3rd of 60 teams
+    Physics toy - rigid body simulation in C++ with a custom collision broadphase
+
+    EXPERIENCE
+    QA Tester (part time), Pixel Forge Studio, May 2025 - Aug 2025
+    - Logged 300+ reproducible bugs in Jira for a console release
+
+    SKILLS
+    C++, C#, Unity, OpenGL, Unreal Engine (basics), Python, Git, Perforce
+
+- id: qa-automation-toronto
+  summary: "QA automation engineer, 4 years, Selenium/Playwright/Python, Toronto"
+  target: {role: sde, level: mid, location: "Toronto, ON", country: CA, remote_ok: true, titles: [qa, quality, test, automation, sdet]}
+  resume: |
+    Fatima Ali
+    fatima.ali@example.com | 647-555-0136 | linkedin.com/in/fatima-ali-example
+
+    EXPERIENCE
+    QA Automation Engineer, Shopwise, Mar 2022 - Present
+    - Built a Playwright suite of 900 tests running in 11 minutes in GitHub Actions
+    - Cut escaped production bugs by 45% in a year by adding contract tests for 12 APIs
+    QA Analyst, Bank of the Lakes, Jun 2020 - Feb 2022
+    - Automated regression tests with Selenium and Python, replacing 3 days of manual testing per release
+
+    EDUCATION
+    Seneca College, Advanced Diploma, Computer Programming and Analysis, 2020
+
+    SKILLS
+    Python, TypeScript, Playwright, Selenium, Pytest, Postman, SQL, Jenkins, GitHub Actions, Jira
+
+- id: sre-mid-remote-ca
+  summary: "SRE, 5 years, Terraform/Kubernetes/AWS, remote in Canada"
+  target: {role: sde, level: mid, location: "Remote, Canada", country: CA, remote_ok: true, titles: [sre, site reliability, devops, platform, infrastructure, cloud]}
+  resume: |
+    Ethan Brooks
+    ethan.brooks@example.com | 902-555-0139 | linkedin.com/in/ethan-brooks-example | github.com/ebrooks-example
+
+    EXPERIENCE
+    Site Reliability Engineer, Northbeam SaaS, Apr 2021 - Present
+    - Run 14 Kubernetes clusters on AWS EKS; kept 99.95% availability for two years
+    - Wrote Terraform modules used by 9 teams; new environments in 20 minutes instead of 2 days
+    - Built Prometheus and Grafana alerting that cut pages per week from 35 to 8
+    Systems Administrator, Atlantic Health IT, Jun 2019 - Mar 2021
+    - Automated Linux server patching for 400 hosts with Ansible
+
+    EDUCATION
+    Dalhousie University, Bachelor of Computer Science, 2019
+
+    SKILLS
+    Kubernetes, AWS, Terraform, Ansible, Prometheus, Grafana, Linux, Python, Bash, Go, CI/CD
+
+- id: senior-frontend-remote-us
+  summary: "Senior frontend engineer, 8 years React/TypeScript, remote in the US"
+  target: {role: sde, level: senior, location: "Remote, US", country: US, remote_ok: true, titles: [senior, staff, frontend, front-end, ui, react]}
+  resume: |
+    Jordan Ellis
+    jordan.ellis@example.com | 503-555-0142 | linkedin.com/in/jordan-ellis-example | github.com/jellis-example
+
+    EXPERIENCE
+    Senior Frontend Engineer, Brightline Learning, Feb 2021 - Present
+    - Lead the frontend for a learning platform with 3M students; React, TypeScript, Next.js
+    - Built the design system (60 components) adopted by 7 product teams
+    - Cut the main bundle by 48% and improved Largest Contentful Paint from 3.9 s to 1.6 s
+    Frontend Engineer, Cartwheel Commerce, Jun 2017 - Jan 2021
+    - Built checkout and account pages in React and Redux for 400,000 monthly buyers
+
+    EDUCATION
+    Oregon State University, Bachelor of Science in Computer Science, 2017
+
+    SKILLS
+    TypeScript, React, Next.js, Redux, GraphQL, Node.js, Jest, Playwright, Storybook, Accessibility
+
+- id: sde-intern-sf
+  summary: "US sophomore, Python/Java, wants software internships in the Bay Area"
+  target: {role: sde, level: intern, location: "San Francisco, CA", country: US, remote_ok: false, titles: [software, intern, engineer]}
+  resume: |
+    Maya Johnson
+    maya.johnson@example.com | 510-555-0145 | github.com/mjohnson-example
+
+    EDUCATION
+    University of California, Berkeley, Bachelor of Arts in Computer Science, Expected 2029
+    Coursework: Data Structures, Computer Architecture, Discrete Math
+
+    PROJECTS
+    Course scheduler - Python and Flask web app that builds conflict-free schedules; 300 students used it
+    Chess engine - Java, minimax with alpha-beta pruning, rated about 1600
+
+    EXPERIENCE
+    Teaching Assistant, Berkeley CS 61A, Jan 2026 - Present
+    - Run two lab sections of 30 students each
+
+    SKILLS
+    Python, Java, C, SQL, Flask, Git, Linux
+
+- id: quant-dev-ng-nyc
+  summary: "New grad, C++/Python, low-latency systems, wants quant developer roles in New York"
+  target: {role: sde, level: new_grad, location: "New York, NY", country: US, remote_ok: false, titles: [software engineer, developer, c++, trading, quant]}
+  resume: |
+    Samuel Osei
+    samuel.osei@example.com | 212-555-0148 | linkedin.com/in/samuel-osei-example | github.com/sosei-example
+
+    EDUCATION
+    Columbia University, Bachelor of Science in Computer Science and Mathematics, 2026
+
+    EXPERIENCE
+    Software Engineering Intern, Meridian Trading (example firm), Jun 2025 - Aug 2025
+    - Rewrote an order book in C++20 with lock-free queues; median latency from 9 µs to 2 µs
+    - Built Python tools to replay a day of market data for testing
+
+    PROJECTS
+    Matching engine - C++, 1M orders a second on one core
+    Options pricer - Python and NumPy, Monte Carlo and finite differences
+
+    SKILLS
+    C++, Python, NumPy, Linux, multithreading, networking, Git, SQL
+
+- id: data-analyst-ng-toronto
+  summary: "Statistics new grad, data analyst internship, SQL/Tableau/Snowflake, Toronto"
+  target: {role: data, level: new_grad, location: "Toronto, ON", country: CA, remote_ok: true, titles: [data analyst, analyst, analytics, business intelligence, bi]}
+  notes: "The audit's data new grad."
+  resume: |
+    Jordan Patel
+    jordan.patel@example.com | 647-555-0144 | linkedin.com/in/jordan-patel-example
+
+    EDUCATION
+    University of Toronto, Bachelor of Science in Statistics, 2026
+
+    EXPERIENCE
+    Data Analyst Intern, Northwind Retail, May 2025 - Dec 2025
+    - Built Tableau dashboards for weekly sales across 120 stores, used by 30 regional managers
+    - Wrote SQL in Snowflake to model returns; found a pricing error worth $250K a year
+    - Ran 6 A/B tests on email campaigns and reported lift with confidence intervals
+    Research Assistant, Department of Statistics, Sep 2024 - Apr 2025
+    - Cleaned survey data for 5,000 respondents in R and Python (pandas)
+
+    SKILLS
+    SQL, Python, R, pandas, Excel, Tableau, Snowflake, statistics, regression, A/B testing, Looker
+
+- id: data-analyst-mid-vancouver
+  summary: "Data analyst, 3 years, SQL/dbt/Looker, product analytics, Vancouver"
+  target: {role: data, level: mid, location: "Vancouver, BC", country: CA, remote_ok: true, titles: [data analyst, product analyst, analytics, analyst]}
+  resume: |
+    Aisha Rahman
+    aisha.rahman@example.com | 778-555-0151 | linkedin.com/in/aisha-rahman-example
+
+    EXPERIENCE
+    Product Data Analyst, Fernway Travel, Aug 2023 - Present
+    - Own the booking funnel metrics in Looker; found a mobile drop-off that recovered $1.1M a year
+    - Built 40 dbt models on BigQuery that replaced hand-run spreadsheets
+    - Design and read A/B tests with product managers, about 2 a month
+    Junior Analyst, Coastline Credit Union, Jun 2022 - Jul 2023
+    - Automated monthly member reports in SQL and Python
+
+    EDUCATION
+    University of British Columbia, Bachelor of Arts in Economics, 2022
+
+    SKILLS
+    SQL, dbt, BigQuery, Looker, Python, pandas, A/B testing, statistics, Excel
+
+- id: data-eng-ng-toronto
+  summary: "New grad data engineer, Spark/Airflow/Python internships, Toronto"
+  target: {role: data_eng, level: new_grad, location: "Toronto, ON", country: CA, remote_ok: true, titles: [data engineer, data engineering, etl, pipeline, analytics engineer]}
+  resume: |
+    Noah Fischer
+    noah.fischer@example.com | 416-555-0154 | linkedin.com/in/noah-fischer-example | github.com/nfischer-example
+
+    EDUCATION
+    University of Toronto, Bachelor of Applied Science in Engineering Science (Machine Intelligence), 2026
+
+    EXPERIENCE
+    Data Engineering Intern, Lakeshore Logistics, May 2025 - Dec 2025
+    - Built Airflow pipelines that load 300M shipment events a day into Snowflake
+    - Rewrote a nightly Spark job to process incrementally; runtime from 5 hours to 35 minutes
+    - Added data quality checks with Great Expectations on 25 tables
+
+    PROJECTS
+    Transit delay lake - Kafka, Spark Structured Streaming, Delta Lake on a laptop cluster
+
+    SKILLS
+    Python, SQL, Spark, Airflow, Snowflake, Kafka, dbt, Docker, AWS (S3, Glue), Git
+
+- id: data-eng-senior-remote
+  summary: "Senior data engineer, 7 years, Snowflake/dbt/Kafka, remote in Canada or the US"
+  target: {role: data_eng, level: senior, location: "Remote", country: CA, remote_ok: true, titles: [senior data engineer, staff data, data platform, data engineer, analytics engineer]}
+  resume: |
+    Isabel Moreno
+    isabel.moreno@example.com | 289-555-0157 | linkedin.com/in/isabel-moreno-example
+
+    EXPERIENCE
+    Senior Data Engineer, Kestrel Media, Mar 2021 - Present
+    - Lead a team of 4 building the company's data platform on Snowflake, dbt and Kafka
+    - Cut warehouse cost by 37% with incremental models and clustering
+    - Built a streaming pipeline for ad events at 50,000 events a second
+    Data Engineer, Harbourfront Bank, Jun 2018 - Feb 2021
+    - Moved 200 nightly SSIS jobs to Airflow and Python
+
+    EDUCATION
+    McGill University, Bachelor of Engineering, Computer Engineering, 2018
+
+    SKILLS
+    SQL, Python, Snowflake, dbt, Kafka, Airflow, Spark, AWS, Terraform, data modeling
+
+- id: bi-changer-calgary
+  summary: "Former financial analyst moving into BI and analytics, Excel/Power BI/SQL, Calgary"
+  target: {role: data, level: mid, location: "Calgary, AB", country: CA, remote_ok: true, titles: [business intelligence, bi analyst, data analyst, reporting analyst, analyst]}
+  notes: "Career changer within business; strong Excel, newer SQL."
+  resume: |
+    Robert Chen
+    robert.chen@example.com | 587-555-0160 | linkedin.com/in/robert-chen-example
+
+    EXPERIENCE
+    Financial Analyst, Prairie Energy Corp, Jul 2019 - Present
+    - Built Power BI reports for monthly budget variance, used by 25 department heads
+    - Moved forecasting from 30 linked spreadsheets to a SQL Server data model
+    - Cut month-end close reporting from 6 days to 3
+    Accounting Associate, Foothills CPA, Sep 2017 - Jun 2019
+
+    EDUCATION
+    University of Calgary, Bachelor of Commerce (Finance), 2017
+    Google Data Analytics Certificate, 2024
+
+    SKILLS
+    Excel (advanced), Power BI, SQL, SQL Server, DAX, financial modeling, Python (learning)
+
+- id: data-scientist-phd-waterloo
+  summary: "PhD in statistics, causal inference, R/Python, wants data scientist roles"
+  target: {role: data, level: mid, location: "Waterloo, ON", country: CA, remote_ok: true, titles: [data scientist, scientist, research scientist, statistician, quantitative]}
+  notes: "PhD with research experience; level between new grad and mid."
+  resume: |
+    Elena Petrova
+    elena.petrova@example.com | 519-555-0163 | linkedin.com/in/elena-petrova-example | github.com/epetrova-example
+
+    EDUCATION
+    University of Waterloo, PhD in Statistics, 2026
+    Thesis: Causal effect estimation with interference in network experiments
+
+    EXPERIENCE
+    Data Science Intern, Riverstone Marketplace, May 2024 - Aug 2024
+    - Built an uplift model for coupon targeting that raised net revenue 6% in a holdout test
+    Research Assistant, University of Waterloo, Sep 2021 - Apr 2026
+    - Published 3 papers on causal inference; R package with 4,000 downloads
+
+    SKILLS
+    R, Python, SQL, causal inference, Bayesian statistics, experimentation, pandas, scikit-learn, Stan
+
+- id: ml-ng-vancouver
+  summary: "NLP master's 2026, LLM fine-tuning internship, ACL paper, Vancouver"
+  target: {role: ml, level: new_grad, location: "Vancouver, BC", country: CA, remote_ok: true, titles: [machine learning, ml engineer, nlp, ai engineer, applied scientist]}
+  notes: "The audit's ML new grad."
+  resume: |
+    Mina Chen
+    mina.chen@example.com | 604-555-0123 | linkedin.com/in/mina-chen-example | github.com/minac-example
+
+    EDUCATION
+    University of British Columbia, Master of Science in Computer Science (NLP), 2026
+
+    EXPERIENCE
+    Machine Learning Intern, Cedar AI, May 2025 - Aug 2025
+    - Fine-tuned a 7B LLM with LoRA on 40K support tickets; raised answer accuracy from 61% to 78%
+    - Built an evaluation harness in PyTorch and Hugging Face for 12 retrieval models
+    Graduate Researcher, UBC NLP Lab, Sep 2024 - Apr 2026
+    - Published at ACL 2026 on retrieval-augmented generation for legal text
+
+    SKILLS
+    Python, PyTorch, Hugging Face, Transformers, LLMs, RAG, NLP, scikit-learn, Docker, AWS, SQL
+
+- id: ml-intern-toronto
+  summary: "3rd-year CS student, computer vision research, PyTorch, wants ML internships"
+  target: {role: ml, level: intern, location: "Toronto, ON", country: CA, remote_ok: true, titles: [machine learning, ml, ai, computer vision, research intern]}
+  resume: |
+    Arjun Mehta
+    arjun.mehta@example.com | 416-555-0166 | github.com/amehta-example
+
+    EDUCATION
+    University of Toronto, Bachelor of Science in Computer Science, Expected 2028
+
+    EXPERIENCE
+    Undergraduate Researcher, Vision Lab, Sep 2025 - Present
+    - Trained a PyTorch segmentation model for crop disease images; mIoU from 0.61 to 0.72
+    - Wrote data loaders that cut epoch time by 50% on the lab's GPUs
+
+    PROJECTS
+    Sign language translator - MediaPipe and a small transformer, 92% accuracy on 30 signs
+    Kaggle - top 8% in a tabular competition with LightGBM
+
+    SKILLS
+    Python, PyTorch, NumPy, OpenCV, scikit-learn, LightGBM, Git, Linux
+
+- id: ml-eng-mid-sf
+  summary: "ML engineer, 4 years, recommendation systems and MLOps, San Francisco"
+  target: {role: ml, level: mid, location: "San Francisco, CA", country: US, remote_ok: true, titles: [machine learning engineer, ml engineer, ml platform, recommendation, applied]}
+  resume: |
+    Kevin Nguyen
+    kevin.nguyen@example.com | 415-555-0169 | linkedin.com/in/kevin-nguyen-example
+
+    EXPERIENCE
+    Machine Learning Engineer, Streamly, Jan 2022 - Present
+    - Built the home feed ranking model (two-tower retrieval plus a gradient-boosted ranker); +4.2% watch time
+    - Run model training and serving on Kubeflow and MLflow; 30 models in production
+    - Cut feature pipeline cost 40% by moving from batch Spark jobs to a Feast feature store
+    Data Scientist, CartPilot, Jul 2020 - Dec 2021
+
+    EDUCATION
+    University of California, San Diego, Master of Science in Computer Science, 2020
+
+    SKILLS
+    Python, PyTorch, TensorFlow, Spark, Kubeflow, MLflow, Feast, SQL, Kubernetes, AWS
+
+- id: ai-research-phd-montreal
+  summary: "PhD in reinforcement learning, wants research scientist roles in Montreal"
+  target: {role: ml, level: mid, location: "Montreal, QC", country: CA, remote_ok: false, titles: [research scientist, research engineer, machine learning researcher, ai research]}
+  resume: |
+    Thomas Lefebvre
+    thomas.lefebvre@example.com | 438-555-0172 | github.com/tlefebvre-example
+
+    EDUCATION
+    Université de Montréal, PhD in Computer Science (Reinforcement Learning), 2026
+
+    EXPERIENCE
+    Research Intern, DeepBay Research (example lab), Jun 2024 - Nov 2024
+    - Developed an offline RL method that improved robot grasp success from 54% to 71%
+    PhD Researcher, Montreal AI lab, Sep 2021 - Present
+    - 5 papers at NeurIPS, ICML and ICLR on exploration in reinforcement learning
+    - Maintain a JAX library for RL baselines with 1,800 GitHub stars
+
+    SKILLS
+    Python, JAX, PyTorch, reinforcement learning, deep learning, CUDA, C++, Linux
+
+- id: embedded-coop-hamilton
+  summary: "Electrical engineering student, firmware co-op (STM32/FreeRTOS), FPGA side project"
+  target: {role: hardware, level: intern, location: "Hamilton, ON", country: CA, remote_ok: false, titles: [firmware, embedded, hardware, electrical]}
+  notes: "The audit's embedded student; FPGA is a side project, firmware is the real experience."
+  resume: |
+    Sam Okafor
+    sam.okafor@example.com | 519-555-0177 | github.com/samok-example
+
+    EDUCATION
+    McMaster University, Bachelor of Engineering, Electrical Engineering, Expected 2027
+
+    EXPERIENCE
+    Firmware Intern, Lakeside Robotics, Jan 2026 - Apr 2026
+    - Wrote C firmware for an STM32 motor controller running FreeRTOS; cut jitter from 2 ms to 0.3 ms
+    - Brought up a new board over SPI and I2C; debugged with a logic analyzer and oscilloscope
+    - Designed a 4-layer PCB in KiCad for a sensor hub, 2 revisions
+
+    PROJECTS
+    FPGA synth - Verilog on a Lattice iCE40, 8-voice polyphony
+
+    SKILLS
+    C, C++, embedded C, FreeRTOS, STM32, SPI, I2C, UART, KiCad, Verilog, MATLAB, Python, oscilloscope
+
+- id: fpga-ng-ottawa
+  summary: "New grad FPGA engineer, SystemVerilog/VHDL, Ottawa"
+  target: {role: hardware, level: new_grad, location: "Ottawa, ON", country: CA, remote_ok: false, titles: [fpga, digital design, rtl, hardware engineer]}
+  resume: |
+    Grace Liu
+    grace.liu@example.com | 613-555-0180 | linkedin.com/in/grace-liu-example
+
+    EDUCATION
+    University of Ottawa, Bachelor of Applied Science, Computer Engineering, 2026
+
+    EXPERIENCE
+    FPGA Design Intern, Signal Peak Networks, May 2025 - Dec 2025
+    - Designed a 10G Ethernet packet filter in SystemVerilog on a Xilinx UltraScale+; met timing at 322 MHz
+    - Wrote cocotb testbenches in Python that found 14 bugs before hardware tests
+    - Cut resource use by 18% by sharing DSP blocks
+
+    PROJECTS
+    RISC-V core - 5-stage pipeline in VHDL running on a Basys 3 board
+
+    SKILLS
+    SystemVerilog, VHDL, Verilog, Vivado, cocotb, Python, Tcl, timing closure, Linux
+
+- id: hw-design-mid-waterloo
+  summary: "Hardware design engineer, 5 years PCB and analog design, Waterloo"
+  target: {role: hardware, level: mid, location: "Waterloo, ON", country: CA, remote_ok: false, titles: [hardware engineer, electrical engineer, pcb, board design, electronics]}
+  resume: |
+    Ahmed Saleh
+    ahmed.saleh@example.com | 226-555-0183 | linkedin.com/in/ahmed-saleh-example
+
+    EXPERIENCE
+    Hardware Design Engineer, Lumen Devices, Jun 2021 - Present
+    - Led schematic and PCB design (Altium) for 6 products, from prototype to 50,000-unit production
+    - Designed low-noise power supplies that passed FCC and CE emissions testing first time
+    - Cut bill of materials cost by 22% across the product line
+    Electrical Engineering Co-op, Grandview Instruments, 2019 - 2020 (three terms)
+
+    EDUCATION
+    University of Waterloo, Bachelor of Applied Science, Electrical Engineering, 2021
+
+    SKILLS
+    Altium Designer, PCB design, analog design, power electronics, SPICE, signal integrity, Python, lab equipment
+
+- id: asic-verif-senior-austin
+  summary: "Senior ASIC verification engineer, 9 years UVM/SystemVerilog, Austin"
+  target: {role: hardware, level: senior, location: "Austin, TX", country: US, remote_ok: false, titles: [verification, design verification, asic, soc, senior]}
+  resume: |
+    Patrick Walsh
+    patrick.walsh@example.com | 512-555-0186 | linkedin.com/in/patrick-walsh-example
+
+    EXPERIENCE
+    Senior Design Verification Engineer, Corecraft Semiconductor, Jan 2019 - Present
+    - Lead verification of a PCIe Gen5 controller; UVM environment with 2,000 tests and full coverage closure
+    - Built a formal verification flow that found 9 deadlocks missed by simulation
+    Design Verification Engineer, Siliconpath, Jun 2015 - Dec 2018
+    - Verified DDR4 memory controller blocks in SystemVerilog and UVM
+
+    EDUCATION
+    Texas A&M University, Master of Science in Electrical Engineering, 2015
+
+    SKILLS
+    SystemVerilog, UVM, formal verification, PCIe, DDR, Python, Perl, Tcl, VCS, Questa
+
+- id: robotics-coop-waterloo
+  summary: "Mechatronics student, ROS/C++/Python robotics co-ops, Waterloo"
+  target: {role: hardware, level: intern, location: "Waterloo, ON", country: CA, remote_ok: false, titles: [robotics, autonomy, controls, perception, embedded]}
+  resume: |
+    Sofia Rossi
+    sofia.rossi@example.com | 519-555-0189 | github.com/srossi-example
+
+    EDUCATION
+    University of Waterloo, Bachelor of Applied Science, Mechatronics Engineering, Expected 2028
+
+    EXPERIENCE
+    Robotics Software Co-op, Fieldbot Agritech, May 2025 - Aug 2025
+    - Wrote ROS 2 nodes in C++ for row following; cut path error from 12 cm to 4 cm
+    - Calibrated stereo cameras and a LiDAR for the perception stack
+    Controls Co-op, Grand River Automation, Sep 2024 - Dec 2024
+    - Tuned PID loops for a conveyor sorter handling 3,000 parcels an hour
+
+    SKILLS
+    C++, Python, ROS 2, OpenCV, MATLAB, Simulink, PID control, Linux, Git
+
+- id: security-student-ottawa
+  summary: "Cybersecurity student, CTFs and pen-testing projects, wants security internships"
+  target: {role: security, level: intern, location: "Ottawa, ON", country: CA, remote_ok: true, titles: [security, cyber, penetration, soc, offensive]}
+  resume: |
+    Liam O'Connor
+    liam.oconnor@example.com | 613-555-0192 | github.com/loconnor-example
+
+    EDUCATION
+    Carleton University, Bachelor of Information Technology (Network Technology), Expected 2027
+
+    EXPERIENCE
+    IT Security Intern, Capital City Credit Union, May 2025 - Aug 2025
+    - Ran vulnerability scans across 600 hosts with Nessus and tracked fixes with system owners
+    - Wrote Python scripts that cut phishing triage time from 20 to 5 minutes per report
+
+    PROJECTS
+    CTF team captain - top 5% in picoCTF 2025; web and binary exploitation
+    Home lab - pfSense, Security Onion, Active Directory attack and defence exercises
+
+    SKILLS
+    Python, Bash, Linux, Burp Suite, Nmap, Wireshark, Nessus, Active Directory, networking
+
+- id: soc-analyst-toronto
+  summary: "SOC analyst, 3 years, Splunk/SIEM and incident response, Toronto"
+  target: {role: security, level: mid, location: "Toronto, ON", country: CA, remote_ok: true, titles: [security analyst, soc, incident response, detection, security engineer]}
+  resume: |
+    Nadia Hussain
+    nadia.hussain@example.com | 647-555-0195 | linkedin.com/in/nadia-hussain-example
+
+    EXPERIENCE
+    Security Operations Analyst, Maplegrid Telecom, Aug 2023 - Present
+    - Triage about 80 alerts a day in Splunk; lead responder on 12 incidents
+    - Wrote 30 detection rules mapped to MITRE ATT&CK that cut false positives by 35%
+    IT Support Specialist, Lakeview College, Jun 2021 - Jul 2023
+
+    EDUCATION
+    Humber College, Advanced Diploma, Cybersecurity, 2021
+    CompTIA Security+, 2022; GIAC GCIH, 2024
+
+    SKILLS
+    Splunk, SIEM, incident response, MITRE ATT&CK, Python, PowerShell, Windows, Linux, CrowdStrike
+
+- id: cleared-veteran-virginia
+  summary: "US Army veteran, Secret clearance, network security, wants defence cyber roles"
+  target: {role: security, level: mid, location: "Arlington, VA", country: US, remote_ok: false, titles: [security engineer, cyber, network security, information assurance, cleared]}
+  notes: "Holds an active Secret clearance; clearance-required postings fit, others neutral."
+  resume: |
+    Marcus Reed
+    marcus.reed@example.com | 703-555-0198 | linkedin.com/in/marcus-reed-example
+
+    EXPERIENCE
+    Cyber Operations Specialist, US Army, Jun 2018 - Jun 2024
+    - Defended a division network of 5,000 endpoints; led a team of 6 analysts
+    - Hardened Cisco and Palo Alto firewalls to DISA STIG baselines
+    Network Security Engineer, Patriot Systems (contractor), Jul 2024 - Present
+    - Run vulnerability management for 2,000 hosts with Tenable; patch compliance from 70% to 96%
+
+    EDUCATION
+    George Mason University, Bachelor of Science in Cybersecurity Engineering, 2023 (part time)
+    Active Secret clearance. CISSP, 2025
+
+    SKILLS
+    Network security, firewalls, Palo Alto, Cisco, Tenable, Splunk, STIG, RMF, Python, Linux
+
+- id: cafe-supervisor-toronto
+  summary: "Café shift supervisor and cashier, business diploma, no tech experience"
+  target: {role: data, level: new_grad, location: "Toronto, ON", country: CA, remote_ok: true, titles: [analyst, data, operations]}
+  notes: "The audit's non-tech resume. Nearly every tech posting should be weak."
+  resume: |
+    Taylor Brooks
+    taylor.brooks@example.com | 905-555-0155 | linkedin.com/in/taylor-brooks-example | taylorbrooks.site
+
+    SUMMARY
+    Shift supervisor focused on fast, friendly service.
+
+    EXPERIENCE
+    Shift Supervisor, Corner Cafe, Jan 2023 - Present
+    - Led a team of 8 baristas across 3 shifts serving 600 customers a day
+    - Cut average wait time by 20% by reorganizing the order line
+    - Trained 14 new hires; 90% stayed past 6 months
+    - Managed $4,000 weekly inventory orders with Excel
+    Cashier, City Grocer, Jun 2021 - Dec 2022
+    - Handled 250 transactions a shift with 99.8% till accuracy
+    - Restocked 3 aisles nightly and reduced spoilage by 15%
+
+    PROJECTS
+    Community food drive - organized 3 drives collecting 2,000 lbs of food for 40 families
+
+    EDUCATION
+    Seneca College, Diploma in Business, 2021
+
+    SKILLS
+    Excel, Word, customer service, scheduling, inventory, cash handling, POS systems, Jira, Agile, SQL basics
+
+- id: helpdesk-to-devops-mississauga
+  summary: "IT help desk, 2 years, scripting and cloud certs, wants junior DevOps or cloud roles"
+  target: {role: sde, level: new_grad, location: "Mississauga, ON", country: CA, remote_ok: true, titles: [devops, cloud, junior, infrastructure, systems]}
+  notes: "Adjacent experience; junior-level target."
+  resume: |
+    Jamal Carter
+    jamal.carter@example.com | 905-555-0201 | linkedin.com/in/jamal-carter-example | github.com/jcarter-example
+
+    EXPERIENCE
+    IT Help Desk Technician, Brightway Logistics, Mar 2024 - Present
+    - Resolve about 25 tickets a day for 400 staff; first-contact resolution of 78%
+    - Wrote PowerShell scripts that automated new-hire laptop setup, from 2 hours to 20 minutes
+
+    PROJECTS
+    Home cloud lab - Terraform and GitHub Actions deploy a containerized app to AWS ECS
+    Kubernetes practice cluster - k3s on 3 Raspberry Pis
+
+    EDUCATION
+    Sheridan College, Diploma, Computer Systems Technician, 2023
+    AWS Certified Solutions Architect - Associate, 2025
+
+    SKILLS
+    Windows, Linux, PowerShell, Bash, AWS, Terraform, Docker, Kubernetes (learning), GitHub Actions, Active Directory
+
+- id: parttime-masters-toronto
+  summary: "Works as a data analyst while doing a part-time master's in CS, wants data engineering"
+  target: {role: data_eng, level: mid, location: "Toronto, ON", country: CA, remote_ok: true, titles: [data engineer, analytics engineer, data platform, etl]}
+  notes: "Still studying but not an intern: internship postings should not fit."
+  resume: |
+    Olivia Grant
+    olivia.grant@example.com | 416-555-0204 | linkedin.com/in/olivia-grant-example
+
+    EXPERIENCE
+    Data Analyst, Metro Housing Authority, Sep 2022 - Present
+    - Built Python ETL that loads 15 source systems into PostgreSQL nightly
+    - Moved 60 reports to dbt and Metabase; refresh from weekly to daily
+
+    EDUCATION
+    Toronto Metropolitan University, Master of Science in Computer Science (part time), Expected 2027
+    York University, Bachelor of Science in Mathematics, 2022
+
+    SKILLS
+    Python, SQL, PostgreSQL, dbt, Airflow (learning), Metabase, pandas, Git
+
+- id: ng-no-experience-winnipeg
+  summary: "CS new grad with only class projects, no internships, Winnipeg"
+  target: {role: sde, level: new_grad, location: "Winnipeg, MB", country: CA, remote_ok: true, titles: [software, developer, junior, new grad, entry]}
+  notes: "Thin resume; entry-level only."
+  resume: |
+    Ben Kowalski
+    ben.kowalski@example.com | 204-555-0207 | github.com/bkowalski-example
+
+    EDUCATION
+    University of Manitoba, Bachelor of Science in Computer Science, 2026
+
+    PROJECTS
+    Library system - Java and MySQL, team of 4, capstone project
+    Weather app - JavaScript and a public weather API
+
+    EXPERIENCE
+    Grocery Clerk, Prairie Foods, 2021 - 2026 (part time)
+
+    SKILLS
+    Java, JavaScript, Python, MySQL, HTML/CSS, Git
+
+- id: returner-gap-halifax
+  summary: "Java developer returning after a 3-year caregiving gap, 5 years before it, Halifax"
+  target: {role: sde, level: mid, location: "Halifax, NS", country: CA, remote_ok: true, titles: [java, backend, software engineer, developer]}
+  notes: "Career gap; skills partly dated."
+  resume: |
+    Laura Mitchell
+    laura.mitchell@example.com | 902-555-0210 | linkedin.com/in/laura-mitchell-example
+
+    EXPERIENCE
+    Career break (family caregiving), Jul 2022 - Sep 2025
+    - Completed a Spring Boot 3 refresher and an AWS Cloud Practitioner certificate in 2025
+    Software Developer, Atlantic Insurance Group, May 2017 - Jun 2022
+    - Maintained Java policy services used by 300 brokers; cut nightly batch time by 50%
+    - Led the move from Ant to Maven and Jenkins pipelines
+
+    EDUCATION
+    Dalhousie University, Bachelor of Computer Science, 2017
+
+    SKILLS
+    Java, Spring Boot, SQL, Oracle, Maven, Jenkins, Git, AWS (Cloud Practitioner)
+
+- id: dotnet-mid-quebec
+  summary: "Full-stack .NET developer, 4 years, C#/Angular, Quebec City, bilingual"
+  target: {role: sde, level: mid, location: "Quebec City, QC", country: CA, remote_ok: true, titles: [.net, c#, full stack, développeur, developer]}
+  resume: |
+    Mathieu Gagnon
+    mathieu.gagnon@example.com | 418-555-0213 | linkedin.com/in/mathieu-gagnon-example
+
+    EXPERIENCE
+    Développeur full-stack (Full-Stack Developer), Groupe Assurances Laurentides, Jan 2022 - Present
+    - Built claims portals in C#, ASP.NET Core and Angular for 50,000 policyholders
+    - Moved 3 applications to Azure; deployment time from a day to 15 minutes with Azure DevOps
+    Junior Developer, Solutions Capitale, Jun 2020 - Dec 2021
+
+    EDUCATION
+    Université Laval, Baccalauréat en génie logiciel (Software Engineering), 2020
+
+    SKILLS
+    C#, ASP.NET Core, Angular, TypeScript, SQL Server, Azure, Azure DevOps, Entity Framework
+    Languages: French (native), English (professional)
+
+- id: highschool-toronto
+  summary: "High school student with coding projects, wants internships"
+  target: {role: sde, level: intern, location: "Toronto, ON", country: CA, remote_ok: true, titles: [intern, software, student, high school]}
+  notes: "Too young for most internships (which need university enrolment)."
+  resume: |
+    Ryan Park
+    ryan.park@example.com | 416-555-0216 | github.com/rpark-example
+
+    EDUCATION
+    Northern Secondary School, Grade 12, Graduating June 2027
+
+    PROJECTS
+    Discord bot - Python, 1,200 servers, music and moderation commands
+    School club website - HTML, CSS, JavaScript
+
+    EXPERIENCE
+    Camp Counsellor, City Day Camps, Summer 2025
+
+    SKILLS
+    Python, JavaScript, HTML/CSS, Git

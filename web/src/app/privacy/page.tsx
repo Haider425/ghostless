@@ -37,6 +37,10 @@ export default function PrivacyPage() {
           <li><strong>Settings:</strong> theme, text size and similar display choices, in a cookie and on your account.</li>
           <li><strong>Saved jobs:</strong> the jobs you save, each application&apos;s status, and any notes you write.</li>
           <li>
+            <strong>Match feedback:</strong> jobs you mark &ldquo;Not interested&rdquo; on your matches, with the reason if you give
+            one, so they stay hidden. Signed out, this stays in your browser.
+          </li>
+          <li>
             <strong>Resumes:</strong> when you upload a resume, the text is extracted and stored with the skills and details read
             from it. The file itself is not kept. Resumes you build are stored as you write them. If you check a resume without
             an account, it stays in your browser.
@@ -55,6 +59,12 @@ export default function PrivacyPage() {
           Only to run the features you use: keeping you signed in, syncing saved jobs, scoring your resume, sending account
           emails (confirming your address and resetting your password), fixing reported problems, and understanding which pages
           are useful. There is no advertising and no data sale.
+        </p>
+        <p>
+          If you turn on &ldquo;Help improve job matching&rdquo; in Settings (it&apos;s off unless you do), your saved jobs,
+          applications and &ldquo;not interested&rdquo; choices are also used, on our own servers, to measure and improve how jobs
+          are matched. Your resume text isn&apos;t used for this and nothing is shared. Turning it off stops any further use; we
+          keep a record of when you agreed and to which wording.
         </p>
       </ProseSection>
 

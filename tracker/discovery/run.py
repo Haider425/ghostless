@@ -62,9 +62,12 @@ def run(
     run_started: datetime,
     stats: dict,
     crawl: bool = True,
+    check_candidates: bool = True,
 ) -> None:
     """Steps 1 to 4. With crawl=False (after a sharded run, where every part
-    crawled its share of boards), only the lists are read and saved."""
+    crawled its share of boards), only the lists are read and saved. With
+    check_candidates=False the candidate boards are left for the caller to
+    check (`verify_candidates` below), after the steps that matter more."""
     items: list[ListedJob] = []
     all_lists_read = True
     for job_list in lists:
@@ -91,10 +94,8 @@ def run(
         for item in items:  # entries on a company's own career site (GHOSTLESS_JSONLD)
             snowball.note_list_entry(item.company, item.url, item.list_name)
         snowball.register(dsn, configured_names)
-    with dbtraffic.step("candidate checks"):
-        checked = snowball.verify(dsn)
-    if checked["checked"]:
-        health.current.record("candidate boards checked", seen=checked["checked"], new=checked["active"])
+    if check_candidates:
+        verify_candidates(dsn)
 
     if crawl:
         crawl_boards(dsn, run_started, stats)
@@ -112,6 +113,15 @@ def run(
 
     with dbtraffic.step("dedupe"), db.connect(dsn) as conn:
         merge_duplicates(conn)
+
+
+def verify_candidates(dsn: str) -> None:
+    """Check candidate boards (GHOSTLESS_VERIFY_PER_RUN within
+    GHOSTLESS_VERIFY_MINUTES); the rest wait for the next run."""
+    with dbtraffic.step("candidate checks"):
+        checked = snowball.verify(dsn)
+    if checked["checked"]:
+        health.current.record("candidate boards checked", seen=checked["checked"], new=checked["active"])
 
 
 # ---------- 2. registering boards ----------

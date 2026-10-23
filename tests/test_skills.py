@@ -34,6 +34,17 @@ def test_go_in_lists():
     assert "Go" in extract_skills("Python, Go, Java")
 
 
+def test_golang_in_any_case():
+    # Canonical's "Senior Software Engineer - Python/Golang - Kubernetes" read as not needing Go
+    assert extract_skills("Senior Software Engineer - Python/Golang - Kubernetes") == [
+        "Go",
+        "Kubernetes",
+        "Python",
+    ]
+    for spelling in ("Golang", "golang", "GOLANG"):
+        assert "Go" in extract_skills(f"Experience with {spelling} services")
+
+
 def test_single_letter_languages_need_context():
     assert {"C", "R"} <= set(extract_skills("Languages: Python, C, R and SQL"))
     assert "C" not in extract_skills("Plan C is our backup")

@@ -415,8 +415,9 @@ def run(only: str | None = None, shard: tuple[int, int] | None = None) -> dict:
 
 def finish() -> dict:
     """After every part of a sharded run: read the job lists (registering any
-    new boards, saving list-only postings), then refresh the signals and clean
-    up. Takes seconds."""
+    new boards, saving list-only postings), refresh the signals and clean up,
+    then check candidate boards. The checks come last and stop at
+    GHOSTLESS_VERIFY_MINUTES, so a slow check can't hold up the rest."""
     from tracker.discovery import run as discovery
 
     dsn = database_url()
@@ -424,11 +425,15 @@ def finish() -> dict:
     stats = dict(jobs_seen=0, jobs_new=0, jobs_closed=0)
     health.current.reset()
     dbtraffic.traffic.reset()
-    discovery.run(dsn, load_companies(), load_lists(), run_started, stats, crawl=False)
+    discovery.run(
+        dsn, load_companies(), load_lists(), run_started, stats, crawl=False, check_candidates=False
+    )
     fill_domains(dsn)
     with dbtraffic.step("signals and clean-up"), db.connect(dsn) as conn:
         db.refresh_signals(conn)
         purge_expired(conn)
+    log.info("list postings saved and signals refreshed; checking candidate boards")
+    discovery.verify_candidates(dsn)
     report = health.current.report()
     report["database"] = log_database_reads()
     health.write_step_summary(report, "Job lists")

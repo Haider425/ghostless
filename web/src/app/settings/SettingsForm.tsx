@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import type { TrainingConsent } from "@/lib/api-types";
 import { type Prefs, htmlAttributes } from "@/lib/prefs";
 
 /** Apply preferences to <html> immediately, the same way the server does on page load. */
@@ -83,7 +84,37 @@ function Toggle({ label, description, checked, onChange }: { label: string; desc
 
 const SWATCH = "inline-block size-4 rounded-full border border-line-strong";
 
-export function SettingsForm({ initial }: { initial: Prefs }) {
+/** Off unless turned on; saved at once, on its own (it isn't a display preference). */
+function ConsentToggle({ initial }: { initial: TrainingConsent }) {
+  const [given, setGiven] = useState(initial.given);
+  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+
+  async function change(value: boolean) {
+    setGiven(value);
+    setStatus("saving");
+    const response = await fetch("/api/training-consent", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ given: value }),
+    }).catch(() => null);
+    if (response?.ok) setStatus("idle");
+    else {
+      setGiven(!value);
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <Toggle label="Help improve job matching" description={initial.text} checked={given} onChange={(v) => void change(v)} />
+      <p aria-live="polite" className="text-sm text-ink-soft">
+        {status === "saving" ? "Saving..." : status === "error" ? "Couldn't save. Check your connection." : ""}
+      </p>
+    </div>
+  );
+}
+
+export function SettingsForm({ initial, consent }: { initial: Prefs; consent: TrainingConsent | null }) {
   const [prefs, setPrefs] = useState<Prefs>(initial);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const router = useRouter();
@@ -182,6 +213,7 @@ export function SettingsForm({ initial }: { initial: Prefs }) {
           checked={prefs.analytics}
           onChange={set("analytics")}
         />
+        {consent && <ConsentToggle initial={consent} />}
       </Group>
     </div>
   );

@@ -1,0 +1,209 @@
+{
+  "system": "baseline",
+  "part": "holdout",
+  "when": "2026-10-23T03:28:20+00:00",
+  "labels": "Claude-labelled, provisional",
+  "pairs": {
+    "measured": 99,
+    "scored": 81,
+    "disputed": 18,
+    "by_label": {
+      "strong": 6,
+      "okay": 29,
+      "weak": 46
+    }
+  },
+  "ranking": {
+    "ndcg@10": 0.8488250652546249,
+    "p@3": 0.7575757575757575,
+    "people": 11,
+    "people_with_nothing_relevant": 19
+  },
+  "fit": {
+    "spearman": 0.5107548296593437,
+    "thresholds": {
+      "okay": 41,
+      "strong": 101.0,
+      "chosen_on": "tuning"
+    },
+    "accuracy": 0.6666666666666666,
+    "weighted_kappa": 0.4840764331210191
+  },
+  "words_to_add": {
+    "precision": 0.041666666666666664,
+    "fair": 37,
+    "not_fair": 851,
+    "unjudged": 0
+  },
+  "speed": {
+    "analyse_p95_ms": 7.943799952045083,
+    "score_p95_ms": 61.73969991505146
+  },
+  "per_person": {
+    "acct-to-data-analyst-toronto": {
+      "ndcg@10": 0.7328286204777911,
+      "p@3": 0.6666666666666666,
+      "pairs": 5
+    },
+    "ai-research-phd-montreal": {
+      "ndcg@10": 1.0,
+      "p@3": 0.6666666666666666,
+      "pairs": 3
+    },
+    "backend-mid-toronto": {
+      "ndcg@10": 0.6384817654960544,
+      "p@3": 0.6666666666666666,
+      "pairs": 6
+    },
+    "designer-to-frontend-ottawa": {
+      "ndcg@10": 0.6934264036172708,
+      "p@3": 0.6666666666666666,
+      "pairs": 4
+    },
+    "dotnet-mid-quebec": {
+      "ndcg@10": 1.0,
+      "p@3": 0.6666666666666666,
+      "pairs": 4
+    },
+    "embedded-coop-hamilton": {
+      "ndcg@10": 1.0,
+      "p@3": 1.0,
+      "pairs": 6
+    },
+    "hr-to-people-analytics-toronto": {
+      "ndcg@10": 0.8518080397362219,
+      "p@3": 0.3333333333333333,
+      "pairs": 5
+    },
+    "ml-ng-vancouver": {
+      "ndcg@10": 1.0,
+      "p@3": 1.0,
+      "pairs": 5
+    },
+    "quant-dev-ng-nyc": {
+      "ndcg@10": 0.8840708486175419,
+      "p@3": 1.0,
+      "pairs": 6
+    },
+    "security-student-ottawa": {
+      "ndcg@10": 0.6934264036172708,
+      "p@3": 0.6666666666666666,
+      "pairs": 4
+    },
+    "senior-frontend-remote-us": {
+      "ndcg@10": 0.8430336362387247,
+      "p@3": 1.0,
+      "pairs": 7
+    }
+  },
+  "disputed": [
+    {
+      "resume": "ios-ng-montreal",
+      "job": 10222,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "backend-mid-toronto",
+      "job": 8297,
+      "pre_label": "strong",
+      "second": "okay"
+    },
+    {
+      "resume": "backend-mid-toronto",
+      "job": 8473,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "senior-frontend-remote-us",
+      "job": 15726,
+      "pre_label": "weak",
+      "second": "okay"
+    },
+    {
+      "resume": "ml-ng-vancouver",
+      "job": 12719,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "ai-research-phd-montreal",
+      "job": 13091,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "ai-research-phd-montreal",
+      "job": 16804,
+      "pre_label": "weak",
+      "second": "okay"
+    },
+    {
+      "resume": "embedded-coop-hamilton",
+      "job": 9419,
+      "pre_label": "strong",
+      "second": "okay"
+    },
+    {
+      "resume": "security-student-ottawa",
+      "job": 16406,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "dotnet-mid-quebec",
+      "job": 12575,
+      "pre_label": "okay",
+      "second": "strong"
+    },
+    {
+      "resume": "acct-to-data-analyst-toronto",
+      "job": 8640,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "hr-to-people-analytics-toronto",
+      "job": 8640,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "hr-to-people-analytics-toronto",
+      "job": 9308,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "civil-to-gis-data-edmonton",
+      "job": 9308,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "senior-frontend-remote-us",
+      "job": 19496,
+      "pre_label": "strong",
+      "second": "okay"
+    },
+    {
+      "resume": "senior-frontend-remote-us",
+      "job": 178452,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "quant-dev-ng-nyc",
+      "job": 5488,
+      "pre_label": "okay",
+      "second": "weak"
+    },
+    {
+      "resume": "hr-to-people-analytics-toronto",
+      "job": 167,
+      "pre_label": "okay",
+      "second": "strong"
+    }
+  ]
+}

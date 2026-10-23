@@ -64,20 +64,30 @@ def _heading_kind(line: str) -> str | None:
     return None
 
 
-def split_posting(description: str) -> dict[str, str]:
-    """{kind: text} for kinds general, required, preferred, duties, skip."""
-    parts: dict[str, list[str]] = {"general": []}
+def line_kinds(description: str) -> list[tuple[str, str]]:
+    """Each line with the part it belongs to: general, required, preferred,
+    duties or skip, and "heading" for the headings themselves."""
+    out: list[tuple[str, str]] = []
     kind = "general"
     for line in description.splitlines():
         found = _heading_kind(line)
         if found:
             kind = found
-            continue
+            out.append((line, "heading"))
         # an inline "Preferred qualifications: ..." line
-        if re.match(r"^\s*(preferred|nice[\s-]to[\s-]have|bonus)\b[^:]{0,40}:", line, re.I):
-            parts.setdefault("preferred", []).append(line)
-            continue
-        parts.setdefault(kind, []).append(line)
+        elif re.match(r"^\s*(preferred|nice[\s-]to[\s-]have|bonus)\b[^:]{0,40}:", line, re.I):
+            out.append((line, "preferred"))
+        else:
+            out.append((line, kind))
+    return out
+
+
+def split_posting(description: str) -> dict[str, str]:
+    """{kind: text} for kinds general, required, preferred, duties, skip."""
+    parts: dict[str, list[str]] = {"general": []}
+    for line, kind in line_kinds(description):
+        if kind != "heading":
+            parts.setdefault(kind, []).append(line)
     return {k: "\n".join(v).strip() for k, v in parts.items() if "\n".join(v).strip()}
 
 
@@ -96,6 +106,15 @@ _DEGREE = (
     ),
 )
 DEGREE_RANK = {"bachelor": 1, "master": 2, "phd": 3}
+
+
+def degree_rank(name: str | None) -> int:
+    """A degree's rank, whichever way it's spelled: postings say "bachelor" and
+    "master", resume profiles (tracker.resume.profile) say "bachelors" and
+    "masters". A diploma, or no degree, is 0."""
+    return DEGREE_RANK.get((name or "").removesuffix("s"), 0)
+
+
 _FIELDS = (
     "computer science",
     "computer engineering",

@@ -28,7 +28,7 @@ import re
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 
-from tracker.resume.posting import DEGREE_RANK, Needs, analyze_posting, stem
+from tracker.resume.posting import Needs, analyze_posting, degree_rank, stem
 
 LEVEL_FIT = {
     "student": {"intern": 1.0, "new_grad": 0.7, "mid": 0.3, "senior": 0.05},
@@ -363,8 +363,8 @@ def _education(
         wanted = f"{needs.degree.capitalize()}'s degree" if needs.degree != "phd" else "PhD"
         if needs.degree_fields:
             wanted += f" in {needs.degree_fields[0].title()}"
-        rank_have = DEGREE_RANK.get(have or "", 0)
-        rank_need = DEGREE_RANK[needs.degree]
+        rank_have = degree_rank(have)
+        rank_need = degree_rank(needs.degree)
         field_ok = not needs.degree_fields or any(
             f in fields or any(f.split()[0] in g for g in fields) for f in needs.degree_fields
         )
